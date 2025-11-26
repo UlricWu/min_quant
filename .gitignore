@@ -209,6 +209,7 @@ __marimo__/
 ####################################
 # Local data (DO NOT track)
 ####################################
+data/
 data/raw/
 data/processed/
 data/external/
