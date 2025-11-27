@@ -1,0 +1,69 @@
+name: Auto Release PR
+
+on:
+  push:
+    branches:
+      - develop
+
+jobs:
+  create-release-pr:
+    name: Create Release Pull Request
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Set up Node.js (semantic-release utils)
+        uses: actions/setup-node@v4
+        with:
+          node-version: 18
+
+      - name: Install dependencies
+        run: |
+          npm install -g conventional-changelog-cli
+
+      - name: Generate CHANGELOG snippet since last release
+        run: |
+          conventional-changelog -p angular -r 1 > RELEASE_NOTES.md
+
+      - name: Create release branch
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+
+          git checkout -B release/auto-release
+
+      - name: Push release branch
+        run: |
+          git push -f origin release/auto-release
+
+      - name: Create or update pull request
+        uses: peter-evans/create-pull-request@v6
+        with:
+          token: ${{ secrets.GITHUB_TOKEN }}
+          title: "Release: Next Version"
+          body: |
+            ## 🔥 Auto Release PR (develop → master)
+
+            This PR contains all changes ready for the next production release.
+
+            ### 📄 Change Log (auto-generated)
+            ```
+            $(cat RELEASE_NOTES.md)
+            ```
+
+            ### ✔ Merge this PR to trigger:
+            - semantic version bump
+            - tag creation
+            - GitHub release
+            - changelog update｜
+            
+
+          base: master
+          branch: release/auto-release
+          labels: |
+            release
+            automated
