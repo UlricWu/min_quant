@@ -4,6 +4,9 @@ on:
   push:
     branches:
       - develop
+permissions:       # ⭐ 解决 403 的关键！
+  contents: write
+  pull-requests: write
 
 jobs:
   create-release-pr:
