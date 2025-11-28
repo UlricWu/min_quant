@@ -29,9 +29,9 @@ def test_symbol_router_basic(tmp_path):
     router.route_date(DATE)
 
     # 检查输出
-    sym_600000 = tmp_path / "data" / "symbol" / "600000.SH" / f"{DATE}.parquet"
-    sym_000001 = tmp_path / "data" / "symbol" / "000001.SZ" / f"{DATE}.parquet"
-    sym_300750 = tmp_path / "data" / "symbol" / "300750.SZ" / f"{DATE}.parquet"
+    sym_600000 = tmp_path / "data" / "symbol" / "600000" / f"{DATE}.parquet"
+    sym_000001 = tmp_path / "data" / "symbol" / "000001" / f"{DATE}.parquet"
+    sym_300750 = tmp_path / "data" / "symbol" / "300750" / f"{DATE}.parquet"
 
     assert sym_600000.exists()
     assert sym_000001.exists()

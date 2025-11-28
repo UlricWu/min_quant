@@ -27,12 +27,7 @@ def sample_config_file(tmp_path):
             "remote_dir": "/ftp/level2/",
             "local_raw": "data/raw/",
             "parquet_root": "data/parquet/",
-            "schema": {
-                "symbol": "string",
-                "date": "string",
-                "price": "float",
-                "volume": "int"
-            }
+            "symbols": ['603322', '002594']
         },
         "model": {
             "train_days": 100,

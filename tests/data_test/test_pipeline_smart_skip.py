@@ -99,11 +99,13 @@ def test_parquet_exists_skip_decompress_and_convert(tmp_path):
 
     with patch("src.data.pipeline.FTPDownloader") as mock_dl, \
          patch("src.data.pipeline.Decompressor") as mock_dc, \
-         patch("src.data.pipeline.CSVToParquetConverter") as mock_conv:
+         patch("src.data.pipeline.CSVToParquetConverter") as mock_conv, \
+         patch("src.data.pipeline.SymbolRouter") as mock_router:
 
         downloader = mock_dl.return_value
         decompressor = mock_dc.return_value
         converter = mock_conv.return_value
+        router = mock_router.return_value
 
         pipeline = DataPipeline()
         pipeline.run(DATE)
@@ -113,6 +115,7 @@ def test_parquet_exists_skip_decompress_and_convert(tmp_path):
         # parquet 已存在 ⇒ 不解压 & 不转换
         decompressor.extract_7z.assert_not_called()
         converter.convert.assert_not_called()
+        router.convert.assert_not_called()
 
 
 # ---------------------------------------------------------
