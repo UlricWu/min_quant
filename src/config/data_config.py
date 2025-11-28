@@ -7,4 +7,5 @@ class DataConfig(BaseModel):
     remote_dir: str
     local_raw: str
     parquet_root: str
-    schema: Dict[str, str]
+    # schema: Dict[str, str]
+    symbols: list

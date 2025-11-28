@@ -8,11 +8,12 @@ data:
   remote_dir: "level2/"
   local_raw: "data/raw/"
   parquet_root: "data/parquet/"
-  schema:
-    symbol: "string"
-    date: "string"
-    price: "float"
-    volume: "int"
+  symbols: ['603322','002594','300456','300475','300115','300395','001287','688195','300058','688110','688183','001400','300308']
+#  schema:
+#    symbol: "string"
+#    date: "string"
+#    price: "float"
+#    volume: "int"
 
 model:
   train_days: 120
