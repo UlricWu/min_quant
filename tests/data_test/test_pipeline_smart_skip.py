@@ -1,4 +1,4 @@
-#!filepath: tests/data_test/test_pipeline.py
+#!filepath: tests/data_test/test_pipeline_e2e.py
 from pathlib import Path
 from unittest.mock import patch
 
