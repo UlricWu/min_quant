@@ -39,5 +39,5 @@ def test_config_file_path(tmp_path):
     """测试 config_file 拼接是否正确"""
     path.set_root(tmp_path)
 
-    cfg = path.config_file("base.yaml")
-    assert cfg == tmp_path / "config" / "base.yaml"
+    cfg = path.config_file("base.yml")
+    assert cfg == tmp_path / "config" / "base.yml"
