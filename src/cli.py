@@ -7,8 +7,14 @@ app = typer.Typer(help="MinQuant Data Pipeline CLI")
 @app.command()
 def run(date: str):
     """运行指定日期的数据管线"""
+    import pandas as pd
+    start_date = '2025-11-01'
+    end_date = '2025-11-28'
+    dates = pd.date_range(start_date, end_date)
     p = DataPipeline()
-    p.run(date)
+    for d in dates:
+        print(d)
+        p.run(d.strftime("%Y-%m-%d"))
 
 @app.command()
 def today():
