@@ -62,6 +62,20 @@ jobs:
 #          black --check --diff src/
 
       # Run pytest
+      - name: Print working directory
+        run: pwd
+
+      - name: List repository root
+        run: ls -R .
+
+      - name: Print Python import paths
+        run: python3 - << 'EOF'
+      import sys
+      print("sys.path:")
+      for p in sys.path:
+        print(" -", p)
+      EOF
+
       - name: Run pytest
         run: |
           echo "🔥 pytest running..."
