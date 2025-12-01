@@ -69,12 +69,13 @@ jobs:
         run: ls -R .
 
       - name: Print Python import paths
-        run: python3 - << 'EOF'
-      import sys
-      print("sys.path:")
-      for p in sys.path:
-        print(" -", p)
-      EOF
+        run: |
+          python3 - << 'EOF'
+          import sys
+          print("sys.path:")
+          for p in sys.path:
+              print(" -", p)
+          EOF
 
       - name: Run pytest
         run: |
