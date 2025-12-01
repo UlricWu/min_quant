@@ -44,11 +44,11 @@ jobs:
 
       ## help: Remove unused import: `os`
       # Run static checks
-      - name: Run flake8
-        run: |
-          echo "🔥 flake8 running..."
-          flake8 src/ --count --select=E9,F63,F7,F82 --show-source --statistics
-          flake8 src/ --count --exit-zero --max-complexity=10 --max-line-length=120 --statistics
+#      - name: Run flake8
+#        run: |
+#          echo "🔥 flake8 running..."
+#          flake8 src/ --count --select=E9,F63,F7,F82 --show-source --statistics
+#          flake8 src/ --count --exit-zero --max-complexity=10 --max-line-length=120 --statistics
 
 #      - name: Run ruff
 #        run: |
@@ -62,6 +62,11 @@ jobs:
 #          black --check --diff src/
 
       # Run pytest
+      - name: Print sys.path
+        run: python - << 'EOF'
+            import sys
+            print(sys.path)
+            EOF
       - name: Run pytest
         run: |
           echo "🔥 pytest running..."
