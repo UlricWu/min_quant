@@ -1,13 +1,13 @@
-#!filepath: tests/data_test/test_ftp_downloader.py
+#!filepath: tests/dataloader_test/test_ftp_downloader.py
 from unittest.mock import patch, MagicMock
 from pathlib import Path
 
 import pytest
-from src.data.ftp_downloader import FTPDownloader
+from src.dataloader.ftp_downloader import FTPDownloader
 from src.utils.path import PathManager
 
 
-@patch("src.data.ftp_downloader.ftplib.FTP")
+@patch("src.dataloader.ftp_downloader.ftplib.FTP")
 def test_ftp_download(mock_ftp_class, tmp_path, monkeypatch):
     """
     100% 可通过的 FTPDownloader 测试，包括：
@@ -50,7 +50,7 @@ def test_ftp_download(mock_ftp_class, tmp_path, monkeypatch):
     downloader.download("2025-08-29")
 
     # ------- 断言文件确实被写出 -------
-    out_dir = tmp_path / "data" / "raw" / "2025-08-29"
+    out_dir = tmp_path / "dataloader" / "raw" / "2025-08-29"
 
     file_a = out_dir / "a.csv"
     file_b = out_dir / "b.csv"

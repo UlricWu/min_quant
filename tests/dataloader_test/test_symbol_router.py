@@ -1,4 +1,4 @@
-#!filepath: tests/data_test/test_symbol_router.py
+#!filepath: tests/dataloader_test/test_symbol_router.py
 
 
 import json
@@ -6,7 +6,7 @@ from pathlib import Path
 import pyarrow as pa
 import pyarrow.parquet as pq
 
-from src.data.symbol_router import SymbolRouter
+from src.dataloader.symbol_router import SymbolRouter
 from src.utils.path import PathManager
 
 DATE = "2025-11-23"
@@ -16,7 +16,7 @@ def test_symbol_router_basic(tmp_path):
     PathManager.set_root(tmp_path)
 
     # 创建 input parquet
-    date_dir = tmp_path / "data" / "parquet" / DATE
+    date_dir = tmp_path / "dataloader" / "parquet" / DATE
     date_dir.mkdir(parents=True)
 
     table = pa.table({
@@ -31,16 +31,16 @@ def test_symbol_router_basic(tmp_path):
     router.route_date(DATE)
 
     # 检查输出
-    sym_600000 = tmp_path / "data" / "symbol" / "600000" / f"{DATE}.parquet"
-    sym_000001 = tmp_path / "data" / "symbol" / "000001" / f"{DATE}.parquet"
-    sym_300750 = tmp_path / "data" / "symbol" / "300750" / f"{DATE}.parquet"
+    sym_600000 = tmp_path / "dataloader" / "symbol" / "600000" / f"{DATE}.parquet"
+    sym_000001 = tmp_path / "dataloader" / "symbol" / "000001" / f"{DATE}.parquet"
+    sym_300750 = tmp_path / "dataloader" / "symbol" / "300750" / f"{DATE}.parquet"
 
     assert sym_600000.exists()
     assert sym_000001.exists()
     assert sym_300750.exists()
 
     # 检查非 0/3/6 前缀的 123456 被过滤
-    assert not (tmp_path / "data/symbol/123456.SH").exists()
+    assert not (tmp_path / "dataloader/symbol/123456.SH").exists()
 
     # 校验内容
     t = pq.read_table(sym_600000)
@@ -51,9 +51,9 @@ def setup_dirs(tmp_path):
     """初始化标准目录结构"""
     PathManager.set_root(tmp_path)
 
-    parquet_dir = tmp_path / "data" / "parquet" / DATE
-    symbol_dir = tmp_path / "data" / "symbol"
-    metadata_dir = tmp_path / "data" / "metadata"
+    parquet_dir = tmp_path / "dataloader" / "parquet" / DATE
+    symbol_dir = tmp_path / "dataloader" / "symbol"
+    metadata_dir = tmp_path / "dataloader" / "metadata"
 
     parquet_dir.mkdir(parents=True, exist_ok=True)
     symbol_dir.mkdir(parents=True, exist_ok=True)

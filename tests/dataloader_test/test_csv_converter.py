@@ -1,10 +1,10 @@
-#!filepath: tests/data_test/test_csv_converter.py
+#!filepath: tests/dataloader_test/test_csv_converter.py
 import csv
 from pathlib import Path
 
 import pyarrow.parquet as pq
 
-from src.data.csv_converter import CSVToParquetConverter
+from src.dataloader.csv_converter import CSVToParquetConverter
 from src.utils.path import PathManager
 
 

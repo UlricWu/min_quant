@@ -1,5 +1,5 @@
 #!filepath: scripts/pipeline_run.py
-from src.data.pipeline import DataPipeline
+from src.dataloader.pipeline import DataPipeline
 from src import logs
 
 if __name__ == "__main__":
@@ -20,6 +20,6 @@ if __name__ == "__main__":
     #parquet_path = self.converter.convert(csv_file, relative_dir=date)
     # logs.info(f"[Runner] 数据管线完成: {date}")
     #
-    # from src.data.csv_converter import CSVToParquetConverter
+    # from src.dataloader.csv_converter import CSVToParquetConverter
     # c = CSVToParquetConverter()
     # c.convert('../tmp/decompress/2025-11-23/SH_Stock_OrderTrade.csv/SH_Stock_OrderTrade.csv')
