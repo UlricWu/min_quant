@@ -17,7 +17,7 @@ on:
 # 强制 GitHub Actions 在正确的目录运行（关键！）
 defaults:
   run:
-    working-directory: ./min_quant
+    working-directory: ./
 
 jobs:
   build-and-test:
