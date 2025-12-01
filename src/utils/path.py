@@ -51,7 +51,7 @@ class PathManager:
     # =========================
     @classmethod
     def data_dir(cls) -> Path:
-        return cls.root() / "dataloader"
+        return cls.root() / "data"
 
     @classmethod
     def raw_dir(cls) -> Path:
