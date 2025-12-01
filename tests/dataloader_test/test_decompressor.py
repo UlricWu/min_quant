@@ -1,8 +1,8 @@
-#!filepath: tests/data_test/test_decompressor.py
+#!filepath: tests/dataloader_test/test_decompressor.py
 import py7zr
 from pathlib import Path
 
-from src.data.decompressor import Decompressor
+from src.dataloader.decompressor import Decompressor
 from src.utils.path import PathManager
 
 

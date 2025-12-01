@@ -1,6 +1,6 @@
 #!filepath: src/cli.py
 import typer
-from src.data.pipeline import DataPipeline
+from src.dataloader.pipeline import DataPipeline
 
 app = typer.Typer(help="MinQuant Data Pipeline CLI")
 

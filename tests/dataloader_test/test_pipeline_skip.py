@@ -1,9 +1,9 @@
-#!filepath: tests/data_test/test_pipeline_smart_skip.py
+#!filepath: tests/dataloader_test/test_pipeline_smart_skip.py
 from pathlib import Path
 
 import pytest
 
-from src.data.pipeline import DataPipeline
+from src.dataloader.pipeline import DataPipeline
 
 
 # ================================================================
@@ -91,27 +91,27 @@ def setup_env(tmp_path: Path, monkeypatch):
     base = tmp_path
 
     # PathManager → PM(tmp_path)
-    monkeypatch.setattr("src.data.pipeline.PathManager", lambda: PM(base))
+    monkeypatch.setattr("src.dataloader.pipeline.PathManager", lambda: PM(base))
 
     # 各组件注入 Dummy
     monkeypatch.setattr(
-        "src.data.pipeline.FTPDownloader",
+        "src.dataloader.pipeline.FTPDownloader",
         lambda: DummyDownloader(base),
     )
     monkeypatch.setattr(
-        "src.data.pipeline.Decompressor",
+        "src.dataloader.pipeline.Decompressor",
         lambda: DummyDecompressor(),
     )
     monkeypatch.setattr(
-        "src.data.pipeline.CSVToParquetConverter",
+        "src.dataloader.pipeline.CSVToParquetConverter",
         lambda: DummyConverter(),
     )
     monkeypatch.setattr(
-        "src.data.pipeline.ShConverter",
+        "src.dataloader.pipeline.ShConverter",
         lambda: DummyShConverter(),
     )
     monkeypatch.setattr(
-        "src.data.pipeline.SymbolRouter",
+        "src.dataloader.pipeline.SymbolRouter",
         lambda symbols: DummySymbolRouter(),
     )
 

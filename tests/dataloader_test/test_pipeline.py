@@ -2,7 +2,7 @@
 import pytest
 from pathlib import Path
 
-from src.data.pipeline import DataPipeline
+from src.dataloader.pipeline import DataPipeline
 
 
 # ---------------------------------------------------------
@@ -15,7 +15,7 @@ def setup_env(tmp_path, monkeypatch):
         def temp_dir(self): return tmp_path / "tmp"
 
     # mock PathManager
-    monkeypatch.setattr("src.data.pipeline.PathManager", PM)
+    monkeypatch.setattr("src.dataloader.pipeline.PathManager", PM)
 
     # ---- mock 各部件（只记录调用，不做实际处理） ----
     class DummyDownloader:
@@ -56,11 +56,11 @@ def setup_env(tmp_path, monkeypatch):
         def route_date(self, date):
             self.called = True
 
-    monkeypatch.setattr("src.data.pipeline.FTPDownloader", lambda: DummyDownloader())
-    monkeypatch.setattr("src.data.pipeline.Decompressor", lambda: DummyDecompressor())
-    monkeypatch.setattr("src.data.pipeline.CSVToParquetConverter", lambda: DummyConverter())
-    monkeypatch.setattr("src.data.pipeline.ShConverter", lambda: DummySHC())
-    monkeypatch.setattr("src.data.pipeline.SymbolRouter", lambda x: DummyRouter())
+    monkeypatch.setattr("src.dataloader.pipeline.FTPDownloader", lambda: DummyDownloader())
+    monkeypatch.setattr("src.dataloader.pipeline.Decompressor", lambda: DummyDecompressor())
+    monkeypatch.setattr("src.dataloader.pipeline.CSVToParquetConverter", lambda: DummyConverter())
+    monkeypatch.setattr("src.dataloader.pipeline.ShConverter", lambda: DummySHC())
+    monkeypatch.setattr("src.dataloader.pipeline.SymbolRouter", lambda x: DummyRouter())
 
     return tmp_path
 
