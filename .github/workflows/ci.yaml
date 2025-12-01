@@ -62,11 +62,6 @@ jobs:
 #          black --check --diff src/
 
       # Run pytest
-      - name: Print sys.path
-        run: python - << 'EOF'
-            import sys
-            print(sys.path)
-            EOF
       - name: Run pytest
         run: |
           echo "🔥 pytest running..."
