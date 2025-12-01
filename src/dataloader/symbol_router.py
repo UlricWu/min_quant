@@ -77,10 +77,10 @@ class SymbolRouter:
             mask = [x == sid for x in security_ids]
             sub_table = table.filter(pa.array(mask))
 
-            out_dir = PathManager.data_dir() / "symbol" / symbol
+            out_dir = PathManager.data_dir() / "symbol" / symbol /date
             FileSystem.ensure_dir(out_dir)
 
-            out_path = out_dir / f"{date}.parquet"
+            out_path = out_dir / f"{parquet_path.name.split('_')[1]}" # SZ_Order.parquet
             logs.info(f"[write_table] out_path={out_path} ")
             pq.write_table(sub_table, out_path, compression="zstd")
 
