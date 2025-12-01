@@ -28,7 +28,7 @@ def test_file_exists(tmp_path):
 
 def test_safe_write(tmp_path):
     """测试 safe_write 是否原子写入并不残留 tmp 文件"""
-    file_path = tmp_path / "data.bin"
+    file_path = tmp_path / "dataloader.bin"
 
     data = b"1234567890"
     FileSystem.safe_write(file_path, data)
@@ -66,7 +66,7 @@ def test_get_file_size(tmp_path):
 
 def test_get_dir_size(tmp_path):
     """测试 get_dir_size 返回目录总大小"""
-    d = tmp_path / "data"
+    d = tmp_path / "dataloader"
     d.mkdir()
 
     (d / "a.bin").write_bytes(b"12345")
