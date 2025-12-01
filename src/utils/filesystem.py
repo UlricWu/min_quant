@@ -64,7 +64,7 @@ class FileSystem:
         path = Path(path)
         FileSystem.ensure_dir(path.parent)
 
-        tmp_path = path.with_suffix(".tmp")
+        tmp_path = path.with_suffix(path.suffix + ".tmp")  # 保留原后缀
 
         with open(tmp_path, "wb") as f:
             f.write(data)
