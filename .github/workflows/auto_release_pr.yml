@@ -4,70 +4,107 @@ on:
   push:
     branches:
       - develop
-permissions:       # ⭐ 解决 403 的关键！
+
+permissions:
   contents: write
   pull-requests: write
+
 jobs:
   create-release-pr:
-    name: Create Release Pull Request
+    name: Create Release PR from develop to master
     runs-on: ubuntu-latest
-    # 额外保护：确保不会在 master 或其他分支触发本 job
-#    if: github.ref == 'refs/heads/develop'
+
+    if: github.ref == 'refs/heads/develop'
 
     steps:
-      - name: Checkout code
+      - name: Checkout repository
         uses: actions/checkout@v4
         with:
           fetch-depth: 0
 
-      - name: Set up Node.js (semantic-release utils)
-        uses: actions/setup-node@v4
-        with:
-          node-version: 18
+      - name: Fetch master
+        run: git fetch origin master
 
-      - name: Install dependencies
+      # 💡 Step 1: 检查 develop vs master 是否存在变更
+      - name: Check diff
+        id: check_diff
         run: |
-          npm install -g conventional-changelog-cli
+          if git diff --quiet origin/master..HEAD; then
+            echo "no_changes=true" >> $GITHUB_OUTPUT
+          else
+            echo "no_changes=false" >> $GITHUB_OUTPUT
+          fi
 
-      - name: Generate CHANGELOG snippet since last release
+      # 🚀 没有变更则完全跳过 （避免出现 up-to-date 的假 PR）
+      - name: Stop on no changes
+        if: steps.check_diff.outputs.no_changes == 'true'
         run: |
-          conventional-changelog -p angular -r 1 > RELEASE_NOTES.md
+          echo "⚪ No new changes between develop and master. Skipping release PR."
+          exit 0
 
-      - name: Create release branch
+      # 💡 Step 2: 生成语义化 diff（更稳健更真实）
+      - name: Generate release notes
+        run: |
+          echo "## 🚀 Next Release" > RELEASE_NOTES.md
+          echo "" >> RELEASE_NOTES.md
+
+          echo "### 🔍 Changes since last release:" >> RELEASE_NOTES.md
+          echo "" >> RELEASE_NOTES.md
+
+          # 分类输出
+          echo "#### ✨ Features" >> RELEASE_NOTES.md
+          git log origin/master..HEAD --pretty=format:"- %s" | grep "^feat" || echo "- (none)" >> RELEASE_NOTES.md
+          echo "" >> RELEASE_NOTES.md
+
+          echo "#### 🐞 Fixes" >> RELEASE_NOTES.md
+          git log origin/master..HEAD --pretty=format:"- %s" | grep "^fix" || echo "- (none)" >> RELEASE_NOTES.md
+          echo "" >> RELEASE_NOTES.md
+
+          echo "#### 🔧 Refactor" >> RELEASE_NOTES.md
+          git log origin/master..HEAD --pretty=format:"- %s" | grep "^refactor" || echo "- (none)" >> RELEASE_NOTES.md
+          echo "" >> RELEASE_NOTES.md
+
+          echo "#### 📚 Docs" >> RELEASE_NOTES.md
+          git log origin/master..HEAD --pretty=format:"- %s" | grep "^docs" || echo "- (none)" >> RELEASE_NOTES.md
+          echo "" >> RELEASE_NOTES.md
+
+          echo "#### 🧹 Chore" >> RELEASE_NOTES.md
+          git log origin/master..HEAD --pretty=format:"- %s" | grep "^chore" || echo "- (none)" >> RELEASE_NOTES.md
+          echo "" >> RELEASE_NOTES.md
+
+      # 💡 Step 3: 创建 release 分支
+      - name: Prepare release branch
         run: |
           git config user.name "github-actions[bot]"
           git config user.email "github-actions[bot]@users.noreply.github.com"
 
           git checkout -B release/auto-release
+          git add RELEASE_NOTES.md
+          git commit -m "chore: update auto release notes" || echo "Nothing to commit"
 
+      # 💡 Step 4: 推送分支
       - name: Push release branch
-        run: |
-          git push -f origin release/auto-release
+        run: git push -f origin release/auto-release
 
-      - name: Create or update pull request
+      # 💡 Step 5: 创建或更新 PR
+      - name: Create or Update Release PR
         uses: peter-evans/create-pull-request@v6
         with:
           token: ${{ secrets.GITHUB_TOKEN }}
+          base: master
+          branch: release/auto-release
           title: "Release: Next Version"
+          labels: |
+            automated
+            release
           body: |
-            ## 🔥 Auto Release PR (develop → master)
+            ## 🚀 Auto Release PR (develop → master)
 
-            This PR contains all changes ready for the next production release.
+            This PR prepares the next release.
 
-            ### 📄 Change Log (auto-generated)
+            ### 📄 Changes included
+            (auto generated below)
+
             ```
             $(cat RELEASE_NOTES.md)
             ```
-
-            ### ✔ Merge this PR to trigger:
-            - semantic version bump
-            - tag creation
-            - GitHub release
-            - changelog update｜
-            
-
-          base: master
-          branch: release/auto-release
-          labels: |
-            release
-            automated
