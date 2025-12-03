@@ -124,6 +124,7 @@ def make_df():
         "BuyNo": [100, 0, 100, 100],
         "SellNo": [0, 200, 200, 0],
         "ExchangeID": [1, 1, 1, 1],
+        'SecurityID':[600001, 600002,600001, 600002],
     })
 
 
@@ -131,7 +132,7 @@ def test_orderbook_rebuilder_add_trade_cancel():
     df = make_df()
 
     # 解析事件（只做 SH）
-    ev = parse_events(df, exchange_id=1, kind="order")
+    ev = parse_events(df, kind="order")
 
     # 基于事件回放
     obr = OrderBookRebuilder(book_levels=5)

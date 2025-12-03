@@ -1,15 +1,32 @@
 #!filepath: src/l2/trade_enricher.py
 from __future__ import annotations
+
+from typing import Union, Optional
+
 import pandas as pd
 import numpy as np
 from dataclasses import dataclass
+from pathlib import Path
 
 
 @dataclass
 class TradeEnricher:
     """
-    逐笔成交增强模块，用于 Level-2 Trade 数据增强。
-    输入：必须包含 TradePrice、TradeVolume、BidPrice1、AskPrice1。
+    Level-2 逐笔成交增强模块（Trade Enricher）
+
+    ----
+    特征包括：
+    - Aggressor 主动买卖方向（B/S）
+    - is_price_impact 是否吃穿盘口
+    - impact 数值化的价格冲击
+    - trade_bucket 大/中/小单分桶
+    - burst_id 成交簇 ID（微观结构核心特征）
+    - vpin VPIN (Volume-Synchronized PIN)
+
+    ----
+    设计原则：
+    1. enrich() = 纯业务逻辑（df → df）
+    2. enrich_file() = 辅助 IO，不在 pipeline 使用
     """
 
     large_trade_pct: float = 0.90      # 大单判定：>90 分位
@@ -21,7 +38,7 @@ class TradeEnricher:
     # 主入口：增强所有特征
     # ---------------------------------------------------------
     def enrich(self, df: pd.DataFrame) -> pd.DataFrame:
-        df = df.copy()
+        # df = df.copy()
 
         # 时间戳必须在 ts 列
         df = df.sort_values("ts").reset_index(drop=True)
@@ -160,3 +177,36 @@ class TradeEnricher:
                 out.append(np.nan)
 
         return pd.Series(out)
+
+    def enrich_file(
+        self,
+        in_path: Union[str, Path],
+        out_path: Optional[Union[str, Path]] = None,
+        engine: str = "auto",
+    ) -> pd.DataFrame:
+        """
+        辅助方法：直接从 parquet 路径读取 → enrich → 可选写回 parquet。
+        不建议 pipeline 使用（Pipeline 应该手动处理 IO），
+        但 notebook/临时回测非常方便。
+
+        参数:
+            in_path: 输入 parquet 路径
+            out_path: 若提供，则将结果写入该 parquet 路径
+            engine: pandas.read_parquet 引擎（auto/pyarrow/fastparquet）
+
+        返回:
+            rich_df: 增强后的 DataFrame
+        """
+        in_path = Path(in_path)
+        if not in_path.exists():
+            raise FileNotFoundError(f"[TradeEnricher] 输入 parquet 不存在: {in_path}")
+
+        df = pd.read_parquet(in_path, engine=engine)
+        enriched = self.enrich(df)
+
+        if out_path is not None:
+            out_path = Path(out_path)
+            out_path.parent.mkdir(parents=True, exist_ok=True)
+            enriched.to_parquet(out_path, index=False)
+        return enriched
+

@@ -65,20 +65,49 @@ class DateTimeUtils:
     @classmethod
     def parse_tick_time(cls, t: Union[int, str]) -> tuple:
         """
-        tick 格式：HHMMSSmmm
-        长度：7~9 位
+        将交易所 TickTime 解析为 (hh, mm, ss, microseconds)
+
+        输入格式（A 股真实格式）：
+            HHMMSSmmm   → 9位，如 093000123
+            HMMSSmmm    → 8位，如 93000123
+            MMSSmmm     → 7位，如 3000123
+
+        参数:
+            t: TickTime（int 或 str）
+
+        返回:
+            (hh, mm, ss, μs)
         """
+        # ---- 统一成字符串 ----
         s = str(t).strip()
-        if not s.isdigit() or not (8 <= len(s) <= 9):
-            raise ValueError(f"TickTime 格式错误: {t}")
+        # if not s.isdigit():
+        #     raise ValueError(f"TickTime 必须是数字: {t}")
+        #
+        # ---- 必须是 7~9 位 ----
+        n = len(s)
+        if not (7 <= n <= 9):
+            raise ValueError(f"TickTime 长度必须 7~9 位，但收到: {t}")
 
-        # 从后往前拆
-        mmm = int(s[-3:])
-        ss  = int(s[-5:-3])
-        mm  = int(s[-7:-5])
-        hh  = int(s[:-7]) if s[:-7] else int(s[-7])
 
-        return hh, mm, ss, mmm * 1000   # 返回微秒值
+
+        if n != 9:
+            if s.startswith("9"):
+                s = '0' + s
+            if len(s) != 9:
+                s = s+ '0'
+        # 现在 s 永远是 HHMMSSmmm（3个三位数字）
+
+
+
+
+        # ⭐ 必须右向解析（这是唯一正确方法）
+        mmm = int(s[-3:])  # 毫秒
+        ss = int(s[-5:-3])
+        mm = int(s[-7:-5])
+        hh = int(s[-9:-7])
+
+
+        return hh, mm, ss, mmm
 
     # ================================================================
     # 🔥 合成最终 ts：日期 + TickTime
