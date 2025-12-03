@@ -1,144 +1,238 @@
 #!filepath: tests/dataloader_test/test_symbol_router.py
 
-
-import json
 from pathlib import Path
+from unittest.mock import patch
+
 import pyarrow as pa
-import pyarrow.parquet as pq
+import pytest
 
 from src.dataloader.symbol_router import SymbolRouter
-from src.utils.path import PathManager
-
-DATE = "2025-11-23"
 
 
-def test_symbol_router_basic(tmp_path):
-    PathManager.set_root(tmp_path)
+# ------------------------------------------------------------
+# 工具函数：构造一个简单的 Arrow Table
+# ------------------------------------------------------------
+def make_mock_table(symbol_rows: dict) -> pa.Table:
+    """
+    symbol_rows: dict, key 为 symbol(int 或 str)，value 为该 symbol 行数
+    例如: {"603322": 3, "2594": 2}
+    """
+    security_ids = []
+    values = []
+    for sid, n in symbol_rows.items():
+        sid_int = int(sid)
+        for i in range(n):
+            security_ids.append(sid_int)
+            values.append(i)
 
-    # 创建 input parquet
-    date_dir = tmp_path / "dataloader" / "parquet" / DATE
-    date_dir.mkdir(parents=True)
-
-    table = pa.table({
-        "SecurityID": ["600000", "000001", "300750", "123456"],  # 最后一个无效
-        "price": [10, 20, 30, 40],
-    })
-
-    pq.write_table(table, date_dir / "test.parquet")
-
-    # 运行 router
-    router = SymbolRouter()
-    router.route_date(DATE)
-
-    # 检查输出
-    sym_600000 = tmp_path / "dataloader" / "symbol" / "600000" / f"{DATE}.parquet"
-    sym_000001 = tmp_path / "dataloader" / "symbol" / "000001" / f"{DATE}.parquet"
-    sym_300750 = tmp_path / "dataloader" / "symbol" / "300750" / f"{DATE}.parquet"
-
-    assert sym_600000.exists()
-    assert sym_000001.exists()
-    assert sym_300750.exists()
-
-    # 检查非 0/3/6 前缀的 123456 被过滤
-    assert not (tmp_path / "dataloader/symbol/123456.SH").exists()
-
-    # 校验内容
-    t = pq.read_table(sym_600000)
-    assert t.column("SecurityID").to_pylist() == ["600000"]
+    return pa.table(
+        {
+            "SecurityID": pa.array(security_ids, type=pa.int32()),
+            "value": pa.array(values, type=pa.int32()),
+        }
+    )
 
 
-def setup_dirs(tmp_path):
-    """初始化标准目录结构"""
-    PathManager.set_root(tmp_path)
+# ------------------------------------------------------------
+# fixture：构造临时目录结构
+# ------------------------------------------------------------
+@pytest.fixture
+def mock_paths(tmp_path):
+    """
+    构造如下结构（全部在 tmp_path 下）：
 
-    parquet_dir = tmp_path / "dataloader" / "parquet" / DATE
-    symbol_dir = tmp_path / "dataloader" / "symbol"
-    metadata_dir = tmp_path / "dataloader" / "metadata"
+    tmp_path/
+      parquet/
+        2025-01-03/
+          SH_Order.parquet
+          SZ_Order.parquet
+      symbol/
+        （后续按 symbol / date 创建）
+    """
+    parquet_root = tmp_path / "parquet"
+    parquet_root.mkdir()
 
-    parquet_dir.mkdir(parents=True, exist_ok=True)
-    symbol_dir.mkdir(parents=True, exist_ok=True)
-    metadata_dir.mkdir(parents=True, exist_ok=True)
+    symbol_root = tmp_path / "symbol"
+    symbol_root.mkdir()
 
-    return parquet_dir, symbol_dir, metadata_dir
+    date_dir = parquet_root / "2025-01-03"
+    date_dir.mkdir()
+
+    sh_order = date_dir / "SH_Order.parquet"
+    sz_order = date_dir / "SZ_Order.parquet"
+
+    sh_order.touch()
+    sz_order.touch()
+
+    return {
+        "parquet_root": parquet_root,
+        "symbol_root": symbol_root,
+        "date_dir": date_dir,
+        "sh_order": sh_order,
+        "sz_order": sz_order,
+    }
 
 
-def create_test_parquet(parquet_dir: Path):
-    """创建一个测试 parquet，模拟真实 level2 输出"""
+# ------------------------------------------------------------
+# fixture：mock PathManager
+# ------------------------------------------------------------
+@pytest.fixture
+def patch_path_manager(mock_paths):
+    """
+    mock:
+      - PathManager.parquet_dir() → mock_paths["parquet_root"]
+      - PathManager.symbol_dir(symbol, date) → symbol_root / symbol / date
+    """
+    with patch("src.dataloader.symbol_router.PathManager") as PM:
+        PM.parquet_dir.return_value = mock_paths["parquet_root"]
+        PM.symbol_dir.side_effect = (
+            lambda symbol, date: mock_paths["symbol_root"] / str(symbol) / date
+        )
+        yield PM
 
-    table = pa.table({
-        "SecurityID": ["600000", "000001", "300750", "123456"],  # 最后一个应被过滤
-        "price": [10, 20, 30, 40],
-    })
 
-    file_path = parquet_dir / "test_data.parquet"
-    pq.write_table(table, file_path)
+# ------------------------------------------------------------
+# fixture：mock RouterMetadata，避免真实写入
+# ------------------------------------------------------------
+@pytest.fixture
+def patch_metadata():
+    with patch("src.dataloader.symbol_router.RouterMetadata") as RM:
+        meta = RM.return_value
+        meta.reset.return_value = None
+        meta.save.return_value = None
+        meta.add_symbol_output.return_value = None
+        meta.add_filtered.return_value = None
+        yield RM
 
-    return file_path, table
+
+# ------------------------------------------------------------
+# fixture：mock FileSystem.ensure_dir，保证兼容
+# ------------------------------------------------------------
+@pytest.fixture
+def patch_filesystem():
+    def _ensure_dir(path: Path):
+        path.mkdir(parents=True, exist_ok=True)
+
+    with patch("src.dataloader.symbol_router.FileSystem") as FS:
+        FS.ensure_dir.side_effect = _ensure_dir
+        yield FS
 
 
-# -------------------------------------------------------------------
-#                         E2E 测试（无 pipeline）
-# -------------------------------------------------------------------
-def test_symbol_router_e2e(tmp_path):
-    """完整测试：拆分 symbol → 写 parquet → 写 metadata"""
+# ------------------------------------------------------------
+# 测试 1：混合交易所 + smart-skip
+# ------------------------------------------------------------
+def test_symbol_router_smart_skip_mixed_exchange(
+    mock_paths, patch_path_manager, patch_metadata, patch_filesystem
+):
+    """
+    场景：
 
-    parquet_dir, symbol_dir, metadata_dir = setup_dirs(tmp_path)
+    - self.symbols = ["603322", "002594"] （上交所 + 深交所混合）
+    - 有两个 parquet:
+        SH_Order.parquet
+        SZ_Order.parquet
+    - 预先创建 SZ 002594 的目标文件，使得 SZ_Order.parquet 可被完全跳过
 
-    # 1) 准备一个输入 parquet
-    parquet_path, table = create_test_parquet(parquet_dir)
+    期望：
 
-    # 2) 初始化 router
-    router = SymbolRouter()
+    1. SH_Order.parquet 被读取（因为 603322 文件不存在，需要拆分）
+    2. SZ_Order.parquet 不被读取（因为 002594 对应文件已存在 → smart-skip）
+    3. 只写出 603322 对应文件，不写 002594
+    """
 
-    # 3) 运行 router
-    router.route_date(DATE)
+    # 这里用字符串 symbol，兼容你的 __init__（无论是 int → str 还是直接 str）
+    symbols = ["603322", "002594"]
+    router = SymbolRouter(symbols=symbols)
 
-    # -------------------------------------------------------------------
-    # 4) 检查 symbol parquet 是否生成
-    # -------------------------------------------------------------------
+    # mock 的 Arrow 表：603322 有 3 行，002594 有 2 行
+    mock_table = make_mock_table({"603322": 3, "2594": 2})
 
-    out_600000 = symbol_dir / "600000" / f"{DATE}.parquet"
-    out_000001 = symbol_dir / "000001" / f"{DATE}.parquet"
-    out_300750 = symbol_dir / "300750" / f"{DATE}.parquet"
-    out_123456 = symbol_dir / "123456" / f"{DATE}.parquet"
+    # 为 SZ 002594 创建已存在的目标文件：symbol_dir("002594", "2025-01-03") / "Order.parquet"
+    sz_symbol_dir = mock_paths["symbol_root"] / "002594" / "2025-01-03"
+    sz_symbol_dir.mkdir(parents=True, exist_ok=True)
+    (sz_symbol_dir / "Order.parquet").touch()
 
-    assert out_600000.exists(), "600000 parquet 未生成"
-    assert out_000001.exists(), "000001 parquet 未生成"
-    assert out_300750.exists(), "300750 parquet 未生成"
-    assert not out_123456.exists(), "123456 不应生成（非法 symbol）"
+    # patch pq.read_table / pq.write_table（注意 patch 别名 pq）
+    with patch(
+        "src.dataloader.symbol_router.pq.read_table", return_value=mock_table
+    ) as mock_read, patch(
+        "src.dataloader.symbol_router.pq.write_table"
+    ) as mock_write:
 
-    # -------------------------------------------------------------------
-    # 5) 检查 parquet 内容
-    # -------------------------------------------------------------------
+        router.route_date("2025-01-03")
 
-    t600000 = pq.read_table(out_600000)
-    assert t600000.column("SecurityID").to_pylist() == ["600000"]
+        # ---- 校验 read_table 调用情况 ----
+        # 应该至少被调用一次（SH_Order.parquet）
+        assert mock_read.call_count >= 1
 
-    t000001 = pq.read_table(out_000001)
-    assert t000001.column("SecurityID").to_pylist() == ["000001"]
+        called_files = [str(call.args[0]) for call in mock_read.call_args_list]
 
-    # -------------------------------------------------------------------
-    # 6) 检查 metadata JSON
-    # -------------------------------------------------------------------
+        # SH_Order.parquet 肯定要被读
+        assert any(
+            "SH_Order.parquet" in f for f in called_files
+        ), "SH_Order.parquet 应被读取"
 
-    meta_json_path = metadata_dir / f"{DATE}.json"
-    assert meta_json_path.exists(), "metadata JSON 未生成"
+        # SZ_Order.parquet 不应被读（smart-skip 生效）
+        assert not any(
+            "SZ_Order.parquet" in f for f in called_files
+        ), "SZ_Order.parquet 应被 smart-skip，不能被读取"
 
-    meta = json.loads(meta_json_path.read_text())
+        # ---- 校验 write_table 调用情况 ----
+        assert mock_write.call_count >= 1, "应至少写出一个 symbol 文件"
 
-    # 输入文件
-    assert len(meta["input_files"]) == 1
-    assert meta["input_files"][0]["file"] == "test_data.parquet"
+        write_paths = [str(call.args[1]) for call in mock_write.call_args_list]
 
-    # 输出 symbol
-    symbols = [s["symbol"] for s in meta["symbols"]]
-    assert "600000" in symbols
-    assert "000001" in symbols
-    assert "300750" in symbols
+        # 应写出 603322
+        assert any(
+            "603322" in p for p in write_paths
+        ), "应包含 SH symbol=603322 的输出文件"
 
-    # 非法 symbol
-    assert "123456" in meta["filtered_symbols"]
+        # 不应写出 002594（因为已经存在）
+        assert not any(
+            "002594" in p for p in write_paths
+        ), "002594 对应文件已存在，应被 smart-skip，不应再次写出"
 
-    # 数量
-    assert meta["symbols_count"] == 3
-    assert meta["rows_total"] == 3, "三只股票各 1 行，应为 3 行"
+
+# ------------------------------------------------------------
+# 测试 2：所有 symbol 文件都已存在 → 整个 parquet 完全跳过
+# ------------------------------------------------------------
+def test_symbol_router_skip_entire_parquet_when_all_exist(
+    mock_paths, patch_path_manager, patch_metadata, patch_filesystem
+):
+    """
+    场景：
+
+    - self.symbols = ["603322"]
+    - 仅关注 SH_Order.parquet
+    - 预先创建 603322 对应输出文件
+
+    期望：
+
+    - SH_Order.parquet 完全被跳过，不调用 read_table
+    """
+
+    symbols = ["603322"]
+    router = SymbolRouter(symbols=symbols)
+
+    # 预先创建 603322 的目标文件：symbol_dir("603322", "2025-01-03") / "Order.parquet"
+    sh_symbol_dir = mock_paths["symbol_root"] / "603322" / "2025-01-03"
+    sh_symbol_dir.mkdir(parents=True, exist_ok=True)
+    (sh_symbol_dir / "Order.parquet").touch()
+
+    # patch read_table，验证不被调用
+    with patch("src.dataloader.symbol_router.pq.read_table") as mock_read, patch(
+        "src.dataloader.symbol_router.pq.write_table"
+    ) as mock_write:
+
+        router.route_date("2025-01-03")
+
+        # 所有相关 symbol 文件已存在 → 不应该读 parquet
+        assert (
+            mock_read.call_count == 0
+        ), "所有 symbol 输出已存在，应 smart-skip 整个 SH_Order.parquet"
+
+        # 也不应再写任何文件
+        assert (
+            mock_write.call_count == 0
+        ), "所有 symbol 输出已存在，不应再写 parquet 文件"
+

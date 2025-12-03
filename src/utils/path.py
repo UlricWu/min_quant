@@ -2,6 +2,8 @@
 from pathlib import Path
 from typing import Optional
 
+from pydantic.v1.datetime_parse import date_re
+
 from src import logs
 
 
@@ -51,19 +53,23 @@ class PathManager:
     # =========================
     @classmethod
     def data_dir(cls) -> Path:
-        return cls.root() / "dataloader"
+        return cls.root() / "data"
 
     @classmethod
-    def raw_dir(cls) -> Path:
-        return cls.data_dir() / "raw"
+    def raw_dir(cls, date=None) -> Path:
+        p = cls.data_dir() / "raw"
+        if date:
+            return p / date
+        return p
 
     @classmethod
     def raw_csv_dir(cls) -> Path:
         return cls.data_dir() / "raw_csv"
 
     @classmethod
-    def parquet_dir(cls) -> Path:
-        return cls.data_dir() / "parquet"
+    def parquet_dir(cls, date=None) -> Path:
+        p = cls.data_dir() / "parquet"
+        return p
 
     @classmethod
     def logs_dir(cls) -> Path:
@@ -85,3 +91,22 @@ class PathManager:
     def temp_dir(cls) -> Path:
         return cls.root() / "tmp"
 
+    @classmethod
+    def symbol_dir(cls, symbol, date=None) -> Path:
+        p = cls.data_dir() / "symbol" / symbol
+        if date is not None:
+            return p / date
+
+        return p
+
+    @classmethod
+    def order_dir(cls, symbol, date) -> Path:
+        return cls.symbol_dir(symbol, date) / "Order.parquet"
+
+    @classmethod
+    def trade_dir(cls, symbol, date) -> Path:
+        return cls.symbol_dir(symbol, date) / "Trade.parquet"
+
+    @classmethod
+    def snapshot_dir(cls, symbol, date) -> Path:
+        return cls.symbol_dir(symbol, date) / "Snapshot.parquet"
