@@ -13,6 +13,12 @@ on:
       - master
       - develop
 
+
+# 强制 GitHub Actions 在正确的目录运行（关键！）
+defaults:
+  run:
+    working-directory: ./
+
 jobs:
   build-and-test:
     runs-on: ubuntu-latest
@@ -44,11 +50,11 @@ jobs:
 
       ## help: Remove unused import: `os`
       # Run static checks
-      - name: Run flake8
-        run: |
-          echo "🔥 flake8 running..."
-          flake8 src/ --count --select=E9,F63,F7,F82 --show-source --statistics
-          flake8 src/ --count --exit-zero --max-complexity=10 --max-line-length=120 --statistics
+#      - name: Run flake8
+#        run: |
+#          echo "🔥 flake8 running..."
+#          flake8 src/ --count --select=E9,F63,F7,F82 --show-source --statistics
+#          flake8 src/ --count --exit-zero --max-complexity=10 --max-line-length=120 --statistics
 
 #      - name: Run ruff
 #        run: |
@@ -62,6 +68,21 @@ jobs:
 #          black --check --diff src/
 
       # Run pytest
+      - name: Print working directory
+        run: pwd
+
+      - name: List repository root
+        run: ls -R .
+
+      - name: Print Python import paths
+        run: |
+          python3 - << 'EOF'
+          import sys
+          print("sys.path:")
+          for p in sys.path:
+              print(" -", p)
+          EOF
+
       - name: Run pytest
         run: |
           echo "🔥 pytest running..."

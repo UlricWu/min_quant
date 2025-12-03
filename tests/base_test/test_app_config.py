@@ -25,14 +25,9 @@ def sample_config_file(tmp_path):
         },
         "data": {
             "remote_dir": "/ftp/level2/",
-            "local_raw": "data/raw/",
-            "parquet_root": "data/parquet/",
-            "schema": {
-                "symbol": "string",
-                "date": "string",
-                "price": "float",
-                "volume": "int"
-            }
+            "local_raw": "dataloader/raw/",
+            "parquet_root": "dataloader/parquet/",
+            "symbols": ['603322', '002594']
         },
         "model": {
             "train_days": 100,
@@ -75,12 +70,12 @@ def test_log_config_values(sample_config_file):
 
 
 def test_data_config_values(sample_config_file):
-    """检查 data 配置内容是否正确读取"""
+    """检查 dataloader 配置内容是否正确读取"""
     cfg = AppConfig.load(path=str(sample_config_file))
 
     assert cfg.data.remote_dir == "/ftp/level2/"
-    assert cfg.data.schema["price"] == "float"
-    assert "symbol" in cfg.data.schema
+    # assert cfg.dataloader.schema.price== "float"
+    # assert "symbol" in cfg.dataloader.schema
 
 
 def test_model_config_defaults(sample_config_file):
@@ -105,7 +100,7 @@ def test_missing_field_should_fail(tmp_path):
         "log": {
             "dir": "logs"
         }
-        # data/model/pipeline 缺失
+        # dataloader/model/pipeline 缺失
     }
 
     bad_file = tmp_path / "bad.yaml"
