@@ -180,10 +180,6 @@ class DataPipeline:
             df_enriched = parse_events(df_raw, kind='trade')
             df_enriched.to_parquet(enriched_path, index=False)
 
-            # df_enriched = self.trade_enricher.enrich(trade_path)
-            # FileSystem.ensure_dir(sym_dir)
-            # df_enriched.to_parquet(enriched_path, index=False)
-
         logs.info(f"[Pipeline] === Trade Enrich 完成 ===")
 
         # ==============================================================
