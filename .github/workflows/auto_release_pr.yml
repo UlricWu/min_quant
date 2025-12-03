@@ -23,7 +23,20 @@ jobs:
           fetch-depth: 0
 
       - name: Fetch master
-        run: git fetch origin master
+        run: git fetch --all --tags
+
+
+      - name: Print GIT HEAD info
+        run: |
+          echo "Current branch:"
+          git branch --show-current
+
+          echo "HEAD commit:"
+          git log -1 --oneline
+
+          echo "Commits diff master..HEAD:"
+          git log origin/master..HEAD --oneline || true
+
 
       # 1️⃣ 检查 develop 和 master 是否有差异
       - name: Check diff between develop and master
