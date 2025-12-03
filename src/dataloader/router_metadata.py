@@ -51,6 +51,10 @@ class RouterMetadata:
 
         json_path = out_dir / f"{date}.json"
 
+        rows = sum(x["rows"] for x in self.symbol_output)
+
+        if rows == 0:
+            return
         summary = {
             "date": date,
             "time": datetime.now().isoformat(),
@@ -58,7 +62,7 @@ class RouterMetadata:
             "symbols": self.symbol_output,
             "filtered_symbols": sorted(set(self.filtered_symbols)),
             "symbols_count": len(self.symbol_output),
-            "rows_total": sum(x["rows"] for x in self.symbol_output),
+            "rows_total": rows,
         }
 
         # ----- 写 JSON -----
@@ -66,4 +70,3 @@ class RouterMetadata:
             json.dump(summary, f, ensure_ascii=False, indent=2)
 
         logs.info(f"[RouterMetadata] 写入 JSON: {json_path}")
-

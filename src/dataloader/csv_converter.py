@@ -42,7 +42,6 @@ class CSVToParquetConverter:
 
         return dtype_map
 
-    @Retry.decorator()
     @logs.catch()
     def convert(self, csv_path: Path, relative_dir: Optional[str] = None) -> Path:
         """
@@ -85,8 +84,12 @@ class CSVToParquetConverter:
             delimiter=',',
             quote_char='"',
             escape_char=False,
+            newlines_in_values=True,  # ← 允许跨行字段
         )
 
+        # ✔ 在正常情况下 TickTime 应该是： 2025-11-07 09:40:41.750
+        # ❌ 而数据源给你的是： 2025-11-07
+        # 09:40:41.750
         convert_options = pacsv.ConvertOptions(
             null_values=["", "NA"],  # 统一 null
             strings_can_be_null=True,

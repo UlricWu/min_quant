@@ -12,6 +12,8 @@ from src.utils.path import PathManager
 from src.config.app_config import AppConfig
 from src import logs
 
+from src.l2.orderbook.orderbook_rebuilder import OrderBookRebuilder
+
 
 class DataPipeline:
     """
@@ -29,13 +31,11 @@ class DataPipeline:
 
         self.path_manager = PathManager()
 
-
-
     # -----------------------------------------------------
     def run(self, date: str):
         logs.info(f"[Pipeline] ==== 开始处理 {date} ====")
 
-        raw_dir = self.path_manager.raw_dir() / date
+        raw_dir = self.path_manager.raw_dir(date)
         parquet_dir = self.path_manager.parquet_dir() / date
         tmp_dir = self.path_manager.temp_dir() / "decompress" / date
         #
@@ -66,7 +66,6 @@ class DataPipeline:
 
             # ------ 1.  SH 文件 + 已产生拆分文件 → 完全跳过 ------
             if 'SH' in stem and order_file.exists() and trade_file.exists():
-
                 msg = f"[Pipeline] SH 已存在：{order_file}, {trade_file} → 跳过 {stem}"
                 logs.info(msg)
                 continue
@@ -87,7 +86,7 @@ class DataPipeline:
                 tmp_csv = tmp_dir / f"{stem}.csv"
 
                 # ------ 4. 检查csv文件 ------
-
+                print(tmp_csv)
                 if not tmp_csv.exists():
                     FileSystem.ensure_dir(tmp_dir)
                     self.decompressor.extract_7z(zfile, str(tmp_dir))
@@ -98,13 +97,27 @@ class DataPipeline:
             # -----------------------------------------------------
             # ★ 6 — 对 parquet 进行 SH 拆分（ShConverter）
             # # # -----------------------------------------------------
+            if 'SZ' in zfile.name:
+                continue
             logs.info(f"[Pipeline] 检测到上交所混合文件 → 拆分: {parquet_file}")
             self.shc.split(parquet_file)
-            FileSystem.remove(parquet_file)
+            # FileSystem.remove(parquet_file)
 
         # -----------------------------------------------------
         # ★ Step 7 — SymbolRouter（按 symbol 拆分）
         # -----------------------------------------------------
         self.router.route_date(date)
 
+        # # =================================================================
+        # # Step 4：订单簿重建 Snapshot（逐个 symbol）
+        # # =================================================================
+        #
+        logs.info(f"[Pipeline] === OrderBook Snapshot 重建: {date} ===")
+        #
+        rebuilder = OrderBookRebuilder()
+
+        for symbol in self.cfg.data.symbols:
+            # ===================== 重建 Snapshot =====================
+            rebuilder.build(symbol, date, write=True)
+        #
         logs.info(f"[Pipeline] ==== 完成处理 {date} ====")

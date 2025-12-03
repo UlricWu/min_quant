@@ -7,5 +7,3 @@ pytest==8.4.1
 python-dotenv==1.2.1
 PyYAML==6.0.3
 typer==0.20.0
-
-
