@@ -70,17 +70,19 @@ jobs:
           git log origin/master..HEAD --pretty=format:"- %s" >> RELEASE_NOTES.md
 
       # 3️⃣ 准备 release 分支（强制同步为 develop HEAD，并包含 RELEASE_NOTES.md）
-      - name: Prepare release branch
+      - name: Prepare release branch (force sync with develop)
         run: |
           git config user.name "github-actions[bot]"
           git config user.email "github-actions[bot]@users.noreply.github.com"
-
-          # 强制创建/重置 release/auto-release = develop
-          git checkout -B release/auto-release
-          git reset --hard HEAD   # HEAD 即 develop
-
+      
+          # ⭐ 强制 release 分支 = develop 最新 commit
+          git checkout -B release/auto-release ${{ github.sha }}
+          git reset --hard ${{ github.sha }}
+      
+          # 写入 Release Notes
           git add RELEASE_NOTES.md
           git commit -m "chore: update auto release notes" || echo "Nothing to commit"
+
 
       # 4️⃣ 推送 release 分支
       - name: Push release branch
