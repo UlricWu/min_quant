@@ -21,68 +21,97 @@ class SymbolRouter:
         self.symbols = [int(s) for s in symbols] if symbols else None
 
     def route_date(self, date: str):
-        logs.info(f"[SymbolRouter] ==== Symbol 路由 date={date} ====")
-
+        logs.info(f"[SymbolRouter] ==== Symbol router date={date} ====")
         date_dir = PathManager.parquet_dir() / date
         if not date_dir.exists():
             logs.warning(f"[route_date] date_dir={date_dir} does not exist")
             return
 
-        logs.info(f"[SymbolRouter] 处理日期 {date}")
         self.meta.reset()
-        logs.info(f"[symbol lists]={self.symbols}")
 
         for parquet_file in date_dir.glob("*.parquet"):
-            # 记录 input parquet 信息
-            rows = pq.read_table(parquet_file).num_rows
-            self.meta.add_input_file(parquet_file.name, rows)
-
             self._route_single_parquet(parquet_file, date)
 
         # 最终写入 metadata
         self.meta.save(date)
         logs.info(f"[SymbolRouter] ==== 完成 {date} ====")
 
+    # ========================== 核心修改开始 ================================
+    def _symbol_matches_exchange(self, symbol: str, is_sh: bool, is_sz: bool):
+        """上交所 symbol 以 6 开头；深交所以 0/3 开头"""
+        if is_sh:
+            return symbol.startswith("6")
+        if is_sz:
+            return symbol.startswith(("0", "3"))
+        return False
 
     # ----------------------------------------------------
     @logs.catch()
     def _route_single_parquet(self, parquet_path: Path, date: str):
-        logs.info(f"[SymbolRouter] 正在拆分 {parquet_path}")
+        logs.info(f"[SymbolRouter] 处理 {parquet_path.name}")
 
+        is_sh = parquet_path.name.lower().startswith("sh_")
+        is_sz = parquet_path.name.lower().startswith("sz_")
+        # ------------------------------
+        # 第 1 阶段：快速判断是否需要处理该 parquet
+        # ------------------------------
+        candidate_symbols = []
+        for sid in self.symbols:
+
+            symbol = f"{sid:06d}"
+            # 交易所不匹配 → 跳过
+            if not self._symbol_matches_exchange(symbol, is_sh, is_sz):
+                continue
+
+            # 目标输出文件，例如 Order.parquet / Trade.parquet
+            out_file = PathManager.symbol_dir(symbol, date) / parquet_path.name.split("_")[1]
+
+            if out_file.exists():
+                logs.debug(f"[smart-skip] {symbol} 目标文件已存在，跳过该 symbol")
+                continue  # 不加入候选列表
+
+            # symbol 必须满足过滤前缀
+            if not symbol.startswith(self.ALLOWED_PREFIX):
+                self.meta.add_filtered(symbol)
+                continue
+
+            candidate_symbols.append(symbol)
+
+        # ------------------------------------------------
+        # 2）精确跳过 parquet：如果没有 symbol 要处理 → 完全跳过，不读取 parquet
+        # ------------------------------------------------
+        if not candidate_symbols:
+            logs.info(f"[smart-skip] {parquet_path.name} 全部 symbol 已存在 → 跳过该 parquet")
+            return
+
+        # ------------------------------------------------
+        # 3）真正读取 parquet（只有当需要处理 symbol 时才会进入）
+        # ------------------------------------------------
         table = pq.read_table(parquet_path)
         if "SecurityID" not in table.schema.names:
             logs.warning(f"{parquet_path} 缺少 SecurityID")
             return
 
         security_ids = table.column("SecurityID").to_pylist()
-        unique_sids = sorted(set(security_ids))
-
-        for sid in unique_sids:
-            if sid is None:
-                continue
-            symbol = str(sid)
-            if len(symbol) < 6:
-                symbol = '0' * (6 - len(symbol)) + symbol
-            # sid = 507 type=<class 'int'>, symbol = '000507'
-
-            if not symbol.startswith(SymbolRouter.ALLOWED_PREFIX):
-                self.meta.add_filtered(symbol)  # 过滤非法 symbol
-                continue
-
-            if self.symbols and sid not in self.symbols:  # int
-                continue
-
-            logs.info(f"[symbol->parquet] symbol={symbol}")
-
-            mask = [x == sid for x in security_ids]
+        # ------------------------------------------------
+        # 4）逐 symbol 拆分
+        # ------------------------------------------------
+        for symbol in candidate_symbols:
+            mask = [x == int(symbol) for x in security_ids]
             sub_table = table.filter(pa.array(mask))
 
-            out_dir = PathManager.data_dir() / "symbol" / symbol
-            FileSystem.ensure_dir(out_dir)
+            if not sub_table.num_rows:
+                logs.debug(f"[filter] no data for symbol={symbol}")
+                continue
 
-            out_path = out_dir / f"{date}.parquet"
-            logs.info(f"[write_table] out_path={out_path} ")
-            pq.write_table(sub_table, out_path, compression="zstd")
+            logs.info(f"[symbol] 正在拆分 symbol={symbol}")
+
+            symbol_path = PathManager.symbol_dir(symbol, date)
+            FileSystem.ensure_dir(symbol_path)
+            symbol_file = symbol_path / parquet_path.name.split("_")[1]
+
+            logs.info(f"[write] {symbol} → {symbol_file}")
+            pq.write_table(sub_table, symbol_file, compression="zstd")
 
             self.meta.add_symbol_output(symbol, sub_table.num_rows)
 
