@@ -53,7 +53,7 @@ class Logging:
             diagnose=True,
         )
 
-        logger.info("-----------Logger initialized successfully.-----------")
+        logger.info("\n-----------Logger initialized successfully.-----------")
 
     # ---------- 基础接口封装 ----------
     # ----------- 日志方法 -----------
