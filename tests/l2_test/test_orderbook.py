@@ -1,5 +1,4 @@
 #!filepath: tests/l2_test/test_orderbook_null_conditions.py
-import pandas as pd
 from src.l2.orderbook.orderbook_store import OrderBook
 
 
@@ -103,13 +102,10 @@ def test_sell_side_absent_initially_and_after_trade():
     assert snap["bid_prices"][0] == 9.5
 #!filepath: tests/l2_test/test_orderbook_rebuilder.py
 import pandas as pd
-from datetime import datetime
 from zoneinfo import ZoneInfo
 
 from src.l2.orderbook.orderbook_rebuilder import OrderBookRebuilder
-from src.l2.common.event_parser import parse_events
-from src.utils.datetime_utils import DateTimeUtils as dt
-
+from src.l2.event_parser import parse_events
 
 SH_TZ = ZoneInfo("Asia/Shanghai")
 
