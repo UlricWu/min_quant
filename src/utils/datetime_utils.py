@@ -1,80 +1,128 @@
 #!filepath: src/utils/datetime_utils.py
 from __future__ import annotations
-from datetime import datetime, timedelta, time
-from typing import Optional, List, Union
+from datetime import datetime, timedelta, time, date
+from typing import List, Union
 from zoneinfo import ZoneInfo
 
 
 class DateTimeUtils:
-    """
-    统一的时间解析、时区转换、交易时间判断等工具。
-    ZoneInfo 版本，不再依赖 pytz。
-    """
-
     SH_TZ = ZoneInfo("Asia/Shanghai")
-    trading_days: List[datetime.date] = []
+    trading_days: List[date] = []
 
-    # ---------------------------------------------------------
-    # 统一解析时间：int / str / datetime → datetime(tz=Asia/Shanghai)
-    # ---------------------------------------------------------
+    # ================================================================
+    # 🔥 从 TradeTime 中提取日期（供应商提供完整字符串）
+    # ================================================================
+    @classmethod
+    def extract_date(cls, trade_time: Union[str, datetime, int]) -> date:
+        """
+        TradeTime 输入可能为：
+            "2025-11-07 09:15:00.040"
+            "2025/11/07 09:15:00"
+            "20251107"
+            1762177123456789000    # ns timestamp
+        """
+        # int → datetime
+        if isinstance(trade_time, int):
+            return cls.parse(trade_time).date()
+
+        # datetime 直接取日期
+        if isinstance(trade_time, datetime):
+            return trade_time.date()
+
+        s = str(trade_time).strip()
+
+        # YYYY-MM-DD / YYYY/MM/DD
+        for fmt in ["%Y-%m-%d", "%Y/%m/%d"]:
+            try:
+                return datetime.strptime(s[:10], fmt).date()
+            except Exception:
+                pass
+
+        # YYYYMMDD
+        if len(s) >= 8 and s[:8].isdigit():
+            try:
+                return datetime.strptime(s[:8], "%Y%m%d").date()
+            except Exception:
+                pass
+
+        # 完整 datetime 字符串
+        for fmt in [
+            "%Y-%m-%d %H:%M:%S.%f",
+            "%Y-%m-%d %H:%M:%S",
+            "%Y/%m/%d %H:%M:%S.%f",
+            "%Y/%m/%d %H:%M:%S",
+        ]:
+            try:
+                return datetime.strptime(s, fmt).date()
+            except Exception:
+                pass
+
+        raise ValueError(f"无法从 TradeTime 提取日期: {trade_time}")
+
+    # ================================================================
+    # 🔥 TickTime（如 91500060）→ (hh, mm, ss, microsec)
+    # ================================================================
+    @classmethod
+    def parse_tick_time(cls, t: Union[int, str]) -> tuple:
+        """
+        tick 格式：HHMMSSmmm
+        长度：7~9 位
+        """
+        s = str(t).strip()
+        if not s.isdigit() or not (8 <= len(s) <= 9):
+            raise ValueError(f"TickTime 格式错误: {t}")
+
+        # 从后往前拆
+        mmm = int(s[-3:])
+        ss  = int(s[-5:-3])
+        mm  = int(s[-7:-5])
+        hh  = int(s[:-7]) if s[:-7] else int(s[-7])
+
+        return hh, mm, ss, mmm * 1000   # 返回微秒值
+
+    # ================================================================
+    # 🔥 合成最终 ts：日期 + TickTime
+    # ================================================================
+    @classmethod
+    def combine_date_tick(cls, d: date, tick: tuple) -> datetime:
+        hh, mm, ss, micros = tick
+        return datetime(d.year, d.month, d.day, hh, mm, ss, micros, tzinfo=cls.SH_TZ)
+
+    # ================================================================
+    # parse() 用于解析 TradeTime（完整时间字符串）或 timestamp
+    # ================================================================
     @classmethod
     def parse(cls, ts: Union[int, str, datetime]) -> datetime:
-        """
-        自动识别时间格式：
-        - int: 秒 / 毫秒 / 微秒 / 纳秒
-        - str: 若干常见日期格式
-        - datetime: 保持时区一致
-        """
-
-        # Already datetime
         if isinstance(ts, datetime):
-            if ts.tzinfo is None:
-                return ts.replace(tzinfo=cls.SH_TZ)
-            return ts.astimezone(cls.SH_TZ)
+            return ts.astimezone(cls.SH_TZ) if ts.tzinfo else ts.replace(tzinfo=cls.SH_TZ)
 
-        # -----------------------------
-        # int → timestamp
-        # -----------------------------
+        # int timestamp
         if isinstance(ts, int):
-            ts_str = str(ts)
-            if len(ts_str) == 10:       # 秒
+            s = str(ts)
+            if len(s) == 10:   # 秒
                 return datetime.fromtimestamp(ts, cls.SH_TZ)
-            elif len(ts_str) == 13:     # 毫秒
+            if len(s) == 13:
                 return datetime.fromtimestamp(ts / 1000, cls.SH_TZ)
-            elif len(ts_str) == 16:     # 微秒
+            if len(s) == 16:
                 return datetime.fromtimestamp(ts / 1_000_000, cls.SH_TZ)
-            elif len(ts_str) == 19:     # 纳秒
+            if len(s) == 19:
                 return datetime.fromtimestamp(ts / 1_000_000_000, cls.SH_TZ)
-            else:
-                raise ValueError(f"无法识别的时间戳长度: {ts}")
+            raise ValueError(f"无法识别的整数时间戳: {ts}")
 
-        # -----------------------------
-        # str → datetime
-        # -----------------------------
+        # 字符串 → datetime
         if isinstance(ts, str):
-
-            # 完整日期 + 时间
-            fmts_full = [
-                "%Y-%m-%d %H:%M:%S",
+            ts = ts.strip()
+            fmts = [
                 "%Y-%m-%d %H:%M:%S.%f",
-                "%Y%m%d %H:%M:%S",
-                "%Y%m%d %H:%M:%S.%f",
+                "%Y-%m-%d %H:%M:%S",
+                "%Y/%m/%d %H:%M:%S.%f",
+                "%Y/%m/%d %H:%M:%S",
                 "%Y%m%d%H%M%S",
             ]
-
-            for fmt in fmts_full:
+            for fmt in fmts:
                 try:
-                    dt = datetime.strptime(ts, fmt)
-                    return dt.replace(tzinfo=cls.SH_TZ)
-                except Exception:
-                    pass
-
-            # 纯日期格式（无时分秒）
-            fmts_date = ["%Y-%m-%d", "%Y%m%d"]
-            for fmt in fmts_date:
-                try:
-                    d = datetime.strptime(ts, fmt).date()
-                    return datetime.combine(d, time.min).replace(tzinfo=cls.SH_TZ)
+                    dtime = datetime.strptime(ts, fmt)
+                    return dtime.replace(tzinfo=cls.SH_TZ)
                 except Exception:
                     pass
 
@@ -82,80 +130,49 @@ class DateTimeUtils:
 
         raise TypeError(f"不支持的时间类型: {type(ts)}")
 
-    # ---------------------------------------------------------
-    # 时区转换
-    # ---------------------------------------------------------
+    # ---------------------------------------------------------------
+    # trading time/day operations（保持原样）
+    # ---------------------------------------------------------------
     @classmethod
-    def to_shanghai(cls, dt: datetime) -> datetime:
-        return cls.parse(dt)
+    def is_trading_time(cls, dt_: datetime) -> bool:
+        dt_ = cls.parse(dt_)
+        t = dt_.time()
+        return (time(9, 30) <= t <= time(11, 30)) or (time(13, 0) <= t <= time(15, 0))
 
-    @classmethod
-    def to_utc(cls, dt: datetime) -> datetime:
-        dt = cls.parse(dt)
-        return dt.astimezone(ZoneInfo("UTC"))
-
-    # ---------------------------------------------------------
-    # A股交易时间判断
-    # ---------------------------------------------------------
-    @classmethod
-    def is_trading_time(cls, dt: datetime) -> bool:
-        dt = cls.parse(dt)
-        t = dt.time()
-
-        # todo 集合竞价
-        # 上午 09:30 - 11:30
-        if time(9, 30) <= t <= time(11, 30):
-            return True
-        # 下午 13:00 - 15:00
-        if time(13, 0) <= t <= time(15, 0):
-            return True
-
-        return False
-
-    # ---------------------------------------------------------
-    # 交易日操作
-    # ---------------------------------------------------------
     @classmethod
     def set_trading_days(cls, days: List[Union[str, datetime]]):
-        parsed = [cls.parse(d).date() for d in days]
-        cls.trading_days = sorted(parsed)
+        cls.trading_days = sorted([cls.parse(d).date() for d in days])
 
     @classmethod
-    def is_trading_day(cls, dt: Union[str, datetime]) -> bool:
+    def is_trading_day(cls, dt_: Union[str, datetime]) -> bool:
         if not cls.trading_days:
             raise ValueError("未设置 trading_days")
-        return cls.parse(dt).date() in cls.trading_days
+        return cls.parse(dt_).date() in cls.trading_days
 
     @classmethod
-    def next_trading_day(cls, dt: Union[str, datetime]) -> datetime:
+    def next_trading_day(cls, dt_: Union[str, datetime]) -> datetime:
         if not cls.trading_days:
             raise ValueError("未设置 trading_days")
-
-        d = cls.parse(dt).date()
+        d = cls.parse(dt_).date()
         for td in cls.trading_days:
             if td > d:
                 return datetime.combine(td, time.min).replace(tzinfo=cls.SH_TZ)
         raise ValueError("没有下一个交易日")
 
     @classmethod
-    def prev_trading_day(cls, dt: Union[str, datetime]) -> datetime:
+    def prev_trading_day(cls, dt_: Union[str, datetime]) -> datetime:
         if not cls.trading_days:
             raise ValueError("未设置 trading_days")
-
-        d = cls.parse(dt).date()
+        d = cls.parse(dt_).date()
         prev = None
         for td in cls.trading_days:
             if td < d:
                 prev = td
-
         if prev:
             return datetime.combine(prev, time.min).replace(tzinfo=cls.SH_TZ)
         raise ValueError("没有前一个交易日")
 
-    # ---------------------------------------------------------
-    # 时间偏移
-    # ---------------------------------------------------------
     @classmethod
-    def add_minutes(cls, dt: Union[str, datetime], minutes: int) -> datetime:
-        dt = cls.parse(dt)
-        return dt + timedelta(minutes=minutes)
+    def add_minutes(cls, dt_: Union[str, datetime], minutes: int) -> datetime:
+        dt_ = cls.parse(dt_)
+        return dt_ + timedelta(minutes=minutes)
