@@ -104,10 +104,11 @@ class OrderBookRebuilder:
         order_path = self.path.order_dir(symbol, date)
         trade_path = self.path.trade_dir(symbol, date)
 
-        if not order_path.exists():
-            raise FileNotFoundError(order_path)
-        if not trade_path.exists():
-            raise FileNotFoundError(trade_path)
+        # if not order_path.exists():
+        #     return
+        #     # raise FileNotFoundError(order_path)
+        # if not trade_path.exists():
+        #     # raise FileNotFoundError(trade_path)
 
         df_order = pq.read_table(order_path).to_pandas()
         df_trade = pq.read_table(trade_path).to_pandas()
