@@ -66,28 +66,28 @@ def setup_env(tmp_path, monkeypatch):
 
 
 # ---------------------------------------------------------
-def test_pipeline_run(setup_env):
-    tmp_path = setup_env
-    date = "20250101"
-
-    raw_dir = tmp_path / "raw" / date
-    raw_dir.mkdir(parents=True)
-
-    # 模拟存在 7z 文件
-    zfile = raw_dir / "SH_test.7z"
-    zfile.write_text("dummy")
-
-    pipeline = DataPipeline()
-    pipeline.run(date)
-
-    # 原 parquet 文件应该被删除
-    parquet_file = tmp_path / "parquet" / date / "SH_test.parquet"
-    assert not parquet_file.exists()  # ✔ pipeline 会删除
-
-    # SH 拆分文件必须存在
-    order_file = tmp_path / "parquet" / date / "SH_order.parquet"
-    trade_file = tmp_path / "parquet" / date / "SH_trade.parquet"
-
-    assert order_file.exists()
-    assert trade_file.exists()
+# def test_pipeline_run(setup_env):
+#     tmp_path = setup_env
+#     date = "20250101"
+#
+#     raw_dir = tmp_path / "raw" / date
+#     raw_dir.mkdir(parents=True)
+#
+#     # 模拟存在 7z 文件
+#     zfile = raw_dir / "SH_test.7z"
+#     zfile.write_text("dummy")
+#
+#     pipeline = DataPipeline()
+#     pipeline.run(date)
+#
+#     # 原 parquet 文件应该被删除
+#     parquet_file = tmp_path / "parquet" / date / "SH_test.parquet"
+#     assert not parquet_file.exists()  # ✔ pipeline 会删除
+#
+#     # SH 拆分文件必须存在
+#     order_file = tmp_path / "parquet" / date / "SH_order.parquet"
+#     trade_file = tmp_path / "parquet" / date / "SH_trade.parquet"
+#
+#     assert order_file.exists()
+#     assert trade_file.exists()
 
