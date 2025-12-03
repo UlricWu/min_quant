@@ -9,11 +9,10 @@ def run(date: str):
     """运行指定日期的数据管线"""
     import pandas as pd
     start_date = '2025-11-03'
-    end_date = '2025-11-07'
+    end_date = '2025-11-12'
     dates = pd.date_range(start_date, end_date)
     p = DataPipeline()
     for d in dates:
-        print(d)
         d = d.strftime("%Y-%m-%d")
         # if d == '2025-11-23':
         #     continue

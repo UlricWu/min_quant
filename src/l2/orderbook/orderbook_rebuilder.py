@@ -11,8 +11,7 @@ from src.utils.path import PathManager
 from src.utils.filesystem import FileSystem
 from src import logs
 
-from src.l2.common.event_parser import parse_events
-from src.utils.datetime_utils import DateTimeUtils as dt
+from src.l2.event_parser import parse_events
 
 
 # ============================================================
@@ -54,9 +53,9 @@ class OrderBook:
         side: B 表示来自买方主动单 → 冲击 ask
         side: S 表示卖方主动单 → 冲击 bid
         """
-        if side == "B":      # 买主动 → 卖盘吃掉
+        if side == "B":  # 买主动 → 卖盘吃掉
             book = self.ask
-        else:                # 卖主动 → 买盘吃掉
+        else:  # 卖主动 → 买盘吃掉
             book = self.bid
 
         if price in book:
@@ -105,10 +104,11 @@ class OrderBookRebuilder:
         order_path = self.path.order_dir(symbol, date)
         trade_path = self.path.trade_dir(symbol, date)
 
-        if not order_path.exists():
-            raise FileNotFoundError(order_path)
-        if not trade_path.exists():
-            raise FileNotFoundError(trade_path)
+        # if not order_path.exists():
+        #     return
+        #     # raise FileNotFoundError(order_path)
+        # if not trade_path.exists():
+        #     # raise FileNotFoundError(trade_path)
 
         df_order = pq.read_table(order_path).to_pandas()
         df_trade = pq.read_table(trade_path).to_pandas()
@@ -117,8 +117,8 @@ class OrderBookRebuilder:
         logs.info(f"[OrderBook] Exchange = {exchange_id} (1=SH, 2=SZ)")
 
         # 解析事件
-        ev_order = parse_events(df_order, exchange_id, "order")
-        ev_trade = parse_events(df_trade, exchange_id, "trade")
+        ev_order = parse_events(df_order, "order")
+        ev_trade = parse_events(df_trade, "trade")
 
         events = (
             pd.concat([ev_order, ev_trade], ignore_index=True)
@@ -212,10 +212,10 @@ class OrderBookRebuilder:
     def format_snapshot(self, ts, snap):
         row = {"ts": ts}
         for i in range(self.book_levels):
-            row[f"BidPrice{i+1}"] = snap["bid_prices"][i] if i < len(snap["bid_prices"]) else None
-            row[f"BidVolume{i+1}"] = snap["bid_volumes"][i] if i < len(snap["bid_volumes"]) else 0
-            row[f"AskPrice{i+1}"] = snap["ask_prices"][i] if i < len(snap["ask_prices"]) else None
-            row[f"AskVolume{i+1}"] = snap["ask_volumes"][i] if i < len(snap["ask_volumes"]) else 0
+            row[f"BidPrice{i + 1}"] = snap["bid_prices"][i] if i < len(snap["bid_prices"]) else None
+            row[f"BidVolume{i + 1}"] = snap["bid_volumes"][i] if i < len(snap["bid_volumes"]) else 0
+            row[f"AskPrice{i + 1}"] = snap["ask_prices"][i] if i < len(snap["ask_prices"]) else None
+            row[f"AskVolume{i + 1}"] = snap["ask_volumes"][i] if i < len(snap["ask_volumes"]) else 0
         return row
 
     # ---------------------------------------------------------
