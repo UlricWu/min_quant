@@ -195,6 +195,18 @@ class DataPipeline:
 
         for symbol in self.cfg.data.symbols:
             # ===================== 重建 Snapshot =====================
+            # 读取数据
+            order_path = self.path_manager.order_dir(symbol, date)
+            trade_path = self.path_manager.trade_dir(symbol, date)
+
+            if not order_path.exists():
+                logs.warning(f'[order] symbol={symbol} not found {order_path}')
+                continue
+            if not trade_path.exists():
+                logs.warning(f'[trade] symbol={symbol}  not found {trade_path}')
+
+                continue
+
             rebuilder.build(symbol, date, write=True)
         #
         logs.info(f"[Pipeline] ==== 完成处理 {date} ====")
