@@ -3,7 +3,6 @@ name: Release
 on:
   push:
     branches:
-      - main
       - master
 
 permissions:
@@ -20,15 +19,22 @@ jobs:
       - name: Checkout repository
         uses: actions/checkout@v4
         with:
-          fetch-depth: 0   # 重要：语义化发布需要完整 git 历史
+          fetch-depth: 0  # 必须为 0，semantic-release 要完整 git 历史
 
       - name: Setup Node.js
         uses: actions/setup-node@v4
         with:
           node-version: 18
 
-      - name: Install semantic-release
-        run: npm install -g semantic-release @semantic-release/git @semantic-release/changelog @semantic-release/github
+      - name: Install semantic-release and plugins
+        run: |
+          npm install -g \
+            semantic-release \
+            @semantic-release/commit-analyzer \
+            @semantic-release/release-notes-generator \
+            @semantic-release/changelog \
+            @semantic-release/git \
+            @semantic-release/github
 
       - name: Run semantic-release
         env:
