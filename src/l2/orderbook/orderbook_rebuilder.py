@@ -11,8 +11,7 @@ from src.utils.path import PathManager
 from src.utils.filesystem import FileSystem
 from src import logs
 
-from src.l2.common.event_parser import parse_events
-from src.utils.datetime_utils import DateTimeUtils as dt
+from src.l2.event_parser import parse_events
 
 
 # ============================================================
