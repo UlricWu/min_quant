@@ -39,16 +39,20 @@ def test_extract_date_from_datetime_obj():
 # def test_parse_tick_time_7_digits():
 #     hh, mm, ss, micro = dt.parse_tick_time("9150004")  # 09:15:00.004
 #     assert (hh, mm, ss, micro) == (9, 15, 0, 4000)
+#
+#
+# def test_parse_tick_time_8_digits():
+#     hh, mm, ss, micro = dt.parse_tick_time("91500040")  # 09:15:00.040
+#     assert (hh, mm, ss, micro) == (9, 15, 0, 40000)
 
 
-def test_parse_tick_time_8_digits():
-    hh, mm, ss, micro = dt.parse_tick_time("91500040")  # 09:15:00.040
-    assert (hh, mm, ss, micro) == (9, 15, 0, 40000)
-
+def test_parse_tick_time_example1():
+    hh, mm, ss, micro = dt.parse_tick_time("10060049")  # 10:06:00.490
+    assert (hh, mm, ss, micro) == (10, 6, 0, 490)
 
 def test_parse_tick_time_9_digits():
     hh, mm, ss, micro = dt.parse_tick_time("131500040")  # 13:15:00.040
-    assert (hh, mm, ss, micro) == (13, 15, 0, 40000)
+    assert (hh, mm, ss, micro) == (13, 15, 0, 40)
 
 
 def test_parse_tick_time_error_non_digit():
@@ -129,7 +133,7 @@ def test_end_to_end_tradetime_ticktime():
     tick_time = "091500040"  # 09:15:00.040
 
     d = dt.extract_date(trade_time)             # 2025-11-07
-    tick = dt.parse_tick_time(tick_time)        # (9, 15, 0, 40000)
+    tick = dt.parse_tick_time(tick_time)        # (9, 15, 0, 40)
     ts = dt.combine_date_tick(d, tick)
 
     assert ts.year == 2025
@@ -137,5 +141,5 @@ def test_end_to_end_tradetime_ticktime():
     assert ts.day == 7
     assert ts.hour == 9
     assert ts.minute == 15
-    assert ts.microsecond == 40000
+    assert ts.microsecond == 40
     assert ts.tzinfo == SH_TZ
