@@ -4,53 +4,48 @@ on:
   push:
     branches:
       - develop
-permissions: # ⭐ 解决 403 的关键！
+
+permissions:
   contents: write
   pull-requests: write
+
 jobs:
-  create-release-pr:
-    name: Create Release Pull Request
+  auto-release:
     runs-on: ubuntu-latest
-    # 额外保护：确保不会在 master 或其他分支触发本 job
-    if: github.ref == 'refs/heads/develop'
 
     steps:
-      - name: Checkout code
-        uses: actions/checkout@v4
+      - uses: actions/checkout@v4
         with:
           fetch-depth: 0
 
-      - name: Ensure we are on develop
+      # Step 1: 获取 develop 最新提交
+      - name: Fetch all branches
+        run: git fetch --all
+
+      - name: Create clean release branch from develop
         run: |
           git checkout develop
-          echo "Current HEAD:"
-          git log -1 --oneline
+          git pull origin develop
 
-      # ⭐ 关键点 1：用 develop 直接创建 / 覆盖 release 分支
-      - name: Create/Reset release branch from develop
-        run: |
-          git checkout -B release/auto-release develop
+          # 强制创建全新 release 分支（真正从 develop 起点）
+          git branch -f release/auto-release develop
           git push -f origin release/auto-release
 
-      # ⭐ 关键点 2：只用 create-pull-request 创建/更新 PR，不改任何 commit
-      - name: Create or update PR develop -> master
+      # Step 2: 创建 PR（create-pull-request 不会改动代码）
+      - name: Create PR
         uses: peter-evans/create-pull-request@v6
         with:
           token: ${{ secrets.GITHUB_TOKEN }}
           base: master
-          branch: release/auto-release
+          branch: release/auto-release            # 注意这里不用 prefix
           title: "Release: Next Version"
           body: |
             ## 🚀 Auto Release PR (develop → master)
 
-            This PR was generated automatically from the latest state of **develop**.
+            This PR contains all semantic-release changes from develop.
+            
+            ✔ After merging, semantic-release will create a new version/tag.
 
-            All commits between `master` and `develop` will be included in this release.
-
-            ✅ After review, merge this PR to trigger **semantic-release** on `master`.
           labels: |
             release
-            automated
-          draft: false
-
-
+          delete-branch: false
