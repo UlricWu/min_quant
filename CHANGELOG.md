@@ -1,3 +1,10 @@
+## [0.6.6](https://github.com/UlricWu/min_quant/compare/v0.6.5...v0.6.6) (2025-12-04)
+
+
+### Bug Fixes
+
+* auto syn master ([d524f09](https://github.com/UlricWu/min_quant/commit/d524f091fdb8907b55b90575ae50832d031632bf))
+
 ## [0.6.5](https://github.com/UlricWu/min_quant/compare/v0.6.4...v0.6.5) (2025-12-04)
 
 
