@@ -4,74 +4,50 @@ on:
   push:
     branches:
       - develop
-
 permissions:
   contents: write
   pull-requests: write
-
 jobs:
-  auto-release-pr:
+  create-release-pr:
     runs-on: ubuntu-latest
 
     steps:
-      # --------------------------------------------------------
-      # 1. Checkout EXACT develop commit (关键，不可改)
-      # --------------------------------------------------------
-      - name: Checkout commit
+      # 1. 检出代码
+      - name: Checkout repository
         uses: actions/checkout@v4
         with:
           fetch-depth: 0
-          ref: ${{ github.sha }}
 
-      # --------------------------------------------------------
-      # 2. Create semantic-release compatible commit
-      #    ❗ 不需要生成任何文件，只需要一个 allow-empty commit
-      # --------------------------------------------------------
-      - name: Create semantic-release trigger commit
-        run: |
-          git config user.name "github-actions[bot]"
-          git config user.email "github-actions[bot]@users.noreply.github.com"
+      # 2. 可选：这里可以跑一下快速检查（或者你也可以完全依赖已有的 ci.yaml）
+      # - name: Run tests
+      #   run: |
+      #     echo "可以在这里跑 pytest 或 lint"
 
-          # ⭐ allow-empty: 即使没有变动也能生成 commit（semantic-release 会识别）
-          git commit --allow-empty -m "feat(release): prepare next version" || true
-
-      # --------------------------------------------------------
-      # 3. Force-create release branch from develop commit
-      # --------------------------------------------------------
-      - name: Sync release branch
-        run: |
-          git checkout -B release/auto-release ${{ github.sha }}
-          git reset --hard ${{ github.sha }}
-
-          # 将触发语义化的 commit 保留到 release 分支
-          git cherry-pick HEAD~0 || true
-
-      - name: Push release branch
-        run: git push -f origin release/auto-release
-
-      # --------------------------------------------------------
-      # 4. Create PR without modifying commits
-      # --------------------------------------------------------
-      - name: Create Pull Request
-        uses: peter-evans/create-pull-request@v6
+      # 3. 创建 / 更新 release PR
+      - name: Create or update release PR
+        uses: repo-sync/pull-request@v2
         with:
-          token: ${{ secrets.GITHUB_TOKEN }}
-          base: master
-          branch: release/auto-release
-          delete-branch: false   # 不允许它删除/重建我们的分支
-          title: "Release: Next Version"
-          labels: |
-            release
-            automated
-          body: |
-            ## 🚀 Auto Release PR (develop → master)
+          # GitHub 会自动注入 GITHUB_TOKEN，不需要你自己配置
+          github_token: ${{ secrets.GITHUB_TOKEN }}
 
-            This PR was generated automatically.
+          # 从哪个分支发起 PR（源分支）
+          source_branch: develop
 
-            It contains an empty semantic-release commit:
+          # 目标分支：发版目标
+          destination_branch: master
 
-            ```
-            feat(release): prepare next version
-            ```
+          # PR 标题
+          pr_title: "chore(release): Auto release from develop to master"
 
-            Merging this PR will trigger semantic-release to publish the next version.
+          # PR 内容
+          pr_body: |
+            这是一个自动生成的发版 PR：
+            - 源分支：develop
+            - 目标分支：master
+
+            请检查变更内容，如果没问题，手动点击 Merge。
+
+          # 如果已经有一个同样方向的 PR，就更新它，而不是新建很多个
+          pr_label: "release"
+          pr_allow_empty: false
+          pr_draft: false
