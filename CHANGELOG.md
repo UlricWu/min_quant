@@ -1,3 +1,10 @@
+# [0.4.0](https://github.com/UlricWu/min_quant/compare/v0.3.0...v0.4.0) (2025-12-04)
+
+
+### Features
+
+* direct semantic-release test ([227cf74](https://github.com/UlricWu/min_quant/commit/227cf74c4b1eb3394006510441fc6ba97907fd92))
+
 # [0.3.0](https://github.com/UlricWu/min_quant/compare/v0.2.1...v0.3.0) (2025-12-04)
 
 
