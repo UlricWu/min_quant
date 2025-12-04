@@ -21,6 +21,7 @@
 * add workflow ([a0b23bf](https://github.com/UlricWu/min_quant/commit/a0b23bf21763e83ba9bac0b849c540486e078dce))
 * auto release ' ([a83b180](https://github.com/UlricWu/min_quant/commit/a83b180811fde582e68aac7a411f85123aa673bb))
 * auto release PR end-to-end verification ([8b72d8b](https://github.com/UlricWu/min_quant/commit/8b72d8b862f2017878932bf1c432fc12eb6ac5bb))
+* auto-release pipeline test ([f870063](https://github.com/UlricWu/min_quant/commit/f870063f29b2b3bc710c099dd5a3b14c8029071b))
 * ci test ([0db7f69](https://github.com/UlricWu/min_quant/commit/0db7f695af0c64b3cd44b5357b09f0342253fa1d))
 * clean autorelease test ([b25918b](https://github.com/UlricWu/min_quant/commit/b25918b217b2d122576beb1d53439a290a940c91))
 * clean' ([da4aac7](https://github.com/UlricWu/min_quant/commit/da4aac79129f16c1d52f9840cf4211d4e96eb641))
