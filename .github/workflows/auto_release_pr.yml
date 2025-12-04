@@ -12,78 +12,36 @@ permissions:
 jobs:
   auto-release-pr:
     runs-on: ubuntu-latest
-    name: Create Auto Release PR
 
     steps:
-      # --------------------------------------------------------
-      # 1) Always checkout THIS commit (not develop head)
-      # --------------------------------------------------------
       - name: Checkout commit
         uses: actions/checkout@v4
         with:
           fetch-depth: 0
           ref: ${{ github.sha }}
 
-      - name: Debug commit
+      - name: Prepare release files
         run: |
-          echo "HEAD commit:"
-          git log -1 --oneline
+          echo "Auto Release $(date)" > RELEASE_NOTES.md
+          git add RELEASE_NOTES.md
+          git commit -m "feat(release): prepare next version" || true
 
-      # --------------------------------------------------------
-      # 2) Prepare semantic-release compatible commit
-      #    (Empty commit but triggers semantic-release)
-      # --------------------------------------------------------
-      - name: Create semantic-release commit
-        run: |
-          git config user.name "github-actions[bot]"
-          git.config user.email "github-actions[bot]@users.noreply.github.com"
-
-          # ⭐ IMPORTANT: allow-empty ensures commit always exists
-          git commit --allow-empty -m "feat(release): prepare next version" || true
-
-      # --------------------------------------------------------
-      # 3) Force-create release branch from this develop commit
-      # --------------------------------------------------------
-      - name: Sync release branch
-        run: |
-          git checkout -B release/auto-release ${{ github.sha }}
-          git reset --hard ${{ github.sha }}
-
-          # Include the semantic-release commit
-          git cherry-pick HEAD~0 || true
-
-      - name: Push release branch
-        run: git push -f origin release/auto-release
-
-      # --------------------------------------------------------
-      # 4) Create PR (NEVER overwrite commit content)
-      # --------------------------------------------------------
-      - name: Create PR
+      - name: Create release PR
         uses: peter-evans/create-pull-request@v6
         with:
           token: ${{ secrets.GITHUB_TOKEN }}
-
-          # PR target branch
           base: master
 
-          # PR head branch
+          # ⭐ 每次创建新的 release 分支
           branch: release/auto-release
-          delete-branch: false
+#          branch-suffix: timestamp
+
+          # ⭐ 删除旧 release 分支（非常关键，防止 update）
+          delete-branch: true
 
           title: "Release: Next Version"
           labels: |
             release
             automated
-
           body: |
-            ## 🚀 Auto Release PR (develop → master)
-
-            This PR was generated automatically.
-
-            It contains the release preparation commit:
-
-            ```
-            feat(release): prepare next version
-            ```
-
-            Merging this PR will trigger semantic-release and bump the version.
+            Auto release PR generated from develop.
