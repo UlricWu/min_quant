@@ -1,3 +1,10 @@
+## [0.6.5](https://github.com/UlricWu/min_quant/compare/v0.6.4...v0.6.5) (2025-12-04)
+
+
+### Bug Fixes
+
+* test auto syn ([c34aafb](https://github.com/UlricWu/min_quant/commit/c34aafb999fff4806be02640bbdd6f4583d681bd))
+
 ## [0.6.4](https://github.com/UlricWu/min_quant/compare/v0.6.3...v0.6.4) (2025-12-04)
 
 
