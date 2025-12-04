@@ -38,6 +38,31 @@ jobs:
             It prepares the release branch.
           pr_label: "auto-release"
 
+      - name: Generate Final Release Notes
+        id: final_notes
+        run: |
+            echo "Generating final release notes..."
+            
+            NOTES=$(git log origin/master..origin/release/auto-release --pretty=format:"- %s" --reverse)
+            
+            cat <<EOF > final_notes.txt
+            ### 🎉 Final Release Notes Before Publishing
+      
+            #### 📝 Commits Included in This Release
+            $NOTES
+      
+            #### 📌 Next Steps
+            After merging this PR into **master**, semantic-release will:
+      
+              - Automatically determine version bump (major/minor/patch)
+              - Generate CHANGELOG.md
+              - Create GitHub Release & Tag
+              - Publish artifacts (if configured)
+      
+            EOF
+            
+            echo "::set-output name=body::$(cat final_notes.txt)"
+
       # STEP 3: 创建 release/auto-release → master PR（你需要的）
       - name: Create PR from release/auto-release → master
         uses: repo-sync/pull-request@v2
@@ -46,7 +71,5 @@ jobs:
           destination_branch: master
           github_token: ${{ secrets.GITHUB_TOKEN }}
           pr_title: "chore(release): Release → master"
-          pr_body: |
-            Auto generated PR from release/auto-release to master.
-            Please merge manually to trigger semantic-release.
+          pr_body: ${{ steps.final_notes.outputs.body }}
           pr_label: "release"
