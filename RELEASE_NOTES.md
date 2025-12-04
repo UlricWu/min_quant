@@ -27,6 +27,7 @@
 * clean' ([da4aac7](https://github.com/UlricWu/min_quant/commit/da4aac79129f16c1d52f9840cf4211d4e96eb641))
 * force auto release trigger test ([5c1f27c](https://github.com/UlricWu/min_quant/commit/5c1f27cc2fd45cd1f9f5b42e7eea1fd87cff24b8))
 * new start ci ([8545732](https://github.com/UlricWu/min_quant/commit/8545732fbd03160575080505f294983627505e55))
+* semantic release test ([22d1ec7](https://github.com/UlricWu/min_quant/commit/22d1ec7a1758d584464e565535db2bdd10839a93))
 * test semantic release end-to-end ([58d271f](https://github.com/UlricWu/min_quant/commit/58d271f7ff911bb2ac237c8c2c5c9225a6fa138a))
 * test semantic release pipeline ([98cbf4f](https://github.com/UlricWu/min_quant/commit/98cbf4f9aecfcf52f608a711bb1150c095ac8d24))
 * verify autorelease ([607bb3f](https://github.com/UlricWu/min_quant/commit/607bb3f25144adacb1d9e58606e5b070ce4bf19d))
