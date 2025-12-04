@@ -10,103 +10,68 @@ permissions:
   pull-requests: write
 
 jobs:
-  create-release-pr:
-    name: Create Release PR from develop to master
+  auto-release-pr:
     runs-on: ubuntu-latest
 
-    if: github.ref == 'refs/heads/develop'
-
     steps:
-      - name: Checkout repository
+      # --------------------------------------------------------
+      # 1. Checkout EXACT develop commit (关键，不可改)
+      # --------------------------------------------------------
+      - name: Checkout commit
         uses: actions/checkout@v4
         with:
           fetch-depth: 0
-          ref: develop    # ⭐ 强制 HEAD = develop 最新 commit
+          ref: ${{ github.sha }}
 
-      - name: Ensure latest develop
-        run: git pull origin develop
-
-      - name: Fetch master
-        run: git fetch --all --tags
-
-
-      - name: Print GIT HEAD info
-        run: |
-          echo "Current branch:"
-          git branch --show-current
-
-          echo "HEAD commit:"
-          git log -1 --oneline
-
-          echo "Commits diff master..HEAD:"
-          git log origin/master..HEAD --oneline || true
-
-
-      # 1️⃣ 检查 develop 和 master 是否有差异
-      - name: Check diff between develop and master
-        id: check_diff
-        run: |
-          # 当前 HEAD 是 develop（因为 trigger 是 develop push）
-          if git diff --quiet origin/master..HEAD; then
-            echo "no_changes=true" >> $GITHUB_OUTPUT
-          else
-            echo "no_changes=false" >> $GITHUB_OUTPUT
-          fi
-
-      # 如果没有差异，直接退出（不创建 PR）
-      - name: Stop on no changes
-        if: steps.check_diff.outputs.no_changes == 'true'
-        run: |
-          echo "⚪ No new changes between develop and master. Skipping auto release PR."
-          exit 0
-
-      # 2️⃣ 生成简单版 Release Notes（基于 commit message）
-      - name: Generate release notes
-        run: |
-          echo "## 🚀 Next Release (develop → master)" > RELEASE_NOTES.md
-          echo "" >> RELEASE_NOTES.md
-          echo "### Changes since last release:" >> RELEASE_NOTES.md
-          echo "" >> RELEASE_NOTES.md
-          git log origin/master..HEAD --pretty=format:"- %s" >> RELEASE_NOTES.md
-
-      # 3️⃣ 准备 release 分支（强制同步为 develop HEAD，并包含 RELEASE_NOTES.md）
-      - name: Prepare release branch (force sync with develop)
+      # --------------------------------------------------------
+      # 2. Create semantic-release compatible commit
+      #    ❗ 不需要生成任何文件，只需要一个 allow-empty commit
+      # --------------------------------------------------------
+      - name: Create semantic-release trigger commit
         run: |
           git config user.name "github-actions[bot]"
           git config user.email "github-actions[bot]@users.noreply.github.com"
-      
-          # ⭐ 强制 release 分支 = develop 最新 commit
+
+          # ⭐ allow-empty: 即使没有变动也能生成 commit（semantic-release 会识别）
+          git commit --allow-empty -m "feat(release): prepare next version" || true
+
+      # --------------------------------------------------------
+      # 3. Force-create release branch from develop commit
+      # --------------------------------------------------------
+      - name: Sync release branch
+        run: |
           git checkout -B release/auto-release ${{ github.sha }}
           git reset --hard ${{ github.sha }}
-      
-          # 写入 Release Notes
-          git add RELEASE_NOTES.md
-          git commit -m "chore: update auto release notes" || echo "Nothing to commit"
 
+          # 将触发语义化的 commit 保留到 release 分支
+          git cherry-pick HEAD~0 || true
 
-      # 4️⃣ 推送 release 分支
       - name: Push release branch
         run: git push -f origin release/auto-release
 
-      # 5️⃣ 创建或更新 PR：release/auto-release → master
-      - name: Create or Update Release PR
+      # --------------------------------------------------------
+      # 4. Create PR without modifying commits
+      # --------------------------------------------------------
+      - name: Create Pull Request
         uses: peter-evans/create-pull-request@v6
         with:
           token: ${{ secrets.GITHUB_TOKEN }}
           base: master
           branch: release/auto-release
+          delete-branch: false   # 不允许它删除/重建我们的分支
           title: "Release: Next Version"
           labels: |
-            automated
             release
+            automated
           body: |
             ## 🚀 Auto Release PR (develop → master)
 
-            This PR prepares the next production release.
+            This PR was generated automatically.
 
-            ### 📄 Changes included
-            (auto generated from commits between master and develop)
+            It contains an empty semantic-release commit:
 
             ```
-            $(cat RELEASE_NOTES.md)
+            feat(release): prepare next version
             ```
+
+            Merging this PR will trigger semantic-release to publish the next version.

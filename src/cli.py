@@ -26,7 +26,6 @@ def today():
     p = DataPipeline()
     p.run(date)
 
-
 # TODO: 写入特征表 / 喂给模型 / 生成标签
 
 
