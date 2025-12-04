@@ -4,7 +4,7 @@ on:
   push:
     branches:
       - develop
-permissions:       # ⭐ 解决 403 的关键！
+permissions: # ⭐ 解决 403 的关键！
   contents: write
   pull-requests: write
 jobs:
@@ -20,6 +20,11 @@ jobs:
         with:
           fetch-depth: 0
 
+      - name: Debug info
+        run: |
+          echo "HEAD = $(git log -1 --oneline)"
+          echo "BRANCH = develop"
+
       - name: Set up Node.js (semantic-release utils)
         uses: actions/setup-node@v4
         with:
@@ -28,16 +33,18 @@ jobs:
       - name: Install dependencies
         run: |
           npm install -g conventional-changelog-cli
+          
+    
 
       - name: Generate CHANGELOG snippet since last release
         run: |
           conventional-changelog -p angular -r 1 > RELEASE_NOTES.md
 
-      - name: Create release branch
+      # 关键：只创建分支，不做任何 DAG 修改
+      - name: Create release branch from develop
         run: |
-          git config user.name "github-actions[bot]"
-          git config user.email "github-actions[bot]@users.noreply.github.com"
-
+          git checkout develop
+          git pull origin develop
           git checkout -B release/auto-release
 
       - name: Push release branch
