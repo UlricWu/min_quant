@@ -1,0 +1,56 @@
+name: Sync master → develop
+
+on:
+  push:
+    branches:
+      - master   # master 每 push 一次（包括 semantic-release），就触发同步
+
+permissions:
+  contents: write
+  pull-requests: write
+
+jobs:
+  sync:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout master
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Setup Git identity
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+
+      - name: Fetch all branches
+        run: |
+          git fetch --all
+
+      # Step 1：创建同步分支 sync/master-to-develop（始终基于最新 master）
+      - name: Create sync branch
+        run: |
+          git checkout master
+          git pull origin master
+          git checkout -B sync/master-to-develop
+          git merge origin/develop --no-edit || true
+
+      # Step 2：Push sync branch（始终覆盖）
+      - name: Push sync branch
+        run: |
+          git push origin sync/master-to-develop --force
+
+      # Step 3：创建（或更新） PR sync → develop
+      - name: Create PR
+        id: create_pr
+        uses: repo-sync/pull-request@v2
+        with:
+          github_token: ${{ secrets.GITHUB_TOKEN }}
+          source_branch: sync/master-to-develop
+          destination_branch: develop
+          pr_title: "chore(sync): master → develop"
+          pr_body: |
+            This PR syncs semantic-release commits from **master** back into **develop**.
+            After merging, develop will stay up-to-date with the latest release history.
+          pr_label: "sync"
