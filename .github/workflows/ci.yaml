@@ -5,7 +5,7 @@ on:
     branches:
       - main
       - master
-#      - develop
+      - develop
 #      - "feature/**"
   pull_request:
     branches:
@@ -18,9 +18,7 @@ on:
         required: false
         type: string
         default: "3.13"
-    secrets:
-      GITHUB_TOKEN:
-        required: false
+    secrets: {}                # ⭐合法写法，不要写 inherit
 
 
 # 强制 GitHub Actions 在正确的目录运行（关键！）
