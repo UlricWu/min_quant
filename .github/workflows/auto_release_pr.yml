@@ -10,7 +10,7 @@ permissions:
   pull-requests: write
 
 jobs:
-  auto-release:
+  auto:
     runs-on: ubuntu-latest
 
     steps:
@@ -18,33 +18,29 @@ jobs:
         with:
           fetch-depth: 0
 
-      - name: Fetch all
-        run: git fetch --all
-
-      - name: Create clean release branch from develop
+      - name: Sync release branch
         run: |
+          git fetch --all
           git checkout develop
-          git pull origin develop
-          
-          # 💥 强制创建干净分支（此分支永远从 develop 来）
           git branch -f release/auto-release develop
           git push -f origin release/auto-release
 
-      # 🚨 核心修复：create-pull-request 必须使用自己的临时分支，不再用 release/auto-release
-      - name: Create PR from a TEMP branch
+      # 👇👇 核心修复：强制 create-pull-request 比较 release 分支
+      - name: Create PR (from release/auto-release)
         uses: peter-evans/create-pull-request@v6
         with:
           token: ${{ secrets.GITHUB_TOKEN }}
+
+          # base is still master
           base: master
-          branch: auto-release-pr-temp          # ← 临时分支，避免 rebase 污染
-          delete-branch: true                   # 创建后自动删除临时分支
+
+          # PR 分支由 create-pull-request 创建
+          branch: auto-release-pr-temp
+          delete-branch: true
+
+          # 👇 关键：diff 来源是 release/auto-release，而不是 develop
+          path: "release/auto-release"
+
           title: "Release: Next Version"
           body: |
-            ## 🚀 Auto Release PR (develop → master)
-
-            Release branch:
-            **release/auto-release**
-
-            ✔ After merging this PR, semantic-release will run automatically.
-          labels: |
-            release
+            Auto release PR from release/auto-release → master.
