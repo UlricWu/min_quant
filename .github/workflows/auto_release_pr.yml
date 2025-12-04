@@ -20,66 +20,37 @@ jobs:
         with:
           fetch-depth: 0
 
-      - name: Debug info
+      - name: Ensure we are on develop
         run: |
-          echo "HEAD = $(git log -1 --oneline)"
-          echo "BRANCH = develop"
+          git checkout develop
+          echo "Current HEAD:"
+          git log -1 --oneline
 
-      - name: Set up Node.js (semantic-release utils)
-        uses: actions/setup-node@v4
-        with:
-          node-version: 18
-
-      - name: Install dependencies
+      # ⭐ 关键点 1：用 develop 直接创建 / 覆盖 release 分支
+      - name: Create/Reset release branch from develop
         run: |
-          npm install -g conventional-changelog-cli
-          
-    
+          git checkout -B release/auto-release develop
+          git push -f origin release/auto-release
 
-      - name: Generate CHANGELOG snippet since last release
-        run: |
-          conventional-changelog -p angular -r 1 > RELEASE_NOTES.md
-
-      # 关键：只创建分支，不做任何 DAG 修改
-      - name: Create release branch from develop
-        run: |
-          git fetch --all
-          git checkout origin/develop -B release/auto-release
-
-      - name: Push release branch
-        run: git push -f origin release/auto-release
-
-      - name: Create or update pull request
+      # ⭐ 关键点 2：只用 create-pull-request 创建/更新 PR，不改任何 commit
+      - name: Create or update PR develop -> master
         uses: peter-evans/create-pull-request@v6
         with:
           token: ${{ secrets.GITHUB_TOKEN }}
           base: master
           branch: release/auto-release
-
-          delete-branch: false
-
-          update: false       # ⭐ 禁用更新（不 reset/rebase）
-          rebase: false       # ⭐ 禁用 rebase（不对齐 master）
-          draft: false
-
-
           title: "Release: Next Version"
           body: |
-            ## 🔥 Auto Release PR (develop → master)
+            ## 🚀 Auto Release PR (develop → master)
 
-            This PR contains all changes ready for the next production release.
+            This PR was generated automatically from the latest state of **develop**.
 
-            ### 📄 Change Log (auto-generated)
-            ```
-            $(cat RELEASE_NOTES.md)
-            ```
+            All commits between `master` and `develop` will be included in this release.
 
-            ### ✔ Merge this PR to trigger:
-            - semantic version bump
-            - tag creation
-            - GitHub release
-            - changelog update｜
-
+            ✅ After review, merge this PR to trigger **semantic-release** on `master`.
           labels: |
             release
             automated
+          draft: false
+
+
