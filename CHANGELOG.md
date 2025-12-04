@@ -1,3 +1,15 @@
+## [0.6.8](https://github.com/UlricWu/min_quant/compare/v0.6.7...v0.6.8) (2025-12-04)
+
+
+### Bug Fixes
+
+* add test before tag ([6bc5e68](https://github.com/UlricWu/min_quant/commit/6bc5e684e4bd9ba9e014850e65a6413d5170562a))
+* avoid inherit ([4bc45b1](https://github.com/UlricWu/min_quant/commit/4bc45b19925d80a8cccba403974ad0e93789d0a4))
+* ci call ([eab8bf5](https://github.com/UlricWu/min_quant/commit/eab8bf502504c285b390c40fc3fb4d53bf0139e3))
+* ci secrets ([0f6b322](https://github.com/UlricWu/min_quant/commit/0f6b322d49a2d8f9b86b4748e1b818919e3d121e))
+* format ([83d282b](https://github.com/UlricWu/min_quant/commit/83d282b915ade32d7ae4e9f7b59fdd822ae5b227))
+* push dev ci ([58f9f93](https://github.com/UlricWu/min_quant/commit/58f9f9309b37b918bd46c54c60d2e38d77b22f55))
+
 ## [0.6.7](https://github.com/UlricWu/min_quant/compare/v0.6.6...v0.6.7) (2025-12-04)
 
 
