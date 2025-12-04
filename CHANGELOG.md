@@ -1,3 +1,10 @@
+## [0.6.2](https://github.com/UlricWu/min_quant/compare/v0.6.1...v0.6.2) (2025-12-04)
+
+
+### Bug Fixes
+
+* syn master->develop ([4d74db3](https://github.com/UlricWu/min_quant/commit/4d74db3885f9fece00da404ea792a22af7398679))
+
 ## [0.6.1](https://github.com/UlricWu/min_quant/compare/v0.6.0...v0.6.1) (2025-12-04)
 
 
