@@ -69,14 +69,23 @@ jobs:
           base: master
           branch: release/auto-release
           title: "Release: Next Version"
-          labels: |
-            release
-            automated
           body: |
             ## 🚀 Auto Release PR (develop → master)
             This PR was generated automatically.
-
+      
             HEAD commit:
             ```
             $(git log -1 --oneline)
             ```
+          labels: |
+            release
+            automated
+
+          # ⭐ 不允许它改动分支，否则它会 rebase 你的分支到 master
+          rebase: false
+
+          # ⭐ 不要让它签名否则重新写 commit
+          signoff: false
+
+          # ⭐ 不让它创建临时分支
+          delete-branch: false
