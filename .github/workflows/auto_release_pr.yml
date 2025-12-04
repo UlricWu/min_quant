@@ -12,80 +12,36 @@ permissions:
 jobs:
   auto-release-pr:
     runs-on: ubuntu-latest
-    name: Create Auto Release PR
 
     steps:
-      # ----------------------------------------------
-      # 1) Checkout THIS push commit (NOT develop branch, NOT master)
-      # ----------------------------------------------
-      - name: Checkout current commit
+      - name: Checkout commit
         uses: actions/checkout@v4
         with:
           fetch-depth: 0
-          ref: ${{ github.sha }}   # ⭐ 最关键修复点 — 防止污染源
+          ref: ${{ github.sha }}
 
-      # ----------------------------------------------
-      # 2) Fetch all remote refs
-      # ----------------------------------------------
-      - name: Fetch remotes
-        run: git fetch --all --prune
-
-      - name: Debug HEAD
+      - name: Prepare release files
         run: |
-          echo "HEAD commit:"
-          git log -1 --oneline
-          echo "Current branch:"
-          git branch --show-current
-
-      # ----------------------------------------------
-      # 3) Force-create release/auto-release from THIS commit
-      # ----------------------------------------------
-      - name: Force sync release branch to develop commit
-        run: |
-          git config user.name "github-actions[bot]"
-          git config user.email "github-actions[bot]@users.noreply.github.com"
-
-          # ⭐ Key: recreate release branch from current develop commit.
-          git checkout -B release/auto-release ${{ github.sha }}
-          git reset --hard ${{ github.sha }}
-
-          echo "Auto release notes updated at $(date)" > RELEASE_NOTES.md
+          echo "Auto Release $(date)" > RELEASE_NOTES.md
           git add RELEASE_NOTES.md
-          git commit -m "chore: autorelease notes update" || true
+          git commit -m "chore: auto release notes" || true
 
-      # ----------------------------------------------
-      # 4) Push release branch (force)
-      # ----------------------------------------------
-      - name: Push release branch
-        run: git push -f origin release/auto-release
-
-      # ----------------------------------------------
-      # 5) Create or update PR
-      # ----------------------------------------------
-      - name: Create or update PR
+      - name: Create release PR
         uses: peter-evans/create-pull-request@v6
         with:
           token: ${{ secrets.GITHUB_TOKEN }}
           base: master
+
+          # ⭐ 每次创建新的 release 分支
           branch: release/auto-release
+          branch-suffix: timestamp
+
+          # ⭐ 删除旧 release 分支（非常关键，防止 update）
+          delete-branch: true
+
           title: "Release: Next Version"
-          body: |
-            ## 🚀 Auto Release PR (develop → master)
-            This PR was generated automatically.
-      
-            HEAD commit:
-            ```
-            $(git log -1 --oneline)
-            ```
           labels: |
             release
             automated
-
-          # ⭐ 不允许它改动分支，否则它会 rebase 你的分支到 master
-          rebase: false
-
-          # ⭐ 不要让它签名否则重新写 commit
-          signoff: false
-
-          # ⭐ 不让它创建临时分支
-          delete-branch: false
+          body: |
+            Auto release PR generated from develop.
