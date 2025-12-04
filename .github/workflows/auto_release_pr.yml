@@ -24,7 +24,7 @@ jobs:
         run: |
           echo "Auto Release $(date)" > RELEASE_NOTES.md
           git add RELEASE_NOTES.md
-          git commit -m "chore: auto release notes" || true
+          git commit -m "feat(release): prepare next version" || true
 
       - name: Create release PR
         uses: peter-evans/create-pull-request@v6
