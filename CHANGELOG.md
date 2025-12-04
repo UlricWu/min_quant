@@ -1,3 +1,31 @@
+## [0.6.2](https://github.com/UlricWu/min_quant/compare/v0.6.1...v0.6.2) (2025-12-04)
+
+
+### Bug Fixes
+
+* syn master->develop ([4d74db3](https://github.com/UlricWu/min_quant/commit/4d74db3885f9fece00da404ea792a22af7398679))
+
+## [0.6.1](https://github.com/UlricWu/min_quant/compare/v0.6.0...v0.6.1) (2025-12-04)
+
+
+### Bug Fixes
+
+* add Release Notes 模板 ([fcdc75c](https://github.com/UlricWu/min_quant/commit/fcdc75cd27b88299e64c0d9f0d84d999ad325f1c))
+
+# [0.6.0](https://github.com/UlricWu/min_quant/compare/v0.5.0...v0.6.0) (2025-12-04)
+
+
+### Features
+
+* test auto release ([5bdb1c9](https://github.com/UlricWu/min_quant/commit/5bdb1c948947cd277647a73a9442ceb48d7eb6f5))
+
+# [0.5.0](https://github.com/UlricWu/min_quant/compare/v0.4.0...v0.5.0) (2025-12-04)
+
+
+### Features
+
+* test release pipeline Thu Dec  4 13:18:05 CST 2025 ([dcff82f](https://github.com/UlricWu/min_quant/commit/dcff82f8da622e726105dcafa35ee7dfd41bc293))
+
 # [0.4.0](https://github.com/UlricWu/min_quant/compare/v0.3.0...v0.4.0) (2025-12-04)
 
 
