@@ -1,3 +1,10 @@
+# [0.6.0](https://github.com/UlricWu/min_quant/compare/v0.5.0...v0.6.0) (2025-12-04)
+
+
+### Features
+
+* test auto release ([5bdb1c9](https://github.com/UlricWu/min_quant/commit/5bdb1c948947cd277647a73a9442ceb48d7eb6f5))
+
 # [0.5.0](https://github.com/UlricWu/min_quant/compare/v0.4.0...v0.5.0) (2025-12-04)
 
 
