@@ -18,34 +18,33 @@ jobs:
         with:
           fetch-depth: 0
 
-      # Step 1: 获取 develop 最新提交
-      - name: Fetch all branches
+      - name: Fetch all
         run: git fetch --all
 
       - name: Create clean release branch from develop
         run: |
           git checkout develop
           git pull origin develop
-
-          # 强制创建全新 release 分支（真正从 develop 起点）
+          
+          # 💥 强制创建干净分支（此分支永远从 develop 来）
           git branch -f release/auto-release develop
           git push -f origin release/auto-release
 
-      # Step 2: 创建 PR（create-pull-request 不会改动代码）
-      - name: Create PR
+      # 🚨 核心修复：create-pull-request 必须使用自己的临时分支，不再用 release/auto-release
+      - name: Create PR from a TEMP branch
         uses: peter-evans/create-pull-request@v6
         with:
           token: ${{ secrets.GITHUB_TOKEN }}
           base: master
-          branch: release/auto-release            # 注意这里不用 prefix
+          branch: auto-release-pr-temp          # ← 临时分支，避免 rebase 污染
+          delete-branch: true                   # 创建后自动删除临时分支
           title: "Release: Next Version"
           body: |
             ## 🚀 Auto Release PR (develop → master)
 
-            This PR contains all semantic-release changes from develop.
-            
-            ✔ After merging, semantic-release will create a new version/tag.
+            Release branch:
+            **release/auto-release**
 
+            ✔ After merging this PR, semantic-release will run automatically.
           labels: |
             release
-          delete-branch: false
