@@ -18,8 +18,7 @@ on:
         required: false
         type: string
         default: "3.13"
-    secrets:                    # ⭐不要写 GITHUB_TOKEN，这是自动注入
-      inherit: true             # ⭐继承调用 workflow 的所有 secrets
+    secrets: {}                # ⭐合法写法，不要写 inherit
 
 
 # 强制 GitHub Actions 在正确的目录运行（关键！）
