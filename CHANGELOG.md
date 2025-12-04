@@ -1,3 +1,10 @@
+# [0.5.0](https://github.com/UlricWu/min_quant/compare/v0.4.0...v0.5.0) (2025-12-04)
+
+
+### Features
+
+* test release pipeline Thu Dec  4 13:18:05 CST 2025 ([dcff82f](https://github.com/UlricWu/min_quant/commit/dcff82f8da622e726105dcafa35ee7dfd41bc293))
+
 # [0.4.0](https://github.com/UlricWu/min_quant/compare/v0.3.0...v0.4.0) (2025-12-04)
 
 
