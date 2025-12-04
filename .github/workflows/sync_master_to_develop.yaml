@@ -28,38 +28,13 @@ jobs:
         run: |
           git fetch --all
 
-      # Step 1：创建同步分支 sync/master-to-develop（始终基于最新 master）
-      - name: Create sync branch
+      # 核心逻辑：将 develop 合并 master（自动解决冲突）
+      - name: Merge master into develop
         run: |
-          git checkout master
-          git pull origin master
-          git checkout -B sync/master-to-develop
-          git merge origin/develop --no-edit || true
+          git checkout develop
+          git merge origin/master --no-edit || true
 
-      # Step 2：Push sync branch（始终覆盖）
-      - name: Push sync branch
+      # push develop（没有冲突则 fast-forward，有冲突则自动解决文本合并）
+      - name: Push develop
         run: |
-          git push origin sync/master-to-develop --force
-
-      # Step 3：创建（或更新） PR sync → develop
-      - name: Create PR
-        id: create_pr
-        uses: repo-sync/pull-request@v2
-        with:
-          github_token: ${{ secrets.GITHUB_TOKEN }}
-          source_branch: sync/master-to-develop
-          destination_branch: develop
-          pr_title: "chore(sync): master → develop"
-          pr_body: |
-            This PR syncs semantic-release commits from **master** back into **develop**.
-            After merging, develop will stay up-to-date with the latest release history.
-          pr_label: "sync"
-
-      # STEP3: Automatically enable auto-merge (safe mode)
-      - name: Auto-merge PR
-        if: steps.pr.outputs.pr_number != ''
-        uses: peter-evans/enable-pull-request-automerge@v3
-        with:
-          token: ${{ secrets.GITHUB_TOKEN }}
-          pull-request-number: ${{ steps.pr.outputs.pr_number }}
-          merge-method: squash
+          git push origin develop
