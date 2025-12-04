@@ -10,37 +10,63 @@ permissions:
   pull-requests: write
 
 jobs:
-  auto:
+  auto-release:
     runs-on: ubuntu-latest
 
     steps:
-      - uses: actions/checkout@v4
+      - name: Checkout repo
+        uses: actions/checkout@v4
         with:
           fetch-depth: 0
 
-      - name: Sync release branch
+      - name: Prepare Git
         run: |
-          git fetch --all
+          git config user.name "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+
+      # ------------------------------------------------------------
+      # 🔥 Step 1 — Force recreate release/auto-release from develop
+      # ------------------------------------------------------------
+      - name: Sync release/auto-release with develop
+        run: |
+          git fetch origin
+
+          # 确保 develop 是最新的
           git checkout develop
-          git branch -f release/auto-release develop
+          git pull origin develop
+
+          # 强制同步 release 分支（永远从 develop 来）
+          git branch -f release/auto-release develop || true
           git push -f origin release/auto-release
 
-      # 👇👇 核心修复：强制 create-pull-request 比较 release 分支
-      - name: Create PR (from release/auto-release)
-        uses: peter-evans/create-pull-request@v6
-        with:
-          token: ${{ secrets.GITHUB_TOKEN }}
+      # ------------------------------------------------------------
+      # 🔥 Step 2 — Create PR using GitHub API (gh)
+      # ------------------------------------------------------------
+      - name: Install GitHub CLI
+        run: sudo apt-get install -y gh
 
-          # base is still master
-          base: master
+      - name: Create Pull Request via GitHub API
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          # 检查是否已有同名 PR
+          existing=$(gh pr list \
+            --base master \
+            --head release/auto-release \
+            --state open \
+            --json number \
+            --jq '.[0].number // empty')
 
-          # PR 分支由 create-pull-request 创建
-          branch: auto-release-pr-temp
-          delete-branch: true
+          if [ -n "$existing" ]; then
+            echo "ℹ️ PR already exists: #$existing"
+            exit 0
+          fi
 
-          # 👇 关键：diff 来源是 release/auto-release，而不是 develop
-          path: "release/auto-release"
+          echo "⚡ Creating PR: release/auto-release → master"
 
-          title: "Release: Next Version"
-          body: |
-            Auto release PR from release/auto-release → master.
+          gh pr create \
+            --title "Release: Next Version" \
+            --body "Automated release PR from **release/auto-release** → **master**." \
+            --base master \
+            --head release/auto-release \
+            --label release
