@@ -1,53 +1,38 @@
-name: Auto Release PR
+name: Auto Release PR (develop → release/auto-release)
 
 on:
   push:
     branches:
       - develop
+
 permissions:
   contents: write
   pull-requests: write
+
 jobs:
-  create-release-pr:
+  create_auto_release_pr:
     runs-on: ubuntu-latest
 
     steps:
-      # 1. 检出代码
       - name: Checkout repository
         uses: actions/checkout@v4
         with:
           fetch-depth: 0
 
-      # 2. 可选：这里可以跑一下快速检查（或者你也可以完全依赖已有的 ci.yaml）
-      # - name: Run tests
-      #   run: |
-      #     echo "可以在这里跑 pytest 或 lint"
+      - name: Create auto-release branch
+        run: |
+          git fetch origin
+          git checkout -B release/auto-release origin/develop
+          git push origin release/auto-release --force
 
-      # 3. 创建 / 更新 release PR
-      - name: Create or update release PR
+      - name: Create PR from develop → release/auto-release
         uses: repo-sync/pull-request@v2
         with:
-          # GitHub 会自动注入 GITHUB_TOKEN，不需要你自己配置
-          github_token: ${{ secrets.GITHUB_TOKEN }}
-
-          # 从哪个分支发起 PR（源分支）
           source_branch: develop
-
-          # 目标分支：发版目标
-          destination_branch: master
-
-          # PR 标题
-          pr_title: "chore(release): Auto release from develop to master"
-
-          # PR 内容
+          destination_branch: release/auto-release
+          github_token: ${{ secrets.GITHUB_TOKEN }}
+          pr_title: "chore(release): Auto release preparation"
           pr_body: |
-            这是一个自动生成的发版 PR：
-            - 源分支：develop
-            - 目标分支：master
-
-            请检查变更内容，如果没问题，手动点击 Merge。
-
-          # 如果已经有一个同样方向的 PR，就更新它，而不是新建很多个
-          pr_label: "release"
-          pr_allow_empty: false
-          pr_draft: false
+            This PR is auto-generated from develop.
+            Once merged, it will prepare the release branch.
+          pr_label: "auto-release"
