@@ -1,40 +1,50 @@
-name: Sync master → develop
+name: Sync master to develop
 
 on:
   push:
     branches:
-      - master   # master 每 push 一次（包括 semantic-release），就触发同步
+      - master
 
 permissions:
   contents: write
-  pull-requests: write
 
 jobs:
   sync:
     runs-on: ubuntu-latest
 
     steps:
-      - name: Checkout master
+      - name: Checkout repository (with full history)
         uses: actions/checkout@v4
         with:
           fetch-depth: 0
+          ref: master   # 🚨 强制从 master checkout
 
       - name: Setup Git identity
         run: |
           git config user.name "github-actions[bot]"
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
 
-      - name: Fetch all branches
-        run: |
-          git fetch --all
+      - name: Fetch all
+        run: git fetch --all
 
-      # 核心逻辑：将 develop 合并 master（自动解决冲突）
+      # 🚨 Step 1：确保本地 master = 最新 master
+      - name: Ensure local master is up to date
+        run: |
+          git checkout master
+          git pull origin master
+
+      # 🚨 Step 2：切到 develop（真正 checkout develop 分支）
+      - name: Checkout develop
+        run: |
+          git checkout develop || git switch -c develop origin/develop
+          git pull origin develop
+
+      # 🚨 Step 3：merge master into develop
       - name: Merge master into develop
         run: |
-          git checkout develop
-          git merge origin/master --no-edit || true
+          git merge master --no-edit || true
 
-      # push develop（没有冲突则 fast-forward，有冲突则自动解决文本合并）
-      - name: Push develop
+      # 🚨 Step 4：push develop
+      - name: Push updated develop
         run: |
           git push origin develop
