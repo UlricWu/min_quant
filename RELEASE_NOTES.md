@@ -34,6 +34,7 @@
 * verify autorelease after branch cleanup ([556fa9e](https://github.com/UlricWu/min_quant/commit/556fa9e9c6a24302fd7ee827416c3f176748a789))
 * verify autorelease clean ([97865b9](https://github.com/UlricWu/min_quant/commit/97865b960cdf062dc629e27e554707ce0e1ad0c5))
 * verify autorelease peter ([146762a](https://github.com/UlricWu/min_quant/commit/146762a4506a66d2d4ff173ea51758b034680452))
+* working semantic release ([5f2972d](https://github.com/UlricWu/min_quant/commit/5f2972d6e56e6340406e4455a2d0775a9eb805c7))
 
 
 ### Performance Improvements
