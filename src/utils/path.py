@@ -88,8 +88,11 @@ class PathManager:
         return cls.root() / "models"
 
     @classmethod
-    def temp_dir(cls) -> Path:
-        return cls.root() / "tmp"
+    def temp_dir(cls, date=None) -> Path:
+        p = cls.root() / "tmp"
+        if date:
+            return p / date
+        return p
 
     @classmethod
     def symbol_dir(cls, symbol, date=None) -> Path:

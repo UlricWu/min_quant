@@ -104,7 +104,7 @@ def combine(date, tick_tuple):
 # =============================================================================
 def parse_events(
         df: pd.DataFrame,
-        exchange_id: int,
+        # exchange_id: int,
         kind: EventKind,
 ) -> pd.DataFrame:
     """
@@ -119,8 +119,8 @@ def parse_events(
         buy_no
         sell_no
     """
-    # if "TickTime" in df.columns or 'OrderTime' in df.columns:
-    #     raise KeyError("供应商必须提供 TickTime & OrderTime 字段 (HHMMSSmmm)")
+    if "TickTime" not in df.columns and 'OrderTime' not in df.columns:
+        raise KeyError("供应商必须提供 TickTime & OrderTime 字段 (HHMMSSmmm)")
     df = df.copy()
 
     # 1) TradeTime → date
@@ -137,6 +137,7 @@ def parse_events(
     # ------------------------------------------------------------------
     # 3) 交易所结构差异适配
     # ------------------------------------------------------------------
+    exchange_id = infer_exchange_id(df["SecurityID"].iloc[0])
     if exchange_id == 1:
         return _parse_sh(df, kind)
     elif exchange_id == 2:
@@ -173,7 +174,6 @@ def _parse_sh(df: pd.DataFrame, kind: str) -> pd.DataFrame:
 
 
 def _parse_sz(df: pd.DataFrame, kind: str) -> pd.DataFrame:
-    print(df.columns)
     if kind == "order":
         df["event"] = df["OrderType"].map({0: "CANCEL", 1: "ADD", 2: "ADD", 3: "ADD"})
         df["side"] = df["Side"].map({1: "B", 2: "S"})
@@ -193,3 +193,25 @@ def _parse_sz(df: pd.DataFrame, kind: str) -> pd.DataFrame:
         df["sell_no"] = df["SellNo"]
 
     return df[["ts", "event", "order_id", "side", "price", "volume", "buy_no", "sell_no"]]
+
+
+def infer_exchange_id(symbol: str|int) -> int:
+    """
+    根据 A 股 symbol 自动推断交易所 ID:
+        1 = SH（上海）
+        2 = SZ（深圳）
+
+    规则：
+        SH: 600/601/603/605/688/689
+        SZ: 000/001/002/003/300/301
+    """
+
+    s = str(symbol).strip()
+    s = s.zfill(6)
+
+    if s.startswith(("60", "688")):
+        return 1
+    if s.startswith(("00", "30")):
+        return 2
+
+    raise ValueError(f"[infer_exchange_id] 无法根据 symbol 推断交易所: {symbol}")
