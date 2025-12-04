@@ -1,3 +1,10 @@
+## [0.6.7](https://github.com/UlricWu/min_quant/compare/v0.6.6...v0.6.7) (2025-12-04)
+
+
+### Bug Fixes
+
+* workflow_run triggers sync ([cb2b3bf](https://github.com/UlricWu/min_quant/commit/cb2b3bf3f0386f0dd0f281afdf2b96f9b60ed55d))
+
 ## [0.6.6](https://github.com/UlricWu/min_quant/compare/v0.6.5...v0.6.6) (2025-12-04)
 
 
