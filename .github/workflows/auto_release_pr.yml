@@ -43,13 +43,11 @@ jobs:
       # 关键：只创建分支，不做任何 DAG 修改
       - name: Create release branch from develop
         run: |
-          git checkout develop
-          git pull origin develop
-          git checkout -B release/auto-release
+          git fetch --all
+          git checkout origin/develop -B release/auto-release
 
       - name: Push release branch
-        run: |
-          git push -f origin release/auto-release
+        run: git push -f origin release/auto-release
 
       - name: Create or update pull request
         uses: peter-evans/create-pull-request@v6
