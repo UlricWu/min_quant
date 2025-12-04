@@ -10,45 +10,59 @@ permissions:
   pull-requests: write
 
 jobs:
-  create-release-pr:
-    name: Create Release PR from develop to master
+  auto-release-pr:
     runs-on: ubuntu-latest
-
-    # 只在 develop push 时运行（多一层保护）
-    if: github.ref == 'refs/heads/develop'
+    name: Create Auto Release PR
 
     steps:
-      - name: Checkout current commit (develop push)
+      # ----------------------------------------------
+      # 1) Checkout THIS push commit (NOT develop branch, NOT master)
+      # ----------------------------------------------
+      - name: Checkout current commit
         uses: actions/checkout@v4
         with:
           fetch-depth: 0
-          # ⭐ 使用这次 push 的实际 commit，而不是“某个分支状态”
-          ref: ${{ github.sha }}
+          ref: ${{ github.sha }}   # ⭐ 最关键修复点 — 防止污染源
 
-      - name: Show HEAD & branches (debug)
+      # ----------------------------------------------
+      # 2) Fetch all remote refs
+      # ----------------------------------------------
+      - name: Fetch remotes
+        run: git fetch --all --prune
+
+      - name: Debug HEAD
         run: |
-          echo "Current branch:"
-          git branch --show-current || echo "(detached HEAD)"
           echo "HEAD commit:"
-          git log -1 --oneline || true
+          git log -1 --oneline
+          echo "Current branch:"
+          git branch --show-current
 
-      # 不再做任何 diff 判断，永远强制同步 release 分支 = 当前 HEAD (develop)
-      - name: Prepare release branch from develop
+      # ----------------------------------------------
+      # 3) Force-create release/auto-release from THIS commit
+      # ----------------------------------------------
+      - name: Force sync release branch to develop commit
         run: |
           git config user.name "github-actions[bot]"
           git config user.email "github-actions[bot]@users.noreply.github.com"
 
-          # ⭐ 强制让 release/auto-release 指向当前 HEAD（即 develop 的这次提交）
+          # ⭐ Key: recreate release branch from current develop commit.
           git checkout -B release/auto-release ${{ github.sha }}
+          git reset --hard ${{ github.sha }}
 
-          echo "Auto release updated at $(date)" > RELEASE_NOTES.md
+          echo "Auto release notes updated at $(date)" > RELEASE_NOTES.md
           git add RELEASE_NOTES.md
-          git commit -m "chore: update auto release notes" || echo "Nothing to commit"
+          git commit -m "chore: autorelease notes update" || true
 
+      # ----------------------------------------------
+      # 4) Push release branch (force)
+      # ----------------------------------------------
       - name: Push release branch
         run: git push -f origin release/auto-release
 
-      - name: Create or Update Release PR
+      # ----------------------------------------------
+      # 5) Create or update PR
+      # ----------------------------------------------
+      - name: Create or update PR
         uses: peter-evans/create-pull-request@v6
         with:
           token: ${{ secrets.GITHUB_TOKEN }}
@@ -56,17 +70,13 @@ jobs:
           branch: release/auto-release
           title: "Release: Next Version"
           labels: |
-            automated
             release
+            automated
           body: |
             ## 🚀 Auto Release PR (develop → master)
-
-            This PR prepares the next production release.
-
-            This branch is force-synced from the latest commit on **develop**.
+            This PR was generated automatically.
 
             HEAD commit:
-
-            ```bash
+            ```
             $(git log -1 --oneline)
             ```
