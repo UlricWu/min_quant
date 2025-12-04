@@ -1,3 +1,10 @@
+## [0.6.1](https://github.com/UlricWu/min_quant/compare/v0.6.0...v0.6.1) (2025-12-04)
+
+
+### Bug Fixes
+
+* add Release Notes 模板 ([fcdc75c](https://github.com/UlricWu/min_quant/commit/fcdc75cd27b88299e64c0d9f0d84d999ad325f1c))
+
 # [0.6.0](https://github.com/UlricWu/min_quant/compare/v0.5.0...v0.6.0) (2025-12-04)
 
 
