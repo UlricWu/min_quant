@@ -14,34 +14,64 @@ jobs:
     runs-on: ubuntu-latest
 
     steps:
+      # --------------------------------------------------------
+      # 1. Checkout EXACT develop commit (关键，不可改)
+      # --------------------------------------------------------
       - name: Checkout commit
         uses: actions/checkout@v4
         with:
           fetch-depth: 0
           ref: ${{ github.sha }}
 
-      - name: Prepare release files
+      # --------------------------------------------------------
+      # 2. Create semantic-release compatible commit
+      #    ❗ 不需要生成任何文件，只需要一个 allow-empty commit
+      # --------------------------------------------------------
+      - name: Create semantic-release trigger commit
         run: |
-          echo "Auto Release $(date)" > RELEASE_NOTES.md
-          git add RELEASE_NOTES.md
-          git commit -m "feat(release): prepare next version" || true
+          git config user.name "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
 
-      - name: Create release PR
+          # ⭐ allow-empty: 即使没有变动也能生成 commit（semantic-release 会识别）
+          git commit --allow-empty -m "feat(release): prepare next version" || true
+
+      # --------------------------------------------------------
+      # 3. Force-create release branch from develop commit
+      # --------------------------------------------------------
+      - name: Sync release branch
+        run: |
+          git checkout -B release/auto-release ${{ github.sha }}
+          git reset --hard ${{ github.sha }}
+
+          # 将触发语义化的 commit 保留到 release 分支
+          git cherry-pick HEAD~0 || true
+
+      - name: Push release branch
+        run: git push -f origin release/auto-release
+
+      # --------------------------------------------------------
+      # 4. Create PR without modifying commits
+      # --------------------------------------------------------
+      - name: Create Pull Request
         uses: peter-evans/create-pull-request@v6
         with:
           token: ${{ secrets.GITHUB_TOKEN }}
           base: master
-
-          # ⭐ 每次创建新的 release 分支
           branch: release/auto-release
-#          branch-suffix: timestamp
-
-          # ⭐ 删除旧 release 分支（非常关键，防止 update）
-          delete-branch: true
-
+          delete-branch: false   # 不允许它删除/重建我们的分支
           title: "Release: Next Version"
           labels: |
             release
             automated
           body: |
-            Auto release PR generated from develop.
+            ## 🚀 Auto Release PR (develop → master)
+
+            This PR was generated automatically.
+
+            It contains an empty semantic-release commit:
+
+            ```
+            feat(release): prepare next version
+            ```
+
+            Merging this PR will trigger semantic-release to publish the next version.
