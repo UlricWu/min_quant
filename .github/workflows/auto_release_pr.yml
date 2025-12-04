@@ -4,74 +4,77 @@ on:
   push:
     branches:
       - develop
-
-permissions:
+permissions:       # ⭐ 解决 403 的关键！
   contents: write
   pull-requests: write
-
 jobs:
-  auto-release-pr:
+  create-release-pr:
+    name: Create Release Pull Request
     runs-on: ubuntu-latest
+    # 额外保护：确保不会在 master 或其他分支触发本 job
+    if: github.ref == 'refs/heads/develop'
 
     steps:
-      # --------------------------------------------------------
-      # 1. Checkout EXACT develop commit (关键，不可改)
-      # --------------------------------------------------------
-      - name: Checkout commit
+      - name: Checkout code
         uses: actions/checkout@v4
         with:
           fetch-depth: 0
-          ref: ${{ github.sha }}
 
-      # --------------------------------------------------------
-      # 2. Create semantic-release compatible commit
-      #    ❗ 不需要生成任何文件，只需要一个 allow-empty commit
-      # --------------------------------------------------------
-      - name: Create semantic-release trigger commit
+      - name: Set up Node.js (semantic-release utils)
+        uses: actions/setup-node@v4
+        with:
+          node-version: 18
+
+      - name: Install dependencies
+        run: |
+          npm install -g conventional-changelog-cli
+
+      - name: Generate CHANGELOG snippet since last release
+        run: |
+          conventional-changelog -p angular -r 1 > RELEASE_NOTES.md
+
+      - name: Create release branch
         run: |
           git config user.name "github-actions[bot]"
           git config user.email "github-actions[bot]@users.noreply.github.com"
 
-          # ⭐ allow-empty: 即使没有变动也能生成 commit（semantic-release 会识别）
-          git commit --allow-empty -m "feat(release): prepare next version" || true
-
-      # --------------------------------------------------------
-      # 3. Force-create release branch from develop commit
-      # --------------------------------------------------------
-      - name: Sync release branch
-        run: |
-          git checkout -B release/auto-release ${{ github.sha }}
-          git reset --hard ${{ github.sha }}
-
-          # 将触发语义化的 commit 保留到 release 分支
-          git cherry-pick HEAD~0 || true
+          git checkout -B release/auto-release
 
       - name: Push release branch
-        run: git push -f origin release/auto-release
+        run: |
+          git push -f origin release/auto-release
 
-      # --------------------------------------------------------
-      # 4. Create PR without modifying commits
-      # --------------------------------------------------------
-      - name: Create Pull Request
+      - name: Create or update pull request
         uses: peter-evans/create-pull-request@v6
         with:
           token: ${{ secrets.GITHUB_TOKEN }}
           base: master
           branch: release/auto-release
-          delete-branch: false   # 不允许它删除/重建我们的分支
+
+          delete-branch: false
+
+          update: false       # ⭐ 禁用更新（不 reset/rebase）
+          rebase: false       # ⭐ 禁用 rebase（不对齐 master）
+          draft: false
+
+
           title: "Release: Next Version"
+          body: |
+            ## 🔥 Auto Release PR (develop → master)
+
+            This PR contains all changes ready for the next production release.
+
+            ### 📄 Change Log (auto-generated)
+            ```
+            $(cat RELEASE_NOTES.md)
+            ```
+
+            ### ✔ Merge this PR to trigger:
+            - semantic version bump
+            - tag creation
+            - GitHub release
+            - changelog update｜
+
           labels: |
             release
             automated
-          body: |
-            ## 🚀 Auto Release PR (develop → master)
-
-            This PR was generated automatically.
-
-            It contains an empty semantic-release commit:
-
-            ```
-            feat(release): prepare next version
-            ```
-
-            Merging this PR will trigger semantic-release to publish the next version.
