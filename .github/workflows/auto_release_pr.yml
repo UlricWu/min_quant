@@ -22,7 +22,8 @@ jobs:
       - name: Create auto-release branch
         run: |
           git fetch origin
-          git checkout -B release/auto-release origin/develop
+          git checkout -B release/auto-release
+          git merge origin/develop --no-edit || true
           git push origin release/auto-release --force
 
       - name: Create PR from develop → release/auto-release
