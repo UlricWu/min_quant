@@ -12,6 +12,15 @@ on:
       - main
       - master
       - develop
+  workflow_call: # ⭐ 新增：让该 CI 可被其他 workflow 调用
+    inputs:
+      python-version:
+        required: false
+        type: string
+        default: "3.13"
+    secrets:
+      GITHUB_TOKEN:
+        required: false
 
 
 # 强制 GitHub Actions 在正确的目录运行（关键！）
