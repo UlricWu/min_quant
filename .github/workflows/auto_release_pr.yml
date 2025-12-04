@@ -18,13 +18,14 @@ jobs:
         uses: actions/checkout@v4
         with:
           fetch-depth: 0
-
+      # STEP 1: 创建并 push release/auto-release 分支
       - name: Create auto-release branch
         run: |
           git fetch origin
           git checkout -B release/auto-release origin/develop
           git push origin release/auto-release --force
 
+      # STEP 2: 创建 develop → release/auto-release PR
       - name: Create PR from develop → release/auto-release
         uses: repo-sync/pull-request@v2
         with:
@@ -34,5 +35,18 @@ jobs:
           pr_title: "chore(release): Auto release preparation"
           pr_body: |
             This PR is auto-generated from develop.
-            Once merged, it will prepare the release branch.
+            It prepares the release branch.
           pr_label: "auto-release"
+
+      # STEP 3: 创建 release/auto-release → master PR（你需要的）
+      - name: Create PR from release/auto-release → master
+        uses: repo-sync/pull-request@v2
+        with:
+          source_branch: release/auto-release
+          destination_branch: master
+          github_token: ${{ secrets.GITHUB_TOKEN }}
+          pr_title: "chore(release): Release → master"
+          pr_body: |
+            Auto generated PR from release/auto-release to master.
+            Please merge manually to trigger semantic-release.
+          pr_label: "release"
