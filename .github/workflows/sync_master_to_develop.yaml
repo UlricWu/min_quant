@@ -54,3 +54,13 @@ jobs:
             This PR syncs semantic-release commits from **master** back into **develop**.
             After merging, develop will stay up-to-date with the latest release history.
           pr_label: "sync"
+
+
+      # STEP3: Automatically enable auto-merge (safe mode)
+      - name: Auto-merge PR
+        if: steps.pr.outputs.pr_number != ''
+        uses: peter-evans/enable-pull-request-automerge@v3
+        with:
+          token: ${{ secrets.GITHUB_TOKEN }}
+          pull-request-number: ${{ steps.pr.outputs.pr_number }}
+          merge-method: squash
