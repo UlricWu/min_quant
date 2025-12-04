@@ -21,7 +21,6 @@ class SymbolRouter:
         self.symbols = [int(s) for s in symbols] if symbols else None
 
     def route_date(self, date: str):
-        logs.info(f"[SymbolRouter] ==== Symbol router date={date} ====")
         date_dir = PathManager.parquet_dir() / date
         if not date_dir.exists():
             logs.warning(f"[route_date] date_dir={date_dir} does not exist")
