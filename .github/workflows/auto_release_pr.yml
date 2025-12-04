@@ -34,7 +34,7 @@ jobs:
 
           # ⭐ 每次创建新的 release 分支
           branch: release/auto-release
-          branch-suffix: timestamp
+#          branch-suffix: timestamp
 
           # ⭐ 删除旧 release 分支（非常关键，防止 update）
           delete-branch: true
