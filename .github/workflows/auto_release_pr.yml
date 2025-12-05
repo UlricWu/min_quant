@@ -70,14 +70,10 @@ jobs:
           
           EOF
           
-          BODY=$(cat final_notes.txt)
-
-          # Escape for GitHub Output
-          BODY="${BODY//'%'/'%25'}"
-          BODY="${BODY//$'\n'/'%0A'}"
-          BODY="${BODY//$'\r'/'%0D'}"
-          
-          echo "::set-output name=body::$(cat final_notes.txt)"
+          # Write to GITHUB_OUTPUT (replacement for deprecated ::set-output)
+          echo "body<<EOF" >> $GITHUB_OUTPUT
+          cat final_notes.txt >> $GITHUB_OUTPUT
+          echo "EOF" >> $GITHUB_OUTPUT
 
       # STEP 2: 创建 develop → release/auto-release PR
       - name: Create PR from develop → release/auto-release
@@ -94,8 +90,6 @@ jobs:
             ## 🔥 Auto Generated Release Notes
             ${{ steps.final_notes.outputs.notes_body }}
           pr_label: "auto-release"
-
-
 
       # STEP 3: 创建 release/auto-release → master PR（你需要的）
       - name: Create PR from release/auto-release → master
