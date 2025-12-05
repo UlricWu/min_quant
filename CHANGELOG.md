@@ -1,3 +1,10 @@
+## [0.6.11](https://github.com/UlricWu/min_quant/compare/v0.6.10...v0.6.11) (2025-12-05)
+
+
+### Bug Fixes
+
+* rm set-output ([cac3161](https://github.com/UlricWu/min_quant/commit/cac31618fbfd91e6bf9c1f344331a8893ff7bd05))
+
 ## [0.6.10](https://github.com/UlricWu/min_quant/compare/v0.6.9...v0.6.10) (2025-12-05)
 
 
