@@ -1,3 +1,10 @@
+## [0.6.10](https://github.com/UlricWu/min_quant/compare/v0.6.9...v0.6.10) (2025-12-05)
+
+
+### Bug Fixes
+
+* summary on pr ([abdc901](https://github.com/UlricWu/min_quant/commit/abdc9010f82c7265bbd92c7e3687aab73bd6f914))
+
 ## [0.6.9](https://github.com/UlricWu/min_quant/compare/v0.6.8...v0.6.9) (2025-12-05)
 
 
