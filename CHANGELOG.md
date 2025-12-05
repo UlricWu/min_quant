@@ -1,3 +1,13 @@
+## [0.6.9](https://github.com/UlricWu/min_quant/compare/v0.6.8...v0.6.9) (2025-12-05)
+
+
+### Bug Fixes
+
+* auto ([2269e36](https://github.com/UlricWu/min_quant/commit/2269e36ceb1d2e3248366940d9161e7273eb0541))
+* ci-> auto release ([92c5419](https://github.com/UlricWu/min_quant/commit/92c5419d30e701a55dd72cb7813084d0e77d26c2))
+* format ([cb3de4e](https://github.com/UlricWu/min_quant/commit/cb3de4e1cabf00bf78f76698d975bcd4456b8423))
+* not trigger auto release ([bfde2c9](https://github.com/UlricWu/min_quant/commit/bfde2c9f3fe65f3418baad4bf35511c796f4e4db))
+
 ## [0.6.8](https://github.com/UlricWu/min_quant/compare/v0.6.7...v0.6.8) (2025-12-04)
 
 
