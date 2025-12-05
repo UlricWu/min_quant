@@ -3,19 +3,25 @@ name: Auto Release PR (develop → release/auto-release)
 on:
   push:
     branches:
-      - develop
+      - develop      # develop 有任何 push（包括 merge）都触发
 
 permissions:
   contents: write
   pull-requests: write
 
 jobs:
+  # -------------------------------------------------------------
+  # 1) 运行 CI —— 强制必须通过才继续执行 auto release
+  # -------------------------------------------------------------
   run-ci:
-    uses: ./.github/workflows/ci.yaml   # 引用你现有的 CI 文件
-    secrets: inherit                   # 继承 secrets
+    uses: ./.github/workflows/ci.yaml
+    secrets: inherit
 
+  # -------------------------------------------------------------
+  # 2) 创建 auto release 分支 + 创建两个 PR
+  # -------------------------------------------------------------
   create_auto_release_pr:
-    needs: run-ci                      # CI 必须成功后才执行
+    needs: run-ci
     runs-on: ubuntu-latest
 
     steps:
@@ -24,58 +30,14 @@ jobs:
         with:
           fetch-depth: 0
 
-      # --------------------------------------------------------
-      # STEP 0: Load PR Template (.github/pull_request_template.md)
-      # --------------------------------------------------------
-      - name: Load PR template
-        id: pr_template
-        run: |
-          echo "Reading PR template..."
-          body=$(cat .github/pull_request_template.md)
-
-          # Escape characters for GitHub output
-          body="${body//'%'/'%25'}"
-          body="${body//$'\n'/'%0A'}"
-          body="${body//$'\r'/'%0D'}"
-
-          echo "template_body=$body" >> $GITHUB_OUTPUT
-      # STEP 1: 创建并 push release/auto-release 分支
+      # Step 1 — 创建 release/auto-release 分支
       - name: Create auto-release branch
         run: |
           git fetch origin
           git checkout -B release/auto-release origin/develop
           git push origin release/auto-release --force
-          
 
-      - name: Generate Final Release Notes
-        id: final_notes
-        run: |
-          echo "Generating final release notes..."
-          
-          NOTES=$(git log origin/master..origin/release/auto-release --pretty=format:"- %s" --reverse)
-          
-          cat <<EOF > final_notes.txt
-          ### 🎉 Final Release Notes Before Publishing
-          
-          #### 📝 Commits Included in This Release
-          $NOTES
-          
-          #### 📌 Next Steps
-          After merging this PR into **master**, semantic-release will:
-          
-            - Automatically determine version bump (major/minor/patch)
-            - Generate CHANGELOG.md
-            - Create GitHub Release & Tag
-            - Publish artifacts (if configured)
-          
-          EOF
-          
-          # Write to GITHUB_OUTPUT (replacement for deprecated ::set-output)
-          echo "body<<EOF" >> $GITHUB_OUTPUT
-          cat final_notes.txt >> $GITHUB_OUTPUT
-          echo "EOF" >> $GITHUB_OUTPUT
-
-      # STEP 2: 创建 develop → release/auto-release PR
+      # Step 2 — 创建 develop → release/auto-release PR
       - name: Create PR from develop → release/auto-release
         uses: repo-sync/pull-request@v2
         with:
@@ -83,15 +45,45 @@ jobs:
           destination_branch: release/auto-release
           github_token: ${{ secrets.GITHUB_TOKEN }}
           pr_title: "chore(release): Auto release preparation"
-          pr_body: |
-            ${{ steps.pr_template.outputs.template_body }}
-
-            ---
-            ## 🔥 Auto Generated Release Notes
-            ${{ steps.final_notes.outputs.notes_body }}
+          pr_body: "Auto-generated PR to prepare release branch"
           pr_label: "auto-release"
 
-      # STEP 3: 创建 release/auto-release → master PR（你需要的）
+      # ---------------------------------------------------------
+      # Step 3 — 生成最终 release notes + pull_request_template.md 合并
+      # ---------------------------------------------------------
+      - name: Generate PR Body (Notes + Template)
+        id: prbody
+        run: |
+          echo "⏳ Generating PR body..."
+
+          # 自动生成 commits 列表
+          NOTES=$(git log origin/master..origin/release/auto-release --pretty=format:"- %s" --reverse)
+
+          # 读取 PR 模板（手动 PR 使用这个模板）
+          TEMPLATE=$(cat .github/pull_request_template.md)
+
+          # 合并成一个完整 PR 内容
+          cat <<EOF > pr_body.txt
+          ### 🎉 Final Release Notes Before Publishing
+
+          #### 📝 Commits Included in This Release
+          $NOTES
+
+          ---
+
+          $TEMPLATE
+          EOF
+
+          # 输出给 GitHub Actions
+          {
+            echo "body<<EOF"
+            cat pr_body.txt
+            echo "EOF"
+          } >> $GITHUB_OUTPUT
+
+      # ---------------------------------------------------------
+      # Step 4 — 自动创建 release/auto-release → master PR
+      # ---------------------------------------------------------
       - name: Create PR from release/auto-release → master
         uses: repo-sync/pull-request@v2
         with:
@@ -99,10 +91,5 @@ jobs:
           destination_branch: master
           github_token: ${{ secrets.GITHUB_TOKEN }}
           pr_title: "chore(release): Release → master"
-          pr_body:  |
-            ${{ steps.pr_template.outputs.template_body }}
-
-            ---
-            ## 🔥 Auto Generated Release Notes
-            ${{ steps.final_notes.outputs.notes_body }}
+          pr_body: ${{ steps.prbody.outputs.body }}
           pr_label: "release"
