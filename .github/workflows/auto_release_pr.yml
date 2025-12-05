@@ -18,6 +18,8 @@ permissions:
 jobs:
   create_auto_release_pr:
     runs-on: ubuntu-latest
+
+    steps:
       - run-ci:
         uses: ./.github/workflows/ci.yaml   # 引用你现有的 CI 文件
         secrets: inherit                   # 继承 secrets
