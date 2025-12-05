@@ -1,11 +1,5 @@
 name: Auto Release PR (develop → release/auto-release)
 
-#on:
-#  workflow_run:
-#    workflows: ["CI"]        # ⭐ 当 CI 完成时触发
-#    types:
-#      - completed
-
 on:
   push:
     branches:
@@ -22,6 +16,9 @@ jobs:
 
   semantic-release:
     needs: run-ci                      # CI 必须成功后才执行
+    runs-on: ubuntu-latest
+
+  create_auto_release_pr:
     runs-on: ubuntu-latest
 
     steps:
@@ -57,22 +54,22 @@ jobs:
             NOTES=$(git log origin/master..origin/release/auto-release --pretty=format:"- %s" --reverse)
             
             cat <<EOF > final_notes.txt
-          ### 🎉 Final Release Notes Before Publishing
-    
-          #### 📝 Commits Included in This Release
-          $NOTES
-    
-          #### 📌 Next Steps
-          After merging this PR into **master**, semantic-release will:
-    
-            - Automatically determine version bump (major/minor/patch)
-            - Generate CHANGELOG.md
-            - Create GitHub Release & Tag
-            - Publish artifacts (if configured)
-    
-          EOF
-          
-          echo "::set-output name=body::$(cat final_notes.txt)"
+            ### 🎉 Final Release Notes Before Publishing
+      
+            #### 📝 Commits Included in This Release
+            $NOTES
+      
+            #### 📌 Next Steps
+            After merging this PR into **master**, semantic-release will:
+      
+              - Automatically determine version bump (major/minor/patch)
+              - Generate CHANGELOG.md
+              - Create GitHub Release & Tag
+              - Publish artifacts (if configured)
+      
+            EOF
+            
+            echo "::set-output name=body::$(cat final_notes.txt)"
 
       # STEP 3: 创建 release/auto-release → master PR（你需要的）
       - name: Create PR from release/auto-release → master
