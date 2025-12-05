@@ -45,19 +45,7 @@ jobs:
           git fetch origin
           git checkout -B release/auto-release origin/develop
           git push origin release/auto-release --force
-
-      # STEP 2: 创建 develop → release/auto-release PR
-      - name: Create PR from develop → release/auto-release
-        uses: repo-sync/pull-request@v2
-        with:
-          source_branch: develop
-          destination_branch: release/auto-release
-          github_token: ${{ secrets.GITHUB_TOKEN }}
-          pr_title: "chore(release): Auto release preparation"
-          pr_body: |
-            This PR is auto-generated from develop.
-            It prepares the release branch.
-          pr_label: "auto-release"
+          
 
       - name: Generate Final Release Notes
         id: final_notes
@@ -90,6 +78,24 @@ jobs:
           BODY="${BODY//$'\r'/'%0D'}"
           
           echo "::set-output name=body::$(cat final_notes.txt)"
+
+      # STEP 2: 创建 develop → release/auto-release PR
+      - name: Create PR from develop → release/auto-release
+        uses: repo-sync/pull-request@v2
+        with:
+          source_branch: develop
+          destination_branch: release/auto-release
+          github_token: ${{ secrets.GITHUB_TOKEN }}
+          pr_title: "chore(release): Auto release preparation"
+          pr_body: |
+            ${{ steps.pr_template.outputs.template_body }}
+
+            ---
+            ## 🔥 Auto Generated Release Notes
+            ${{ steps.final_notes.outputs.notes_body }}
+          pr_label: "auto-release"
+
+
 
       # STEP 3: 创建 release/auto-release → master PR（你需要的）
       - name: Create PR from release/auto-release → master
