@@ -1,4 +1,4 @@
-## 📝 Summary
+📝 Summary
 Provide a clear and concise summary of what this PR does:
 
 - What problem does it solve?
@@ -7,7 +7,7 @@ Provide a clear and concise summary of what this PR does:
 
 # 🧩 Type of Change
 
-Select **one** that best describes this PR (commit messages do NOT have to follow this):
+Select one that best describes this PR (commit messages do NOT have to follow this):
 
 - [ ] feat: New feature
 - [ ] fix: Bug fix
@@ -26,6 +26,6 @@ Link issues here (optional):
 
 ## ✔ Checklist
 - [ ] Code compiles
-- [ ] Tests pass (`pytest`)
+- [ ] Tests pass (pytest)
 - [ ] Formatting (black)
 - [ ] Linting (ruff / flake8)
