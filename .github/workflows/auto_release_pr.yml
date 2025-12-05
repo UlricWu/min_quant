@@ -23,6 +23,22 @@ jobs:
         uses: actions/checkout@v4
         with:
           fetch-depth: 0
+
+      # --------------------------------------------------------
+      # STEP 0: Load PR Template (.github/pull_request_template.md)
+      # --------------------------------------------------------
+      - name: Load PR template
+        id: pr_template
+        run: |
+          echo "Reading PR template..."
+          body=$(cat .github/pull_request_template.md)
+
+          # Escape characters for GitHub output
+          body="${body//'%'/'%25'}"
+          body="${body//$'\n'/'%0A'}"
+          body="${body//$'\r'/'%0D'}"
+
+          echo "template_body=$body" >> $GITHUB_OUTPUT
       # STEP 1: 创建并 push release/auto-release 分支
       - name: Create auto-release branch
         run: |
@@ -66,6 +82,13 @@ jobs:
           
           EOF
           
+          BODY=$(cat final_notes.txt)
+
+          # Escape for GitHub Output
+          BODY="${BODY//'%'/'%25'}"
+          BODY="${BODY//$'\n'/'%0A'}"
+          BODY="${BODY//$'\r'/'%0D'}"
+          
           echo "::set-output name=body::$(cat final_notes.txt)"
 
       # STEP 3: 创建 release/auto-release → master PR（你需要的）
@@ -76,8 +99,10 @@ jobs:
           destination_branch: master
           github_token: ${{ secrets.GITHUB_TOKEN }}
           pr_title: "chore(release): Release → master"
-          pr_body:
-            ${{ steps.pr_template.outputs.body }}
-            ## 🔥 Auto-Generated Release Notes
-            ${{ steps.final_notes.outputs.body }}
+          pr_body:  |
+            ${{ steps.pr_template.outputs.template_body }}
+
+            ---
+            ## 🔥 Auto Generated Release Notes
+            ${{ steps.final_notes.outputs.notes_body }}
           pr_label: "release"
