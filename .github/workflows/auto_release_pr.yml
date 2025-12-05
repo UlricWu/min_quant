@@ -1,9 +1,10 @@
 name: Auto Release PR (develop → release/auto-release)
 
 on:
-  push:
-    branches:
-      - develop
+  workflow_run:
+    workflows: ["CI"]        # ⭐ 当 CI 完成时触发
+    types:
+      - completed
 
 permissions:
   contents: write
