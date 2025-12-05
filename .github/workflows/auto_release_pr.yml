@@ -76,5 +76,8 @@ jobs:
           destination_branch: master
           github_token: ${{ secrets.GITHUB_TOKEN }}
           pr_title: "chore(release): Release → master"
-          pr_body: ${{ steps.final_notes.outputs.body }}
+          pr_body:
+            ${{ steps.pr_template.outputs.body }}
+            ## 🔥 Auto-Generated Release Notes
+            ${{ steps.final_notes.outputs.body }}
           pr_label: "release"
