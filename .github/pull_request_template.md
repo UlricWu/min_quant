@@ -1,13 +1,9 @@
-## 📝 Summary
-Provide a clear and concise summary of what this PR does:
+📝 Summary
 
-- What problem does it solve?
-- Why is this change necessary?
-- What is the expected impact?
 
 # 🧩 Type of Change
 
-Select **one** that best describes this PR (commit messages do NOT have to follow this):
+Select one that best describes this PR (commit messages do NOT have to follow this):
 
 - [ ] feat: New feature
 - [ ] fix: Bug fix
@@ -23,9 +19,3 @@ Link issues here (optional):
 
 - Closes #
 - Related #
-
-## ✔ Checklist
-- [ ] Code compiles
-- [ ] Tests pass (`pytest`)
-- [ ] Formatting (black)
-- [ ] Linting (ruff / flake8)
