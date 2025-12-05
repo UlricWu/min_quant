@@ -1,9 +1,5 @@
 📝 Summary
-Provide a clear and concise summary of what this PR does:
 
-- What problem does it solve?
-- Why is this change necessary?
-- What is the expected impact?
 
 # 🧩 Type of Change
 
@@ -23,9 +19,3 @@ Link issues here (optional):
 
 - Closes #
 - Related #
-
-## ✔ Checklist
-- [ ] Code compiles
-- [ ] Tests pass (pytest)
-- [ ] Formatting (black)
-- [ ] Linting (ruff / flake8)
