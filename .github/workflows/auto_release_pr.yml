@@ -16,47 +16,53 @@ permissions:
   pull-requests: write
 
 jobs:
-  create_auto_release_pr:
+  run-ci:
+    uses: ./.github/workflows/ci.yaml   # 引用你现有的 CI 文件
+    secrets: inherit                   # 继承 secrets
+
+  semantic-release:
+    needs: run-ci                      # CI 必须成功后才执行
     runs-on: ubuntu-latest
 
+
     steps:
-      - run-ci:
-        uses: ./.github/workflows/ci.yaml   # 引用你现有的 CI 文件
-        secrets: inherit                   # 继承 secrets
+        - run-ci:
+          uses: ./.github/workflows/ci.yaml   # 引用你现有的 CI 文件
+          secrets: inherit                   # 继承 secrets
 
 
-      - name: Checkout repository
-        uses: actions/checkout@v4
-        with:
-          fetch-depth: 0
-      # STEP 1: 创建并 push release/auto-release 分支
-      - name: Create auto-release branch
-        run: |
-          git fetch origin
-          git checkout -B release/auto-release origin/develop
-          git push origin release/auto-release --force
+        - name: Checkout repository
+          uses: actions/checkout@v4
+          with:
+            fetch-depth: 0
+        # STEP 1: 创建并 push release/auto-release 分支
+        - name: Create auto-release branch
+          run: |
+            git fetch origin
+            git checkout -B release/auto-release origin/develop
+            git push origin release/auto-release --force
 
-      # STEP 2: 创建 develop → release/auto-release PR
-      - name: Create PR from develop → release/auto-release
-        uses: repo-sync/pull-request@v2
-        with:
-          source_branch: develop
-          destination_branch: release/auto-release
-          github_token: ${{ secrets.GITHUB_TOKEN }}
-          pr_title: "chore(release): Auto release preparation"
-          pr_body: |
-            This PR is auto-generated from develop.
-            It prepares the release branch.
-          pr_label: "auto-release"
+        # STEP 2: 创建 develop → release/auto-release PR
+        - name: Create PR from develop → release/auto-release
+          uses: repo-sync/pull-request@v2
+          with:
+            source_branch: develop
+            destination_branch: release/auto-release
+            github_token: ${{ secrets.GITHUB_TOKEN }}
+            pr_title: "chore(release): Auto release preparation"
+            pr_body: |
+              This PR is auto-generated from develop.
+              It prepares the release branch.
+            pr_label: "auto-release"
 
-      - name: Generate Final Release Notes
-        id: final_notes
-        run: |
-            echo "Generating final release notes..."
-            
-            NOTES=$(git log origin/master..origin/release/auto-release --pretty=format:"- %s" --reverse)
-            
-            cat <<EOF > final_notes.txt
+        - name: Generate Final Release Notes
+          id: final_notes
+          run: |
+              echo "Generating final release notes..."
+              
+              NOTES=$(git log origin/master..origin/release/auto-release --pretty=format:"- %s" --reverse)
+              
+              cat <<EOF > final_notes.txt
             ### 🎉 Final Release Notes Before Publishing
       
             #### 📝 Commits Included in This Release
