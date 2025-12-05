@@ -1,7 +1,13 @@
 ## 📝 Summary
-Explain what this PR does.
+Provide a clear and concise summary of what this PR does:
 
-## 🧩 Type of Change (select one)
+- What problem does it solve?
+- Why is this change necessary?
+- What is the expected impact?
+
+# 🧩 Type of Change
+
+Select **one** that best describes this PR (commit messages do NOT have to follow this):
 
 - [ ] feat: New feature
 - [ ] fix: Bug fix
@@ -13,7 +19,10 @@ Explain what this PR does.
 - [ ] BREAKING CHANGE: Breaking API change
 
 ## 📌 Related Issues
-Link issues (optional).
+Link issues here (optional):
+
+- Closes #
+- Related #
 
 ## ✔ Checklist
 - [ ] Code compiles
