@@ -24,13 +24,7 @@ jobs:
     needs: run-ci                      # CI 必须成功后才执行
     runs-on: ubuntu-latest
 
-
     steps:
-      - run-ci:
-        uses: ./.github/workflows/ci.yaml   # 引用你现有的 CI 文件
-        secrets: inherit                   # 继承 secrets
-
-
       - name: Checkout repository
         uses: actions/checkout@v4
         with:
