@@ -1,10 +1,15 @@
 name: Auto Release PR (develop → release/auto-release)
 
+#on:
+#  workflow_run:
+#    workflows: ["CI"]        # ⭐ 当 CI 完成时触发
+#    types:
+#      - completed
+
 on:
-  workflow_run:
-    workflows: ["CI"]        # ⭐ 当 CI 完成时触发
-    types:
-      - completed
+  push:
+    branches:
+      - develop
 
 permissions:
   contents: write
@@ -13,20 +18,9 @@ permissions:
 jobs:
   create_auto_release_pr:
     runs-on: ubuntu-latest
-
-    # ⭐⭐ 关键条件（必须满足） ⭐⭐
-    if: >
-      github.event.workflow_run.conclusion == 'success' &&
-      github.event.workflow_run.event == 'push' &&
-      contains(github.event.workflow_run.head_branch, 'develop')
-
-    steps:
-      - name: Debug info
-        run: |
-          echo "Workflow:     ${{ github.event.workflow_run.name }}"
-          echo "Event:        ${{ github.event.workflow_run.event }}"
-          echo "Branch:       ${{ github.event.workflow_run.head_branch }}"
-          echo "Conclusion:   ${{ github.event.workflow_run.conclusion }}"
+      - run-ci:
+        uses: ./.github/workflows/ci.yaml   # 引用你现有的 CI 文件
+        secrets: inherit                   # 继承 secrets
 
 
       - name: Checkout repository
