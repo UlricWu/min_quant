@@ -17,7 +17,6 @@ def run(date: str):
         d = d.strftime("%Y-%m-%d")
         p.run(d)
 
-
 @app.command()
 def today():
     """运行当天的数据管线"""
