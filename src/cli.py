@@ -16,7 +16,7 @@ def run(date: str):
     for d in dates:
         d = d.strftime("%Y-%m-%d")
         p.run(d)
-
+#  ftp->7z->csv->parquet->sh_order_trade split->symbol_date ->trade_enrich -> orderbook
 
 @app.command()
 def today():
