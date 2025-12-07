@@ -17,6 +17,7 @@ def run(date: str):
         d = d.strftime("%Y-%m-%d")
         p.run(d)
 #  ftp->7z->csv->parquet->sh_order_trade split->symbol_date ->trade_enrich -> orderbook
+
 @app.command()
 def today():
     """运行当天的数据管线"""
