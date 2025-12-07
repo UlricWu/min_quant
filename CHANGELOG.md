@@ -1,3 +1,10 @@
+## [0.6.12](https://github.com/UlricWu/min_quant/compare/v0.6.11...v0.6.12) (2025-12-07)
+
+
+### Bug Fixes
+
+* test hook ([1075509](https://github.com/UlricWu/min_quant/commit/10755099f7edbf54ae39fd44ed81e059c8145b4d))
+
 ## [0.6.11](https://github.com/UlricWu/min_quant/compare/v0.6.10...v0.6.11) (2025-12-05)
 
 
