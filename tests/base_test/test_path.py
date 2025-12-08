@@ -135,7 +135,7 @@ def test_config_resolution(tmp_path):
     # 3) 都不存在 → 返回 shared/configs/name（但文件不存在）
     expect = shared_cfg / "c.yaml"
     assert PathManager.config_file("c.yaml") == expect
-    
+
 
 def test_config_priority(tmp_path):
     dev = setup_fake_project(tmp_path)
