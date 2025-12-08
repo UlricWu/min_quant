@@ -35,6 +35,7 @@ def test_detect_root_structure(tmp_path):
 
     assert PathManager.root() == dev
 
+
 def setup_fake_project(tmp_path):
     """
     模拟服务器目录结构：
@@ -77,7 +78,6 @@ def test_data_and_shared_dirs(tmp_path):
     assert PathManager.base_dir() == tmp_path
     assert PathManager.data_dir() == tmp_path / "data"
     assert PathManager.shared_dir() == tmp_path / "shared"
-
 
 
 def test_symbol_and_parquet_dirs(tmp_path):
@@ -135,6 +135,8 @@ def test_config_resolution(tmp_path):
     # 3) 都不存在 → 返回 shared/configs/name（但文件不存在）
     expect = shared_cfg / "c.yaml"
     assert PathManager.config_file("c.yaml") == expect
+    
+
 def test_config_priority(tmp_path):
     dev = setup_fake_project(tmp_path)
     PathManager.set_root(dev)
