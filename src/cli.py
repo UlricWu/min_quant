@@ -28,7 +28,6 @@ def today():
 
 # TODO: 写入特征表 / 喂给模型 / 生成标签
 
-
 if __name__ == "__main__":
     app()
 # python -m src.cli run 2025-11-23
