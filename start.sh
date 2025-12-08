@@ -12,7 +12,7 @@ fi
 source /home/wsw/miniconda3/etc/profile.d/conda.sh
 
 # =========== 3. 激活环境 ==========
-conda activate dev   # 改成你的环境名，如 quant 或 qtr
+conda activate dev   # 改成环境名，如 quant
 
 # 1) 如果没传日期，用今天日期
 if [ -z "$1" ]; then
