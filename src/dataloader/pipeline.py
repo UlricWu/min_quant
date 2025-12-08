@@ -58,7 +58,7 @@ class DataPipeline:
         # 目录准备
         raw_dir = self.path_manager.raw_dir(date)
         parquet_date_dir = self.path_manager.parquet_dir() / date
-        tmp_dir = self.path_manager.temp_dir(date)
+        tmp_dir = self.path_manager.tmp_dir(date)
 
         FileSystem.ensure_dir(raw_dir)
         FileSystem.ensure_dir(parquet_date_dir)
