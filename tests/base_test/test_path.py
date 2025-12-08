@@ -124,7 +124,6 @@ def test_config_resolution(tmp_path):
     file2.write_text("shared config")
 
     PathManager.set_root(dev)
-    # print(PathManager.project_dir())
 
     # # 1) 项目内优先级
     assert PathManager.config_file("a.yaml") == file1
