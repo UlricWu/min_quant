@@ -110,5 +110,67 @@ class Logging:
 
         return decorator
 
+    # Add below inside Logging class
+    # -----------------------------------
+    def progress(self, task: str, total, unit="items"):
+        """
+        最小侵入的进度展示装饰器。
+
+        用法：
+            @logs.progress("FTP 下载", total=lambda args: args[1], unit="bytes")
+            def download(chunk, logger=None):
+                logger.update(len(chunk))
+        """
+        def decorator(func):
+            @wraps(func)
+            def wrapper(*args, **kwargs):
+                # total 可以是常数或 lambda args
+                computed_total = total(args) if callable(total) else total
+
+                # 创建 progress logger 实例
+                prog_logger = _SimpleProgressLogger(task, computed_total, unit, self)
+
+                # 传递 logger 到业务函数
+                result = func(*args, logger=prog_logger, **kwargs)
+
+                # 完成
+                prog_logger.finish()
+                return result
+            return wrapper
+        return decorator
+# -----------------------------------
+
+class _SimpleProgressLogger:
+    """
+    特轻量级进度 logger：负责 update() 等操作。
+    不影响主 logger，只做 info 输出。
+    """
+    def __init__(self, task, total, unit, logger):
+        self.task = task
+        self.total = int(total)
+        self.unit = unit
+        self.logger = logger
+        self.current = 0
+        self.start = perf_counter()
+
+        logger.info(f"[{self.task}] START total={self.total} {self.unit}")
+
+    def update(self, value):
+        self.current += value
+        elapsed = perf_counter() - self.start
+
+        eta = (elapsed / self.current) * (self.total - self.current) if self.current else 0
+
+        self.logger.info(
+            f"[Progress] {self.task}: "
+            f"{self.current}/{self.total} {self.unit} "
+            f"| elapsed={elapsed:.2f}s | ETA={eta:.2f}s"
+        )
+
+    def finish(self):
+        elapsed = perf_counter() - self.start
+        self.logger.info(f"[{self.task}] DONE total_time={elapsed:.2f}s")
+
+
 # 默认全局 logs（可被 init_logging 替换）
 logs = Logging()

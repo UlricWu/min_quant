@@ -18,7 +18,14 @@ class FileSystem:
     """
 
     @staticmethod
-    def ensure_dir(path: str | Path) -> Path:
+    def ensure_dir(path: str | Path):
+        # if isinstance(path, str) or isinstance(path, Path):
+        #     path = [path]
+        # for p in path:
+        FileSystem._ensure_dir(path)
+
+    @staticmethod
+    def _ensure_dir(path: str | Path):
         """
         创建目录（如果不存在）
         """
@@ -26,7 +33,6 @@ class FileSystem:
         if not p.exists():
             p.mkdir(parents=True, exist_ok=True)
             logs.debug(f"[FS] 创建目录: {p}")
-        return p
 
     @staticmethod
     def file_exists(path: str | Path) -> bool:

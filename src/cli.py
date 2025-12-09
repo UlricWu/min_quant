@@ -10,7 +10,7 @@ def run(date: str):
     """运行指定日期的数据管线"""
     import pandas as pd
     start_date = '2025-11-03'
-    end_date = '2025-11-12'
+    end_date = '2025-11-04'
     dates = pd.date_range(start_date, end_date)
     p = DataPipeline()
     for d in dates:
