@@ -89,6 +89,7 @@ class FTPDownloader:
             # 进入根目录，如 "level2"
             logs.debug(f"[FTP] CWD: {self.remote_root}")
             ftp.cwd(self.remote_root)
+            # ftp.set_pasv(False)
             # ftp.cwd("level2")
 
             try:
