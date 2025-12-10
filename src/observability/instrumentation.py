@@ -44,6 +44,7 @@ class Instrumentation:
 
         @contextmanager
         def _ctx():
+            logs.info(f"[{name}] ===========")
             inst.timeit.start(name)
             try:
                 yield

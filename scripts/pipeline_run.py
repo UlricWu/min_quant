@@ -1,9 +1,7 @@
 #!filepath: scripts/pipeline_run.py
-from src.dataloader.pipeline import DataPipeline
-from src import logs
 
 if __name__ == "__main__":
-    import sys
+    pass
     #
     # if len(sys.argv) != 2:
     #     print("Usage: python scripts/pipeline_run.py YYYY-MM-DD")
