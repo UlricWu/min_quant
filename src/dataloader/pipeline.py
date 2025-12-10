@@ -18,6 +18,7 @@ import pandas as pd
 
 from src.observability.instrumentation import Instrumentation
 
+
 class DataPipeline:
     """
     Level-2 数据处理 Pipeline：
@@ -90,10 +91,10 @@ class DataPipeline:
                 else:
                     logs.info("[Pipeline] raw/*.7z 已存在 → 跳过下载")
 
-        #
-        # ==============================================================
-        # Step 2 — 逐个 .7z 解压 → csv → parquet → SH 拆分
-        # ==============================================================
+            #
+            # ==============================================================
+            # Step 2 — 逐个 .7z 解压 → csv → parquet → SH 拆分
+            # ==============================================================
             with self.inst.timer("解压+转换+SH拆分"):
                 # 上交所混合文件拆分后的目标文件（存在即认为 SH 拆分已完成）
                 sh_order_parquet = parquet_date_dir / "SH_order.parquet"
@@ -131,7 +132,7 @@ class DataPipeline:
                         FileSystem.ensure_dir(tmp_dir)
                         logs.info(f"[Pipeline] 解压 {zfile} → {tmp_dir}")
                         self.decompressor.extract_7z(zfile, str(tmp_dir))
-        #
+                        #
                         # ------------------------------
                         # 2.3 解压 CSV
                         # ------------------------------
@@ -142,7 +143,7 @@ class DataPipeline:
                         # ------------------------------
                         self.converter.convert(tmp_csv, relative_dir=str(parquet_date_dir))
                         FileSystem.remove(tmp_csv)
-        #
+                    #
                     # ------------------------------
                     # 2.5 SH 混合文件拆分（ShConverter）
                     # ------------------------------
@@ -157,7 +158,6 @@ class DataPipeline:
         # Step 3 — SymbolRouter（按 symbol 拆分）
         # ==============================================================
         with self.inst.timer("SymbolRouter"):
-            logs.info(f"[SymbolRouter] ==== Symbol router date={date} ====")
 
             self.router.route_date(date)
         #
@@ -186,9 +186,9 @@ class DataPipeline:
                     continue
 
                 # 4.3 读原始 trade → 事件解析（构造 ts 等）→ enrich
-                logs.info(f"[Enrich] 读取原始 Trade: {trade_path}")
+                logs.debug(f"[Enrich] 读取原始 Trade: {trade_path}")
                 df_raw = pd.read_parquet(trade_path)
-                logs.info(f"[Enrich] 处理 {symbol} → {trade_path}")
+                logs.debug(f"[Enrich] 处理 {symbol} → {trade_path}")
 
                 df_enriched = parse_events(df_raw, kind='trade')
                 df_enriched.to_parquet(enriched_path, index=False)
@@ -200,23 +200,23 @@ class DataPipeline:
         # ==============================================================
         with self.inst.timer("OrderBook Snapshot"):
             logs.info(f"[Pipeline] === OrderBook Snapshot 重建: {date} ===")
-        #
-        rebuilder = OrderBookRebuilder()
 
-        for symbol in self.cfg.data.symbols:
-            # ===================== 重建 Snapshot =====================
-            order_path = self.path_manager.order_dir(symbol, date)
-            trade_path = self.path_manager.trade_dir(symbol, date)
+            rebuilder = OrderBookRebuilder()
 
-            if not order_path.exists():
-                logs.warning(f'[order] symbol={symbol} not found {order_path}')
-                continue
-            if not trade_path.exists():
-                logs.warning(f'[trade] symbol={symbol}  not found {trade_path}')
-                continue
+            for symbol in self.cfg.data.symbols:
+                # ===================== 重建 Snapshot =====================
+                order_path = self.path_manager.order_dir(symbol, date)
+                trade_path = self.path_manager.trade_dir(symbol, date)
 
-            # ⭐ 任意层级都可再加 timer
-            with self.inst.timer(f"OrderBook_{symbol}"):
+                if not order_path.exists():
+                    logs.warning(f'[order] symbol={symbol} not found {order_path}')
+                    continue
+                if not trade_path.exists():
+                    logs.warning(f'[trade] symbol={symbol}  not found {trade_path}')
+                    continue
+
+                # ⭐ 任意层级都可再加 timer
+                # with self.inst.timer(f"OrderBook_{symbol}"):
                 rebuilder.build(symbol, date, write=True)
 
         # -------------------------------------------------

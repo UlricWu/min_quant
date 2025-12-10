@@ -1,68 +1,71 @@
+#!filepath: src/dataloader/sh_converter_streaming.py
+
 from pathlib import Path
-from typing import Tuple
-
 import pyarrow as pa
+import pyarrow.dataset as ds
 import pyarrow.parquet as pq
-
-from src.utils.filesystem import FileSystem
+import pyarrow.compute as pc
 from src import logs
 
 
-
 class ShConverter:
-    """
-    上交所逐笔混合文件拆分器（严谨版）
+    ORDER_TYPES = ["A", "D", "M"]
+    TRADE_TYPE = "T"
+    SPLIT_COL = "TickType"
 
-    SH 逐笔类型:
-        A : 新增委托 → Order
-        D : 删除委托 → Order
-        T : 成交       → Trade
-    """
+    def split(self, parquet_path: Path):
+        logs.info(f"[ShConverter] Streaming split: {parquet_path}")
 
-    ORDER_TYPES = ("A", "D", "M")   # 上交所委托事件（包含未来可能出现的 Modify）
-    TRADE_TYPE = ("T",)
+        dataset = ds.dataset(str(parquet_path), format="parquet")
+        schema = dataset.schema
 
-    SPLIT_TYPE = "TickType"
-
-    def __init__(self):
-        pass
-
-    # -----------------------------------------------------
-    @logs.catch()
-    def split(self, parquet_path: Path) :
-        """
-        输入 SH 混合 parquet → 输出:
-            <stem>_Order.parquet
-            <stem>_Trade.parquet
-        """
-
-        logs.info(f"[ShConverter] 拆分混合文件: {parquet_path}")
-
-        table = pq.read_table(parquet_path)
-
-        if self.SPLIT_TYPE not in table.schema.names:
-            logs.warning(
-                f"[ShConverter] 缺少 TickType 字段（非上交所混合文件？）: {parquet_path}"
-            )
+        if self.SPLIT_COL not in schema.names:
+            logs.warning("[ShConverter] 缺少 TickType 字段 → 跳过")
             return
 
-        tick_col = table.column(self.SPLIT_TYPE).to_pylist()
+        ticktype_type = schema.field(self.SPLIT_COL).type
 
-        # -----------------------------
-        # Trade: TickType == 'T'
-        # -----------------------------
-        trade_mask = pa.array([(t == "T") for t in tick_col])
-        trade_table = table.filter(trade_mask)
+        # ---------------------------------------------------------------------
+        # Determine real data type for value_set
+        # ---------------------------------------------------------------------
+        if pa.types.is_dictionary(ticktype_type):
+            logs.debug("[ShConverter] TickType 是 dictionary → 使用其 value_type")
 
-        # -----------------------------
-        # Order: TickType in {'A','D','M'}
-        # -----------------------------
-        order_mask = pa.array([(t in self.ORDER_TYPES) for t in tick_col])
-        order_table = table.filter(order_mask)
+            value_type = ticktype_type.value_type
 
-        # -----------------------------
-        # 输出路径
-        # -----------------------------
+        elif pa.types.is_string(ticktype_type):
+            value_type = pa.string()
+
+        elif pa.types.is_binary(ticktype_type):
+            value_type = pa.binary()
+
+        else:
+            logs.error(f"[ShConverter] 不支持 TickType 类型: {ticktype_type}")
+            return
+
+        # ---------------------------------------------------------------------
+        # Build Arrow value_set matching TickType value_type
+        # ---------------------------------------------------------------------
+        if pa.types.is_string(value_type):
+            arrow_order_values = pa.array(self.ORDER_TYPES, type=value_type)
+            arrow_trade_value = pa.scalar(self.TRADE_TYPE, type=value_type)
+        else:
+            arrow_order_values = pa.array([v.encode() for v in self.ORDER_TYPES], type=value_type)
+            arrow_trade_value = pa.scalar(self.TRADE_TYPE.encode(), type=value_type)
+
+        tick_col = ds.field(self.SPLIT_COL)
+
+        # ---------------------------------------------------------------------
+        # Filters (Dataset will auto-decode dictionary)
+        # ---------------------------------------------------------------------
+        order_filter = pc.is_in(tick_col, value_set=arrow_order_values)
+        trade_filter = pc.equal(tick_col, arrow_trade_value)
+
+        # ---------------------------------------------------------------------
+        # Execute streaming
+        # ---------------------------------------------------------------------
+        order_table = dataset.to_table(filter=order_filter)
+        trade_table = dataset.to_table(filter=trade_filter)
 
         out_order = parquet_path.with_name("SH_Order.parquet")
         out_trade = parquet_path.with_name("SH_Trade.parquet")
@@ -70,25 +73,6 @@ class ShConverter:
         pq.write_table(order_table, out_order, compression="zstd")
         pq.write_table(trade_table, out_trade, compression="zstd")
 
-        logs.info(f"[ShConverter] 输出委托表: {out_order}")
-        logs.info(f"[ShConverter] 输出成交表: {out_trade}")
-
-        # return out_order, out_trade
-
-    # -----------------------------------------------------
-    def is_sh_mixed_file(self, parquet_path: Path) -> bool:
-        """
-        判断是否为 SH 混合文件：
-        - TickType 字段存在
-        - 同时包含 Order 类型（A/D/M）和成交类型（T）
-        """
-        try:
-            table = pq.read_table(parquet_path, columns=[self.SPLIT_TYPE])
-        except:
-            return False
-
-        tick_vals = set(table.column(self.SPLIT_TYPE).to_pylist())
-        has_trade = "T" in tick_vals
-        has_order = any(t in self.ORDER_TYPES for t in tick_vals)
-
-        return has_trade and has_order
+        logs.info(f"[ShConverter] 委托={order_table.num_rows} → {out_order}")
+        logs.info(f"[ShConverter] 成交={trade_table.num_rows} → {out_trade}")
+        logs.info("[ShConverter] 完成拆分")
