@@ -44,6 +44,10 @@ class PathManager:
             return Path.cwd()
 
     @classmethod
+    def str_symbol(cls, symbol: str):
+        return f"{int(symbol):06d}"
+
+    @classmethod
     def root(cls) -> Path:
         if cls._root is None:
             cls._root = cls.detect_root()
@@ -84,19 +88,19 @@ class PathManager:
         p = cls.data_dir() / "raw"
         return p / date if date else p
 
-    @classmethod
-    def tmp_dir(cls, date=None) -> Path:
-        p = cls.data_dir() / "tmp"
-        return p / date if date else p
+    # @classmethod
+    # def tmp_dir(cls, date=None) -> Path:
+    #     p = cls.data_dir() / "tmp"
+    #     return p / date if date else p
 
     @classmethod
     def parquet_dir(cls, date=None) -> Path:
         p = cls.data_dir() / "parquet"
-        return p / date if date else p
+        return p / str(date) if date else p
 
     @classmethod
     def symbol_dir(cls, symbol: str, date: str | None = None) -> Path:
-        p = cls.data_dir() / "symbol" / symbol
+        p = cls.data_dir() / "symbol" / cls.str_symbol(symbol)
         return p / date if date else p
 
     @classmethod

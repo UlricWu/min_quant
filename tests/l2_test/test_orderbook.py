@@ -105,7 +105,7 @@ import pandas as pd
 from zoneinfo import ZoneInfo
 
 from src.l2.orderbook.orderbook_rebuilder import OrderBookRebuilder
-from src.l2.event_parser import parse_events
+from src.l2.common.event_parser import parse_events
 
 SH_TZ = ZoneInfo("Asia/Shanghai")
 

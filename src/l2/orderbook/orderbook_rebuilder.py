@@ -5,13 +5,13 @@ import pandas as pd
 import pyarrow.parquet as pq
 import pyarrow as pa
 from dataclasses import dataclass
-from typing import Dict, Optional
+from typing import Dict
 
 from src.utils.path import PathManager
 from src.utils.filesystem import FileSystem
 from src import logs
 
-from src.l2.event_parser import parse_events
+from src.l2.common.event_parser import parse_events
 
 
 # ============================================================

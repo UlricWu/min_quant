@@ -2,8 +2,6 @@
 import pytest
 from pathlib import Path
 
-from src.dataloader.pipeline import DataPipeline
-
 
 # ---------------------------------------------------------
 @pytest.fixture
