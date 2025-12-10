@@ -18,6 +18,32 @@ def project_root() -> str:
     return os.path.abspath(os.path.join(os.path.dirname(__file__), "../../"))
 
 
+def load_env_auto(root: str):
+    """
+    根据环境变量 ENV 自动加载不同 .env 文件
+    - ENV=dev → .env.dev
+    - ENV=prod → .env.prod
+    - 默认 ENV=dev
+    """
+    env = os.getenv("ENV", "dev").lower()
+
+    env_file_map = {
+        "dev": ".env.dev",
+        "prod": ".env.prod",
+        "test": ".env.test",
+    }
+
+    if env not in env_file_map:
+        raise ValueError(f"Unknown ENV={env}, expected one of {list(env_file_map.keys())}")
+
+    env_file = env_file_map[env]
+    env_path = os.path.join(root, env_file)
+
+    if not os.path.exists(env_path):
+        raise FileNotFoundError(f"Env file not found: {env_path}")
+
+    logs.info(f"[AppConfig] Loading ENV={env} from {env_file}")
+    load_dotenv(env_path)
 
 class AppConfig(BaseModel):
     log: LogConfig
@@ -33,7 +59,11 @@ class AppConfig(BaseModel):
         - 默认使用 <project_root>/config/base.yml
         - 不依赖当前工作目录
         """
+
         root = project_root()
+
+        # ⭐ 先根据 ENV 自动加载 .env
+        load_env_auto(root)
 
         # 1) 先加载 .env（在项目根目录下）
         env_path = os.path.join(root, ".env")

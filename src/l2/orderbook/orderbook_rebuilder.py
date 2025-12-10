@@ -94,11 +94,11 @@ class OrderBookRebuilder:
     path: PathManager = PathManager()
 
     # ---------------------------------------------------------
-    def build(self, symbol: str, date: str, write: bool = False) -> Optional[pd.DataFrame]:
+    def build(self, symbol: str, date: str, write: bool = False):
         snapshot_path = self.path.snapshot_dir(symbol, date)
         if snapshot_path.exists():
             logs.info(f"[Snapshot] 已存在 → 跳过: {snapshot_path}")
-            return None
+            return
 
         # 读取数据
         order_path = self.path.order_dir(symbol, date)
@@ -205,8 +205,6 @@ class OrderBookRebuilder:
 
         if write:
             self.write(symbol, date, df)
-
-        return df
 
     # ---------------------------------------------------------
     def format_snapshot(self, ts, snap):

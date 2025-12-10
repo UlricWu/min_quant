@@ -13,6 +13,7 @@ from src.dataloader.router_metadata import RouterMetadata
 class SymbolRouter:
     """
     v1：只按 SecurityID 首字符过滤（0/3/6）
+    仅负责 symbol 拆分，不负责 pipeline 调度、不负责计时、不负责进度。
     """
     ALLOWED_PREFIX = ("0", "3", "6")
 
@@ -21,6 +22,8 @@ class SymbolRouter:
         self.symbols = [int(s) for s in symbols] if symbols else None
 
     def route_date(self, date: str):
+        logs.info(f"[SymbolRouter] ==== Symbol router date={date} ====")
+
         date_dir = PathManager.parquet_dir() / date
         if not date_dir.exists():
             logs.warning(f"[route_date] date_dir={date_dir} does not exist")
