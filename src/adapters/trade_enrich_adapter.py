@@ -62,19 +62,20 @@ class TradeEnrichAdapter(BaseAdapter):
         logs.info(f"[TradeEnrichAdapter] run_for_date date={date}")
 
         for sym in self.symbols:
-            sym_dir = self.pm.symbol_dir(sym, date)
+            name = str(sym).zfill(6)
+            sym_dir = self.pm.symbol_dir(name, date)
             trade_path = sym_dir / "Trade.parquet"
             enriched_path = sym_dir / "Trade_Enriched.parquet"
 
             if not trade_path.exists():
-                logs.warning(f"[TradeEnrichAdapter] {trade_path} 不存在，跳过 symbol={sym}")
+                logs.warning(f"[TradeEnrichAdapter] {trade_path} 不存在，跳过 symbol={name}")
                 continue
 
             if enriched_path.exists():
-                logs.info(f"[TradeEnrichAdapter] enriched 已存在 → skip symbol={sym}")
+                logs.info(f"[TradeEnrichAdapter] enriched 已存在 → skip symbol={name}")
                 continue
 
-            logs.info(f"[TradeEnrichAdapter] enrich symbol={sym}, date={date}")
+            logs.info(f"[TradeEnrichAdapter] enrich symbol={name}, date={date}")
 
             df = pd.read_parquet(trade_path)
             events = self._df_to_events(df)

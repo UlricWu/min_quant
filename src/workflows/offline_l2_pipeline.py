@@ -8,14 +8,14 @@ from src.config.app_config import AppConfig
 # step
 
 from src.dataloader.pipeline.steps.download_step import DownloadStep
-from src.dataloader.pipeline.steps.csv_to_parquet_step import CsvToParquetStep
+from src.dataloader.pipeline.steps.csv_to_parquet_step import CsvConvertStep
 from src.dataloader.pipeline.steps.symbol_split_step import SymbolSplitStep
 from src.dataloader.pipeline.steps.trade_enrich_step import TradeEnrichStep
-from src.dataloader.pipeline.steps.orderbook_step import OrderBookStep
 
 # adapter
 
 from src.adapters.trade_enrich_adapter import TradeEnrichAdapter
+from src.adapters.csv_convert_adapter import CsvConvertAdapter
 from src.adapters.symbol_router_adapter import SymbolRouterAdapter
 # from src.adapters.orderbook_rebuild_adapter import OrderBookRebuildAdapter
 from src.adapters.ftp_download_adapter import FtpDownloadAdapter
@@ -23,10 +23,11 @@ from src.adapters.ftp_download_adapter import FtpDownloadAdapter
 # engine
 from src.engines.trade_enrich_engine import TradeEnrichEngine
 from src.engines.ftp_download_engine import FtpDownloadEngine
+from src.engines.csv_convert_engine import CsvConvertEngine
 
 # from src.dataloader.ftp_downloader import FTPDownloader
-from src.dataloader.streaming_csv_split_writer.converter import StreamingCsvSplitConverter
 from src.observability.instrumentation import Instrumentation
+from src.dataloader.pipeline.steps.download_step import DownloadStep
 
 
 def build_offline_l2_pipeline() -> DataPipeline:
@@ -37,6 +38,7 @@ def build_offline_l2_pipeline() -> DataPipeline:
     # engine
     trade_engine = TradeEnrichEngine()
     down_engine = FtpDownloadEngine()
+    convert_engine = CsvConvertEngine()
 
     # adapter
     trade_adapter = TradeEnrichAdapter(trade_engine, pm, cfg.data.symbols)
@@ -47,10 +49,12 @@ def build_offline_l2_pipeline() -> DataPipeline:
                                       inst=inst,
                                       engine=down_engine,
                                       )
+    convert_adapter = CsvConvertAdapter(convert_engine, inst=inst)
+    # trade_adapter = TradeEnrichAdapter()
 
     steps = [
         DownloadStep(adapter=down_adapter, inst=inst),
-        CsvToParquetStep(StreamingCsvSplitConverter()),
+        CsvConvertStep(convert_adapter, inst=inst),
         SymbolSplitStep(SymbolRouterAdapter(cfg.data.symbols, pm)),
         TradeEnrichStep(trade_adapter),
         # OrderBookStep(OrderBookRebuildAdapter(pm), cfg.data.symbols),

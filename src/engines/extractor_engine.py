@@ -1,4 +1,4 @@
-#!filepath: src/dataloader/streaming_csv_split_writer/extractor.py
+#!filepath: src/dataloader/streaming_csv_split_writer/extractor_engine.py
 
 from __future__ import annotations
 import subprocess

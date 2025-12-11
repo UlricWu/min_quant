@@ -7,15 +7,14 @@ import pyarrow as pa
 import pyarrow.parquet as pq
 import pytest
 
-from src.dataloader.streaming_csv_split_writer.extractor import CsvExtractor
-from src.dataloader.streaming_csv_split_writer.parser import CsvBatchParser
-from src.dataloader.streaming_csv_split_writer.filters import TickTypeSplitter
-from src.dataloader.streaming_csv_split_writer.writers import (
+from src.engines.extractor_engine import CsvExtractor
+from src.engines.parser import CsvBatchParser
+from src.engines.filters import TickTypeSplitter
+from src.engines.writers import (
     ParquetFileWriter,
     SplitWriter,
 )
-from src.dataloader.streaming_csv_split_writer.converter import StreamingCsvSplitConverter
-from src.dataloader.streaming_csv_split_writer.router import FileTypeRouter
+from src.engines.converter import StreamingCsvSplitConverter
 
 
 # ============================================================
@@ -37,7 +36,7 @@ def test_csv_extractor_returns_stdout(monkeypatch):
         assert "7z" in cmd[0].lower()
         return DummyProc(dummy_data)
 
-    from src.dataloader.streaming_csv_split_writer import extractor as extractor_mod
+    from src.engines import extractor_engine as extractor_mod
 
     monkeypatch.setattr(extractor_mod.subprocess, "Popen", fake_popen)
 
@@ -182,7 +181,7 @@ def test_split_writer_writes_order_and_trade(tmp_path):
 # ============================================================
 
 def test_file_type_router_basic(tmp_path):
-    from src.dataloader.streaming_csv_split_writer.router import FileTypeRouter
+    from src.engines.router import FileTypeRouter
 
     router = FileTypeRouter()
 
