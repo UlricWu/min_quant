@@ -18,12 +18,13 @@ from src.dataloader.pipeline.steps.orderbook_step import OrderBookStep
 from src.adapters.trade_enrich_adapter import TradeEnrichAdapter
 from src.adapters.symbol_router_adapter import SymbolRouterAdapter
 # from src.adapters.orderbook_rebuild_adapter import OrderBookRebuildAdapter
-
-
+from src.adapters.ftp_download_adapter import FtpDownloadAdapter
 
 # engine
 from src.engines.trade_enrich_engine import TradeEnrichEngine
-from src.dataloader.ftp_downloader import FTPDownloader
+from src.engines.ftp_download_engine import FtpDownloadEngine
+
+# from src.dataloader.ftp_downloader import FTPDownloader
 from src.dataloader.streaming_csv_split_writer.converter import StreamingCsvSplitConverter
 from src.observability.instrumentation import Instrumentation
 
@@ -31,13 +32,24 @@ from src.observability.instrumentation import Instrumentation
 def build_offline_l2_pipeline() -> DataPipeline:
     cfg = AppConfig.load()
     pm = PathManager()
-
-    trade_engine = TradeEnrichEngine()
-    trade_adapter = TradeEnrichAdapter(trade_engine, pm, cfg.data.symbols)
     inst = Instrumentation()
 
+    # engine
+    trade_engine = TradeEnrichEngine()
+    down_engine = FtpDownloadEngine()
+
+    # adapter
+    trade_adapter = TradeEnrichAdapter(trade_engine, pm, cfg.data.symbols)
+    down_adapter = FtpDownloadAdapter(user=cfg.secret.ftp_user,
+                                      host=cfg.secret.ftp_host,
+                                      port=cfg.secret.ftp_port,
+                                      password=cfg.secret.ftp_password,
+                                      inst=inst,
+                                      engine=down_engine,
+                                      )
+
     steps = [
-        DownloadStep(FTPDownloader()),
+        DownloadStep(adapter=down_adapter, inst=inst),
         CsvToParquetStep(StreamingCsvSplitConverter()),
         SymbolSplitStep(SymbolRouterAdapter(cfg.data.symbols, pm)),
         TradeEnrichStep(trade_adapter),

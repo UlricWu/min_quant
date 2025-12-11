@@ -7,7 +7,7 @@ from typing import Iterable, List
 import pandas as pd
 
 from src.engines.trade_enrich_engine import TradeEnrichEngine, RawTradeEvent, EnrichedTradeEvent
-from src.adapters.base import BaseAdapter
+from src.adapters.base_adapter import BaseAdapter
 from src.utils.path import PathManager
 from src.utils.filesystem import FileSystem
 from src import logs
