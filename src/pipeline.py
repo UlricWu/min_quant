@@ -3,7 +3,7 @@
 from __future__ import annotations
 
 from src.dataloader.ftp_downloader import FTPDownloader
-from src.dataloader.streaming_csv_split_writer.converter import StreamingCsvSplitConverter
+from src.engines.converter import StreamingCsvSplitConverter
 from src.dataloader.symbol_router import SymbolRouter
 from src.l2.offline.offline_batch_runner import OfflineBatchRunner
 

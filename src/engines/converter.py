@@ -5,11 +5,11 @@ from pathlib import Path
 
 from src import logs
 
-from .extractor import CsvExtractor
-from .parser import CsvBatchParser
-from .filters import TickTypeSplitter
-from .writers import ParquetFileWriter, SplitWriter
-from .router import FileTypeRouter
+from src.engines.extractor_engine import CsvExtractor
+from src.engines.parser import CsvBatchParser
+from src.engines.filters import TickTypeSplitter
+from src.engines.writers import ParquetFileWriter, SplitWriter
+from src.engines.router import FileTypeRouter
 
 
 class StreamingCsvSplitConverter:

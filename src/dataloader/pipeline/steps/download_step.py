@@ -3,6 +3,8 @@ from src.dataloader.pipeline.step import BasePipelineStep
 from src.dataloader.pipeline.context import PipelineContext
 from src.adapters.ftp_download_adapter import FtpDownloadAdapter
 
+from src.utils.logger import logs
+
 
 class DownloadStep(BasePipelineStep):
     """
@@ -16,6 +18,12 @@ class DownloadStep(BasePipelineStep):
         self.adapter = adapter
 
     def run(self, ctx: PipelineContext) -> PipelineContext:
+        seven_z_files = list(ctx.raw_dir.glob("*.7z"))
+
+        if seven_z_files:
+            logs.info("[Pipeline] raw/*.7z 已存在 → 跳过下载")
+            return ctx
+
         with self.timed():
             self.adapter.download_date(ctx.date, ctx.raw_dir)
         return ctx

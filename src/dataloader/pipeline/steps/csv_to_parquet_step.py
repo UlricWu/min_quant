@@ -1,43 +1,85 @@
-#!filepath: src/dataloader/pipeline/steps/csv_to_parquet_step.py
+#!filepath: src/dataloader/pipeline/steps/csv_convert_step.py
 from __future__ import annotations
+
+from pathlib import Path
+
+from src.dataloader.pipeline.step import BasePipelineStep
 from src.dataloader.pipeline.context import PipelineContext
-from src.dataloader.pipeline.step import PipelineStep
+from src.adapters.csv_convert_adapter import CsvConvertAdapter
 from src import logs
 
 
-class CsvToParquetStep(PipelineStep):
+class CsvConvertStep(BasePipelineStep):
+    """
+    CSV→Parquet 转换 Step：
+    - 遍历 raw_dir 下所有 *.7z
+    - 根据文件名判断 file_type
+    - 判断目标 parquet 是否存在（skip 策略）
+    - 调用 CsvConvertAdapter 执行转换
+    """
 
-    def __init__(self, converter):
-        self.converter = converter
+    def __init__(self, adapter: CsvConvertAdapter, inst=None):
+        super().__init__(inst)
+        self.adapter = adapter
 
-    def _detect_type(self, name: str) -> str:
-        lower = name.lower()
-        if lower.startswith("sh_stock_ordertrade"):
-            return "SH_MIXED"
-        if lower.startswith("sh_order"): return "SH_ORDER"
-        if lower.startswith("sh_trade"): return "SH_TRADE"
-        if lower.startswith("sz_order"): return "SZ_ORDER"
-        if lower.startswith("sz_trade"): return "SZ_TRADE"
-        raise RuntimeError(f"无法识别类型：{name}")
-
+    # ------------------------------------------------------------------
     def run(self, ctx: PipelineContext) -> PipelineContext:
-        logs.info("[Step] CsvToParquetStep")
+        raw_dir: Path = ctx.raw_dir
+        parquet_dir: Path = ctx.parquet_dir
 
-        for zfile in ctx.raw_dir.glob("*.7z"):
-            stem = zfile.stem.replace(".csv", "")
-            file_type = self._detect_type(zfile.name)
+        with self.timed():
+            for zfile in raw_dir.glob("*.7z"):
+                file_type = self._detect_type(zfile.name)
 
-            # skip logic
-            if file_type == "SH_MIXED":
-                if (ctx.parquet_dir / "SH_Order.parquet").exists() and \
-                   (ctx.parquet_dir / "SH_Trade.parquet").exists():
-                    continue
-            else:
-                out = ctx.parquet_dir / f"{stem}.parquet"
-                if out.exists():
+                if self.detect_exist(zfile, parquet_dir, file_type):
+                    logs.info(f"[CsvConvertStep] 跳过 {zfile.name}（目标 parquet 已存在）")
                     continue
 
-            logs.info(f"→ convert {zfile.name}")
-            self.converter.convert(zfile, ctx.parquet_dir, file_type)
+                self.adapter.convert(zfile, parquet_dir, file_type)
 
         return ctx
+
+    # ------------------------------------------------------------------
+    @staticmethod
+    def _detect_type(filename: str) -> str:
+        """
+        根据文件名约定识别 file_type：
+            SH_Stock_OrderTrade.csv.7z → SH_MIXED
+            SH_Order.csv.7z           → SH_ORDER
+            SH_Trade.csv.7z           → SH_TRADE
+            SZ_Order.csv.7z           → SZ_ORDER
+            SZ_Trade.csv.7z           → SZ_TRADE
+        """
+        lower = filename.lower()
+
+        if lower.startswith("sh_stock_ordertrade"):
+            return "SH_MIXED"
+
+        if lower.startswith("sh_order"):
+            return "SH_ORDER"
+        if lower.startswith("sh_trade"):
+            return "SH_TRADE"
+
+        if lower.startswith("sz_order"):
+            return "SZ_ORDER"
+        if lower.startswith("sz_trade"):
+            return "SZ_TRADE"
+
+        raise RuntimeError(f"无法识别文件类型: {filename}")
+
+    # ------------------------------------------------------------------
+
+    def detect_exist(self, zfile: Path, parquet_dir: Path, file_type: str) -> bool:
+        """
+        Step 层的 skip 策略（Engine / Adapter 都不管）：
+        - SH_MIXED 要求 SH_Order + SH_Trade 都存在才算完成
+        - 其他 file_type 只检查单个 parquet 是否存在
+        """
+        if file_type.upper() == "SH_MIXED":
+            order_path = parquet_dir / "SH_Order.parquet"
+            trade_path = parquet_dir / "SH_Trade.parquet"
+            return order_path.exists() and trade_path.exists()
+
+        stem = zfile.stem.replace(".csv", "")
+        target = parquet_dir / f"{stem}.parquet"
+        return target.exists()
