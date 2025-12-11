@@ -5,7 +5,7 @@ from pathlib import Path
 # import pyarrow.dataset as ds
 # import pyarrow.parquet as pq
 #
-from src.adapters.base import BaseAdapter
+from src.adapters.base_adapter import BaseAdapter
 from src.utils.filesystem import FileSystem
 from src import logs
 #
