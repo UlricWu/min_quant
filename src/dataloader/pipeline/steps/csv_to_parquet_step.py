@@ -5,7 +5,6 @@ from pathlib import Path
 
 from src.dataloader.pipeline.step import BasePipelineStep
 from src.dataloader.pipeline.context import PipelineContext
-from src.adapters.csv_convert_adapter import CsvConvertAdapter
 from src import logs
 
 
@@ -18,24 +17,29 @@ class CsvConvertStep(BasePipelineStep):
     - 调用 CsvConvertAdapter 执行转换
     """
 
-    def __init__(self, adapter: CsvConvertAdapter, inst=None):
+    def __init__(self, sh_adapter, sz_adapter, inst=None):
         super().__init__(inst)
-        self.adapter = adapter
+        self.sh_adapter = sh_adapter
+        self.sz_adapter = sz_adapter
 
     # ------------------------------------------------------------------
     def run(self, ctx: PipelineContext) -> PipelineContext:
         raw_dir: Path = ctx.raw_dir
         parquet_dir: Path = ctx.parquet_dir
 
-        with self.timed():
-            for zfile in raw_dir.glob("*.7z"):
-                file_type = self._detect_type(zfile.name)
+        for zfile in raw_dir.glob("*.7z"):
+            file_type = self._detect_type(zfile.name)
 
-                if self.detect_exist(zfile, parquet_dir, file_type):
-                    logs.info(f"[CsvConvertStep] 跳过 {zfile.name}（目标 parquet 已存在）")
-                    continue
+            if self.detect_exist(zfile, parquet_dir, file_type):
+                logs.info(f"[CsvConvertStep] 跳过 {zfile.name}（目标 parquet 已存在）")
+                continue
 
-                self.adapter.convert(zfile, parquet_dir, file_type)
+            with self.inst.timer(file_type):
+
+                if file_type == 'SH_MIXED':
+                    self.sh_adapter.convert(zfile, parquet_dir)
+                else:
+                    self.sz_adapter.convert(zfile, parquet_dir)
 
         return ctx
 

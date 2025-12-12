@@ -5,59 +5,90 @@ from src.dataloader.pipeline.pipeline import DataPipeline
 from src.utils.path import PathManager
 from src.config.app_config import AppConfig
 
-# step
-
+# steps
 from src.dataloader.pipeline.steps.download_step import DownloadStep
 from src.dataloader.pipeline.steps.csv_to_parquet_step import CsvConvertStep
-from src.dataloader.pipeline.steps.symbol_split_step import SymbolSplitStep
-from src.dataloader.pipeline.steps.trade_enrich_step import TradeEnrichStep
 
 # adapter
-
-from src.adapters.trade_enrich_adapter import TradeEnrichAdapter
-from src.adapters.csv_convert_adapter import CsvConvertAdapter
-from src.adapters.symbol_router_adapter import SymbolRouterAdapter
-# from src.adapters.orderbook_rebuild_adapter import OrderBookRebuildAdapter
+from src.adapters.convert_adapter import ConvertAdapter, SplitConvertAdapter
 from src.adapters.ftp_download_adapter import FtpDownloadAdapter
 
 # engine
 from src.engines.trade_enrich_engine import TradeEnrichEngine
 from src.engines.ftp_download_engine import FtpDownloadEngine
-from src.engines.csv_convert_engine import CsvConvertEngine
 
-# from src.dataloader.ftp_downloader import FTPDownloader
 from src.observability.instrumentation import Instrumentation
-from src.dataloader.pipeline.steps.download_step import DownloadStep
+from src.engines.WriterEngine import StreamingWriterEngine
+
+from src.engines.extractor_engine import ExtractorEngine
+from src.engines.event_splitter_engine import TickTypeSplitterEngine
 
 
 def build_offline_l2_pipeline() -> DataPipeline:
+    """
+    Offline L2 处理（Level-2 → parquet → symbol-split → enrich）
+    三层架构：
+        Workflow     = 本文件
+        Pipeline     = DataPipeline
+        Step         = DownloadStep / CsvConvertStep / SymbolSplitStep / TradeEnrichStep
+        Adapter      = CsvConvertAdapter / ...
+        Engine       = CsvConvertEngine / ...
+    """
+
     cfg = AppConfig.load()
     pm = PathManager()
     inst = Instrumentation()
 
-    # engine
-    trade_engine = TradeEnrichEngine()
+    # ----------- Engine Layer -----------
     down_engine = FtpDownloadEngine()
-    convert_engine = CsvConvertEngine()
+    # trade_engine = TradeEnrichEngine()
 
-    # adapter
-    trade_adapter = TradeEnrichAdapter(trade_engine, pm, cfg.data.symbols)
-    down_adapter = FtpDownloadAdapter(user=cfg.secret.ftp_user,
-                                      host=cfg.secret.ftp_host,
-                                      port=cfg.secret.ftp_port,
-                                      password=cfg.secret.ftp_password,
-                                      inst=inst,
-                                      engine=down_engine,
-                                      )
-    convert_adapter = CsvConvertAdapter(convert_engine, inst=inst)
-    # trade_adapter = TradeEnrichAdapter()
+    # ----------- Adapter Layer -----------
+    down_adapter = FtpDownloadAdapter(
+        host=cfg.secret.ftp_host,
+        user=cfg.secret.ftp_user,
+        password=cfg.secret.ftp_password,
+        port=cfg.secret.ftp_port,
+        engine=down_engine,
+        inst=inst,
+    )
 
+    convert_adapter = ConvertAdapter(
+        extractor=ExtractorEngine,
+        writer=StreamingWriterEngine,
+
+    )
+    tick = TickTypeSplitterEngine()
+    split_adapter = SplitConvertAdapter(extractor=ExtractorEngine,
+                                        writer=StreamingWriterEngine,
+                                        splitter=tick
+                                        )
+
+    csv_convert_step = CsvConvertStep(
+        sh_adapter=split_adapter,
+        sz_adapter=convert_adapter,
+        inst=inst,
+    )
+
+    # trade_adapter = TradeEnrichAdapter(
+    #     engine=trade_engine,
+    #     pm=pm,
+    #     symbols=cfg.data.symbols,
+    #     inst=inst,
+    # )
+    #
+    # symbol_router_adapter = SymbolRouterAdapter(
+    #     symbols=cfg.data.symbols,
+    #     pm=pm,
+    #     inst=inst,
+    # )
+
+    # ----------- Step Layer -----------
     steps = [
-        DownloadStep(adapter=down_adapter, inst=inst),
-        CsvConvertStep(convert_adapter, inst=inst),
-        SymbolSplitStep(SymbolRouterAdapter(cfg.data.symbols, pm)),
-        TradeEnrichStep(trade_adapter),
-        # OrderBookStep(OrderBookRebuildAdapter(pm), cfg.data.symbols),
+        DownloadStep(down_adapter, inst=inst),
+        csv_convert_step
+        # SymbolSplitStep(symbol_router_adapter, inst=inst),
+        # TradeEnrichStep(trade_adapter, inst=inst),
     ]
 
     return DataPipeline(steps, pm, inst)
