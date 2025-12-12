@@ -1,11 +1,10 @@
-#!filepath: src/dataloader/streaming_csv_split_writer/filters.py
-
+# src/engines/event_splitter_engine.py
 from __future__ import annotations
 import pyarrow as pa
 import pyarrow.compute as pc
 
 
-class TickTypeSplitter:
+class TickTypeSplitterEngine:
     """
     SH 混合文件拆分逻辑（Order / Trade）
     """

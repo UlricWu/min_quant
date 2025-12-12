@@ -181,7 +181,7 @@ def test_split_writer_writes_order_and_trade(tmp_path):
 # ============================================================
 
 def test_file_type_router_basic(tmp_path):
-    from src.engines.router import FileTypeRouter
+    from src.engines.file_router_engine import FileTypeRouter
 
     router = FileTypeRouter()
 
