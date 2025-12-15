@@ -55,5 +55,4 @@ class DataPipeline:
         # Timeline 只包含 leaf（由 Step / Adapter 写入）
         self.inst.generate_timeline_report(date)
 
-        logs.info(f"[Pipeline] ====== DONE {date} ======")
         return ctx

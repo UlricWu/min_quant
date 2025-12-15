@@ -85,18 +85,14 @@ def build_offline_l2_pipeline() -> DataPipeline:
 
     # enricher = TradeEnrichEngine()
     #
-    # symbol_router_adapter = SymbolRouterAdapter(
-    #     symbols=cfg.data.symbols,
-    #     pm=pm,
-    #     inst=inst,
-    # )
+    # enricher_adapter = TradeEnrichAdapter(engine=enricher, symbols=cfg.data.symbols)
 
     # ----------- Step Layer -----------
     steps = [
         DownloadStep(down_adapter, inst=inst),
         csv_convert_step,
         symbol_step,
-        # TradeEnrichStep(trade_adapter, inst=inst),
+        # TradeEnrichStep(enricher_adapter, inst),
     ]
 
     return DataPipeline(steps, pm, inst)

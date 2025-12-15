@@ -100,7 +100,7 @@ class PathManager:
 
     @classmethod
     def symbol_root(cls) -> Path:
-        return cls.root() / "symbol"
+        return cls.data_dir() / "symbol"
 
     @classmethod
     def symbol_dir(cls, symbol: str, date: str | None = None) -> Path:

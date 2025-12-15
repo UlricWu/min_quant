@@ -24,10 +24,10 @@ class TradeEnrichAdapter(BaseAdapter):
     - 这里只是模板版本，真实逻辑可以后续替换为 Arrow/streaming
     """
 
-    def __init__(self, engine: TradeEnrichEngine, pm: PathManager, symbols: list[int]) -> None:
-        super().__init__(engine)
-        self.pm = pm
-        self.symbols = [int(s) for s in symbols]
+    def __init__(self, engine: TradeEnrichEngine, symbols: list[int], inst=None) -> None:
+        super().__init__(inst)
+        self.engine = engine
+        self.symbols = [f"{int(s):06d}" for s in symbols]
 
     # 工具：将 DataFrame 行转为 RawTradeEvent
     @staticmethod
@@ -58,33 +58,33 @@ class TradeEnrichAdapter(BaseAdapter):
         return pd.DataFrame(rows)
 
     # Offline 入口：处理某个日期所有 symbol
-    def run_for_date(self, date: str) -> None:
+    def run_for_date(self, date: str, symbol_dir: Path) -> None:
         logs.info(f"[TradeEnrichAdapter] run_for_date date={date}")
 
         for sym in self.symbols:
-            name = str(sym).zfill(6)
-            sym_dir = self.pm.symbol_dir(name, date)
+            sym_dir = symbol_dir / sym / date
             trade_path = sym_dir / "Trade.parquet"
             enriched_path = sym_dir / "Trade_Enriched.parquet"
 
             if not trade_path.exists():
-                logs.warning(f"[TradeEnrichAdapter] {trade_path} 不存在，跳过 symbol={name}")
+                logs.warning(f"[TradeEnrichAdapter] {trade_path} 不存在，跳过 symbol={sym}")
                 continue
 
             if enriched_path.exists():
-                logs.info(f"[TradeEnrichAdapter] enriched 已存在 → skip symbol={name}")
+                logs.info(f"[TradeEnrichAdapter] enriched 已存在 → skip symbol={sym}")
                 continue
 
-            logs.info(f"[TradeEnrichAdapter] enrich symbol={name}, date={date}")
+            logs.info(f"[TradeEnrichAdapter] enrich symbol={sym}, date={date}")
 
-            df = pd.read_parquet(trade_path)
-            events = self._df_to_events(df)
-            enriched_iter = self.engine.process_stream(events)
-            df_out = self._events_to_df(enriched_iter)
+            with self.timer(f"trade_enrich{sym}"):
+                df = pd.read_parquet(trade_path)
+                events = self._df_to_events(df)
+                enriched_iter = self.engine.process_stream(events)
+                df_out = self._events_to_df(enriched_iter)
 
-            FileSystem.ensure_dir(sym_dir)
-            df_out.to_parquet(enriched_path, index=False)
+                FileSystem.ensure_dir(sym_dir)
+                df_out.to_parquet(enriched_path, index=False)
 
-            logs.info(
-                f"[TradeEnrichAdapter] 写出 {enriched_path}, rows={len(df_out)}"
-            )
+                logs.info(
+                    f"[TradeEnrichAdapter] wrote {enriched_path}, rows={len(df_out)}"
+                )

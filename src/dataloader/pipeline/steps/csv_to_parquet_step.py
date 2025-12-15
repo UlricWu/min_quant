@@ -39,7 +39,6 @@ class CsvConvertStep(BasePipelineStep):
                     )
                     continue
 
-                logs.info(f'starting {zfile.name}')
                 # file_type 是叶子计时单元（record=True，默认）
                 with self.inst.timer(file_type):
                     if file_type == "SH_MIXED":
@@ -92,5 +91,4 @@ class CsvConvertStep(BasePipelineStep):
 
         stem = zfile.stem.replace(".csv", "")
         target = parquet_dir / f"{stem}.parquet"
-        logs.info(target)
         return target.exists()

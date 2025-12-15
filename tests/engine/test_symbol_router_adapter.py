@@ -55,4 +55,4 @@ def test_symbol_router_engine_and_adapter(tmp_path: Path, sample_parquet: Path):
     assert len(df) == 2
 
     # timeline 只应包含 leaf
-    assert "symbolrouter_route" in inst.timeline
+    assert "symbol_router_route_Trade" in inst.timeline
