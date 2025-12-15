@@ -1,60 +1,65 @@
-#!filepath: src/engines/trade_enrich_engine.py
 from __future__ import annotations
 
 from dataclasses import dataclass
-from typing import Optional, Iterable
+from datetime import datetime
+from typing import Iterable, Iterator
 
-from src.engines.base import BaseEngine
 
-
-@dataclass
+# =========================
+# 输入 / 输出事件定义
+# =========================
+@dataclass(frozen=True)
 class RawTradeEvent:
-    ts_ns: int
+    ts: datetime
     price: float
     volume: int
-    side: Optional[str]  # 'B'/'S'/None
+    side: str | None   # 'B' / 'S' / None
 
 
-@dataclass
+@dataclass(frozen=True)
 class EnrichedTradeEvent:
-    ts_ns: int
+    ts: datetime
     price: float
     volume: int
-    side: Optional[str]
+    side: str | None
     notional: float
     signed_volume: int
 
 
-class TradeEnrichEngine(BaseEngine[RawTradeEvent, EnrichedTradeEvent]):
+# =========================
+# Engine
+# =========================
+class TradeEnrichEngine:
     """
-    示例 Engine：逐笔成交增强（非常简化版）。
+    Trade 业务增强引擎（最终版）
+
+    职责：
+    - 计算 notional
+    - 计算 signed_volume
+    - 不处理交易所差异
+    - 不解析时间
     """
 
-    def process(self, event: RawTradeEvent) -> EnrichedTradeEvent:
-        sign = 0
-        if event.side == "B":
-            sign = 1
-        elif event.side == "S":
-            sign = -1
+    def process_stream(
+        self,
+        events: Iterable[RawTradeEvent],
+    ) -> Iterator[EnrichedTradeEvent]:
 
-        signed_volume = sign * event.volume
-        notional = event.price * event.volume
-
-        return EnrichedTradeEvent(
-            ts_ns=event.ts_ns,
-            price=event.price,
-            volume=event.volume,
-            side=event.side,
-            notional=notional,
-            signed_volume=signed_volume,
-        )
-
-    # 如果你需要跨事件状态（簇、impact 等），可以覆写 process_stream：
-    def process_stream(self, events: Iterable[RawTradeEvent]) -> Iterable[EnrichedTradeEvent]:
-        last_price: Optional[float] = None
         for ev in events:
-            # 在这里可以写 burst_id / impact 等状态逻辑
-            # 现在先简单直接调用 process
-            enriched = self.process(ev)
-            last_price = ev.price
-            yield enriched
+            notional = ev.price * ev.volume
+
+            if ev.side == "B":
+                signed_volume = ev.volume
+            elif ev.side == "S":
+                signed_volume = -ev.volume
+            else:
+                signed_volume = 0
+
+            yield EnrichedTradeEvent(
+                ts=ev.ts,
+                price=ev.price,
+                volume=ev.volume,
+                side=ev.side,
+                notional=notional,
+                signed_volume=signed_volume,
+            )

@@ -1,90 +1,129 @@
-#!filepath: src/adapters/trade_enrich_adapter.py
 from __future__ import annotations
 
 from pathlib import Path
 from typing import Iterable, List
-
 import pandas as pd
 
-from src.engines.trade_enrich_engine import TradeEnrichEngine, RawTradeEvent, EnrichedTradeEvent
+from src.engines.trade_enrich_engine import (
+    TradeEnrichEngine,
+    RawTradeEvent,
+    EnrichedTradeEvent,
+)
 from src.adapters.base_adapter import BaseAdapter
-from src.utils.path import PathManager
+from src.utils.datetime_utils import DateTimeUtils as dt
 from src.utils.filesystem import FileSystem
 from src import logs
 
 
 class TradeEnrichAdapter(BaseAdapter):
     """
-    示例 Adapter（Offline 模式）：
+    TradeEnrich Adapter（最终收敛版）
 
-    - 输入：data/symbol/<symbol>/<date>/Trade.parquet
-    - 输出：data/symbol/<symbol>/<date>/Trade_Enriched.parquet
-
-    注意：
-    - 这里只是模板版本，真实逻辑可以后续替换为 Arrow/streaming
+    语义：
+    - Adapter 只处理「一个 symbol + 一个 date」
+    - 不做 symbol 选择
+    - 不持有 symbols
     """
 
-    def __init__(self, engine: TradeEnrichEngine, symbols: list[int], inst=None) -> None:
+    def __init__(self, engine: TradeEnrichEngine, inst=None) -> None:
         super().__init__(inst)
         self.engine = engine
-        self.symbols = [f"{int(s):06d}" for s in symbols]
 
-    # 工具：将 DataFrame 行转为 RawTradeEvent
-    @staticmethod
-    def _df_to_events(df: pd.DataFrame) -> Iterable[RawTradeEvent]:
+    # --------------------------------------------------
+    # DataFrame → RawTradeEvent
+    # --------------------------------------------------
+
+    def _df_to_events(self,
+                      df: pd.DataFrame,
+                      *,
+                      date: str,
+                      ) -> Iterable[RawTradeEvent]:
+
+        trade_date = dt.extract_date(date)
+
         for row in df.itertuples(index=False):
+            ts = dt.combine_date_tick(
+                trade_date,
+                dt.parse_tick_time(row.TickTime),
+            )
+            price, volume, side = self._extract_trade_fields(row)
+
             yield RawTradeEvent(
-                ts_ns=int(getattr(row, "ts_ns")),
-                price=float(getattr(row, "price")),
-                volume=int(getattr(row, "volume")),
-                side=getattr(row, "side", None),
+                ts=ts,
+                price=price,
+                volume=volume,
+                side=side,
             )
 
-    # 工具：把 EnrichedTradeEvent 列表转为 DataFrame
-    @staticmethod
-    def _events_to_df(events: Iterable[EnrichedTradeEvent]) -> pd.DataFrame:
-        rows: List[dict] = []
-        for ev in events:
-            rows.append(
-                {
-                    "ts_ns": ev.ts_ns,
-                    "price": ev.price,
-                    "volume": ev.volume,
-                    "side": ev.side,
-                    "notional": ev.notional,
-                    "signed_volume": ev.signed_volume,
-                }
-            )
-        return pd.DataFrame(rows)
+    # --------------------------------------------------
+    def run_for_symbol_day(
+            self,
+            *,
+            symbol: str,
+            date: str,
+            symbol_day_dir: Path,
+    ) -> None:
+        """
+        处理单个 symbol / 单个 date
+        """
 
-    # Offline 入口：处理某个日期所有 symbol
-    def run_for_date(self, date: str, symbol_dir: Path) -> None:
-        logs.info(f"[TradeEnrichAdapter] run_for_date date={date}")
+        trade_path = symbol_day_dir / "Trade.parquet"
+        out_path = symbol_day_dir / "Trade_Enriched.parquet"
 
-        for sym in self.symbols:
-            sym_dir = symbol_dir / sym / date
-            trade_path = sym_dir / "Trade.parquet"
-            enriched_path = sym_dir / "Trade_Enriched.parquet"
+        if not trade_path.exists():
+            logs.warning(f"[TradeEnrich] {trade_path} 不存在，skip symbol={symbol}")
+            return
 
-            if not trade_path.exists():
-                logs.warning(f"[TradeEnrichAdapter] {trade_path} 不存在，跳过 symbol={sym}")
-                continue
+        if out_path.exists():
+            logs.debug(f"[TradeEnrich] 已存在 → skip {out_path}")
+            return
 
-            if enriched_path.exists():
-                logs.info(f"[TradeEnrichAdapter] enriched 已存在 → skip symbol={sym}")
-                continue
+        # logs.info(f"[TradeEnrich] enrich symbol={symbol}, date={date}")
 
-            logs.info(f"[TradeEnrichAdapter] enrich symbol={sym}, date={date}")
+        df = pd.read_parquet(trade_path)
+        events = self._df_to_events(df, date=date)
 
-            with self.timer(f"trade_enrich{sym}"):
-                df = pd.read_parquet(trade_path)
-                events = self._df_to_events(df)
-                enriched_iter = self.engine.process_stream(events)
-                df_out = self._events_to_df(enriched_iter)
+        enriched_rows: List[dict] = []
 
-                FileSystem.ensure_dir(sym_dir)
-                df_out.to_parquet(enriched_path, index=False)
-
-                logs.info(
-                    f"[TradeEnrichAdapter] wrote {enriched_path}, rows={len(df_out)}"
+        with self.timer():
+            for ev in self.engine.process_stream(events):
+                enriched_rows.append(
+                    {
+                        "ts": ev.ts,
+                        "price": ev.price,
+                        "volume": ev.volume,
+                        "side": ev.side,
+                        "notional": ev.notional,
+                        "signed_volume": ev.signed_volume,
+                    }
                 )
+
+        if not enriched_rows:
+            logs.warning(f"[TradeEnrich] no output for {symbol} {date}")
+            return
+
+        FileSystem.ensure_dir(symbol_day_dir)
+        pd.DataFrame(enriched_rows).to_parquet(out_path, index=False)
+
+        logs.debug(
+            f"[TradeEnrich] wrote {out_path}, rows={len(enriched_rows)}"
+        )
+
+    def _extract_trade_fields(self, row):
+        """
+        从 SH / SZ Trade row 中提取统一的 price / volume / side
+        """
+        if hasattr(row, "Price"):  # SH
+            price = float(row.Price)
+            volume = int(row.Volume)
+            side = row.Side if hasattr(row, "Side") else None
+
+        elif hasattr(row, "TradePrice"):  # SZ
+            price = float(row.TradePrice)
+            volume = int(row.TradeVolume)
+            side = None  # SZ trade side 不可靠
+
+        else:
+            raise KeyError("Unknown Trade schema")
+
+        return price, volume, side
