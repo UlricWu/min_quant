@@ -36,7 +36,6 @@ class SymbolRouterEngine:
             symbol_dir: Path,
             symbols: set[str],
     ) -> None:
-        logs.info(f"[SymbolRouterEngine] processing {parquet_path.name}")
 
         dataset = ds.dataset(parquet_path)
         writers: dict[str, pq.ParquetWriter] = {}
@@ -57,6 +56,7 @@ class SymbolRouterEngine:
                 if writer is None:
                     out = symbol_dir / sym / date
                     FileSystem.ensure_dir(out)
+                    logs.info(f'writing {out}')
                     out_parquet = out / f"{kind}.parquet"
                     writer = pq.ParquetWriter(out_parquet, sub.schema)
                     writers[sym] = writer

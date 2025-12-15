@@ -41,7 +41,7 @@ class SymbolRouterAdapter(BaseAdapter):
                 continue
 
             # leaf timer（可选）
-            with self.timer("symbolrouter_route"):
+            with self.timer(f"symbol_router_route_{kind}"):
                 self.engine.route_file(
                     date=date,
                     kind=kind,
