@@ -28,7 +28,7 @@ class BaseCsvConvertAdapter:
             self,
             extractor: ExtractorEngine,
             writer: WriterEngine,
-            threshold_rows: int = 400_00000,
+            threshold_rows: int = 500_00000,
     ) -> None:
         self.out_path = None
         self.out_file = None
@@ -98,6 +98,9 @@ class ConvertAdapter(BaseCsvConvertAdapter):
         self._bucket.clear()
         self._rows = 0
 
+        # ✅ 新增
+        self.writer.close()
+
 
 class SplitConvertAdapter(BaseCsvConvertAdapter):
     """
@@ -162,3 +165,6 @@ class SplitConvertAdapter(BaseCsvConvertAdapter):
         self._trade_bucket.clear()
         self._rows_order = 0
         self._rows_trade = 0
+
+        # ✅ 新增
+        self.writer.close()

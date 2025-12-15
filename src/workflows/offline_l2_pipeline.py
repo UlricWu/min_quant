@@ -53,14 +53,17 @@ def build_offline_l2_pipeline() -> DataPipeline:
         inst=inst,
     )
 
+    tick = TickTypeSplitterEngine()
+    writer = StreamingWriterEngine()
+
     convert_adapter = ConvertAdapter(
         extractor=ExtractorEngine,
-        writer=StreamingWriterEngine,
+        writer=writer,
 
     )
-    tick = TickTypeSplitterEngine()
+
     split_adapter = SplitConvertAdapter(extractor=ExtractorEngine,
-                                        writer=StreamingWriterEngine,
+                                        writer=writer,
                                         splitter=tick
                                         )
 
