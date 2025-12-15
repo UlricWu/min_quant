@@ -14,22 +14,18 @@ class SymbolRouterAdapter(BaseAdapter):
 #
     ALLOWED_PREFIX = ("0", "3", "6")
 
-    def __init__(self, symbols, path_manager, inst=None):
+    def __init__(self, symbols, inst=None):
         super().__init__(inst)
         self.symbols = {f"{int(s):06d}" for s in symbols}
-        self.pm = path_manager
 
 #
-    def split(self, date: str, parquet_dir: Path, symbol_dir: Path):
+    def split(self, date: str):
         """
         按 symbol 拆分每日大表（流式）
         """
         pass
-#         files = sorted(parquet_dir.glob("*.parquet"))
-#         if not files:
-#             logs.warning(f"[SymbolRouter] 无 parquet 文件: {parquet_dir}")
-#             return
-#
+
+
 #         for p in files:
 #             kind = self._infer_kind(p.name)
 #             if kind is None:

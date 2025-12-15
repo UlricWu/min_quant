@@ -1,5 +1,6 @@
 #!filepath: src/dataloader/pipeline/pipeline.py
 from __future__ import annotations
+
 from src.dataloader.pipeline.context import PipelineContext
 from src.dataloader.pipeline.step import PipelineStep
 from src.utils.path import PathManager
@@ -9,8 +10,21 @@ from src.observability.instrumentation import Instrumentation
 
 
 class DataPipeline:
+    """
+    DataPipeline = 调度器（Scheduler）
 
-    def __init__(self, steps: list[PipelineStep], pm: PathManager, inst: Instrumentation):
+    设计铁律：
+    - Pipeline 负责 orchestration（顺序 / 上下文）
+    - Pipeline 不负责任何 Step 级计时
+    - Step 自己定义时间语义边界（via BasePipelineStep.timed）
+    """
+
+    def __init__(
+        self,
+        steps: list[PipelineStep],
+        pm: PathManager,
+        inst: Instrumentation,
+    ):
         self.steps = steps
         self.pm = pm
         self.inst = inst
@@ -20,7 +34,7 @@ class DataPipeline:
 
         raw_dir = self.pm.raw_dir(date)
         parquet_dir = self.pm.parquet_dir(date)
-        symbol_dir = raw_dir / 'symbol'
+        symbol_dir = raw_dir / "symbol"
 
         FileSystem.ensure_dir(raw_dir)
         FileSystem.ensure_dir(parquet_dir)
@@ -33,15 +47,13 @@ class DataPipeline:
             symbol_dir=symbol_dir,
         )
 
+        # --------------------------------------------------
+        # 核心循环：Pipeline 不打 timer
+        # --------------------------------------------------
         for step in self.steps:
-            # 自动获取 Step 名称
-            step_name = step.__class__.__name__
+            ctx = step.run(ctx)
 
-            # 对每一个 Step 做计时记录
-            with self.inst.timer(step_name):
-                # Step 需要接收 inst，否则内部 Adapter 用不到
-                ctx = step.run(ctx)
-
+        # Timeline 只包含 leaf（由 Step / Adapter 写入）
         self.inst.generate_timeline_report(date)
 
         logs.info(f"[Pipeline] ====== DONE {date} ======")

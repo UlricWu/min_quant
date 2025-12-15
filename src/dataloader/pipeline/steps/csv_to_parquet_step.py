@@ -27,19 +27,26 @@ class CsvConvertStep(BasePipelineStep):
         raw_dir: Path = ctx.raw_dir
         parquet_dir: Path = ctx.parquet_dir
 
-        for zfile in raw_dir.glob("*.7z"):
-            file_type = self._detect_type(zfile.name)
+        # Step 级父 timer：定义 CsvConvertStep 的 wall-time（不进 timeline）
+        with self.timed():
+            for zfile in raw_dir.glob("*.7z"):
+                file_type = self._detect_type(zfile.name)
+                logs.info(zfile)
 
-            if self.detect_exist(zfile, parquet_dir, file_type):
-                logs.info(f"[CsvConvertStep] 跳过 {zfile.name}（目标 parquet 已存在）")
-                continue
+                # Step 层 skip 策略（冷路径，允许日志）
+                if self.detect_exist(zfile, parquet_dir, file_type):
+                    logs.info(
+                        f"[CsvConvertStep] 跳过 {zfile.name}（目标 parquet 已存在）"
+                    )
+                    continue
 
-            with self.inst.timer(file_type):
-
-                if file_type == 'SH_MIXED':
-                    self.sh_adapter.convert(zfile, parquet_dir)
-                else:
-                    self.sz_adapter.convert(zfile, parquet_dir)
+                logs.info(f'starting {zfile.name}')
+                # file_type 是叶子计时单元（record=True，默认）
+                with self.inst.timer(file_type):
+                    if file_type == "SH_MIXED":
+                        self.sh_adapter.convert(zfile, parquet_dir)
+                    else:
+                        self.sz_adapter.convert(zfile, parquet_dir)
 
         return ctx
 
@@ -86,4 +93,5 @@ class CsvConvertStep(BasePipelineStep):
 
         stem = zfile.stem.replace(".csv", "")
         target = parquet_dir / f"{stem}.parquet"
+        logs.info(target)
         return target.exists()

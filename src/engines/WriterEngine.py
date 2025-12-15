@@ -38,36 +38,6 @@ class SimpleWriterEngine(WriterEngine):
         pq.write_table(table, out_path, compression="zstd")
 
 
-# class StreamingWriterEngine(WriterEngine):
-#     """
-#     高性能 streaming 版：
-#     - 不做 concat_tables
-#     - 逐 batch 写入 ParquetWriter（RowGroup）
-#     - 不持久化状态，由 Adapter 控制何时结束
-#     """
-#
-#     @staticmethod
-#     def write_batches(batches: list[pa.RecordBatch], out_path: Path) -> None:
-#         logs.info(f'Writing {len(batches)} batches to {out_path}')
-#         if not batches:
-#             return
-#
-#         # 用第一个 batch 定 schema
-#         first = batches[0]
-#         writer = pq.ParquetWriter(
-#             out_path,
-#             first.schema,
-#             compression="zstd",
-#             use_dictionary=True,
-#             write_statistics=True,
-#         )
-#
-#         try:
-#             for batch in batches:
-#                 writer.write_batch(batch)
-#         finally:
-#             writer.close()
-
 class StreamingWriterEngine(WriterEngine):
     """
     高性能 Parquet Writer Engine
