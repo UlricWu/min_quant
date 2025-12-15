@@ -2,6 +2,7 @@
 from __future__ import annotations
 
 from src.dataloader.pipeline.pipeline import DataPipeline
+from src.dataloader.pipeline.steps.orderbook_step import OrderBookRebuildStep
 from src.engines.symbol_router_engine import SymbolRouterEngine
 from src.utils.path import PathManager
 from src.config.app_config import AppConfig
@@ -18,7 +19,7 @@ from src.adapters.ftp_download_adapter import FtpDownloadAdapter
 from src.adapters.trade_enrich_adapter import TradeEnrichAdapter
 from src.adapters.symbol_router_adapter import SymbolRouterAdapter
 
-# engine
+# engines
 from src.engines.trade_enrich_engine import TradeEnrichEngine
 from src.engines.ftp_download_engine import FtpDownloadEngine
 
@@ -83,16 +84,17 @@ def build_offline_l2_pipeline() -> DataPipeline:
 
     symbol_step = SymbolSplitStep(adapter=symbol_router_adapter, inst=inst)
 
-    # enricher = TradeEnrichEngine()
+    enricher = TradeEnrichEngine()
     #
-    # enricher_adapter = TradeEnrichAdapter(engine=enricher, symbols=cfg.data.symbols)
+    enricher_adapter = TradeEnrichAdapter(engine=enricher, inst=inst)
 
     # ----------- Step Layer -----------
     steps = [
         DownloadStep(down_adapter, inst=inst),
         csv_convert_step,
         symbol_step,
-        # TradeEnrichStep(enricher_adapter, inst),
+        TradeEnrichStep(enricher_adapter, symbols=cfg.data.symbols, inst=inst),
+        # OrderBookRebuildStep
     ]
 
     return DataPipeline(steps, pm, inst)

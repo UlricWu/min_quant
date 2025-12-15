@@ -56,7 +56,6 @@ class SymbolRouterEngine:
                 if writer is None:
                     out = symbol_dir / sym / date
                     FileSystem.ensure_dir(out)
-                    logs.info(f'writing {out}')
                     out_parquet = out / f"{kind}.parquet"
                     writer = pq.ParquetWriter(out_parquet, sub.schema)
                     writers[sym] = writer

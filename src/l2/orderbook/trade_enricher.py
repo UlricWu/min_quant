@@ -192,7 +192,7 @@ class TradeEnricher:
         参数:
             in_path: 输入 parquet 路径
             out_path: 若提供，则将结果写入该 parquet 路径
-            engine: pandas.read_parquet 引擎（auto/pyarrow/fastparquet）
+            engines: pandas.read_parquet 引擎（auto/pyarrow/fastparquet）
 
         返回:
             rich_df: 增强后的 DataFrame

@@ -1,30 +1,45 @@
-#!filepath: src/dataloader/pipeline/steps/trade_enrich_step.py
 from __future__ import annotations
 
+from src.dataloader.pipeline.step import BasePipelineStep
 from src.dataloader.pipeline.context import PipelineContext
-from src.dataloader.pipeline.step import PipelineStep
 from src.adapters.trade_enrich_adapter import TradeEnrichAdapter
 from src import logs
-from src.utils.filesystem import FileSystem
 
 
-class TradeEnrichStep(PipelineStep):
+class TradeEnrichStep(BasePipelineStep):
     """
-    Workflow 层 Step：
+    TradeEnrich Step（最终版）
 
-    - 本身不写任何业务逻辑
-    - 只负责调用 Adapter（Adapter 再去调用 Engine）
+    职责：
+    - 决定处理哪些 symbol
+    - 调用 Adapter 处理单个 symbol
     """
 
-    def __init__(self, adapter: TradeEnrichAdapter, inst=None) -> None:
+    def __init__(
+        self,
+        adapter: TradeEnrichAdapter,
+        *,
+        symbols: list[str],
+        inst=None,
+    ):
         super().__init__(inst)
         self.adapter = adapter
+        self.symbols = [str(s).zfill(6) for s in symbols]
 
-    def run(self, ctx: PipelineContext, inst=None) -> PipelineContext:
-        logs.info(f"[Step] TradeEnrichStep date={ctx.date}")
+    def run(self, ctx: PipelineContext) -> PipelineContext:
+        date = ctx.date
+        symbol_root = ctx.symbol_dir
 
-        # Step 层准备运行环境
-        FileSystem.ensure_dir(ctx.symbol_dir)
+        for sym in self.symbols:
+            symbol_day_dir = symbol_root / sym / date
+            if not symbol_day_dir.exists():
+                continue
 
-        self.adapter.run_for_date(ctx.date, symbol_dir=ctx.symbol_dir)
+            with self.timed():
+                self.adapter.run_for_symbol_day(
+                    symbol=sym,
+                    date=date,
+                    symbol_day_dir=symbol_day_dir,
+                )
+
         return ctx

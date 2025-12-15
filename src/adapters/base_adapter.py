@@ -13,7 +13,7 @@ class BaseAdapter:
     def __init__(self, inst: Instrumentation | None = None):
         self.inst = inst
 
-    def timer(self, name: str):
+    def timer(self, name: str=''):
         """
         Adapter 内部计时：
             with adapter.timer("write_parquet"):
@@ -21,6 +21,8 @@ class BaseAdapter:
 
         Instrumentation 为 None 时自动禁用计时。
         """
+        if not name:
+            name = self.__class__.__name__
         if self.inst is None:
             return _NoOpTimer()
         return self.inst.timer(name)
