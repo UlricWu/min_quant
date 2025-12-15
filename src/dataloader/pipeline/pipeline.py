@@ -20,10 +20,10 @@ class DataPipeline:
     """
 
     def __init__(
-        self,
-        steps: list[PipelineStep],
-        pm: PathManager,
-        inst: Instrumentation,
+            self,
+            steps: list[PipelineStep],
+            pm: PathManager,
+            inst: Instrumentation,
     ):
         self.steps = steps
         self.pm = pm
@@ -34,8 +34,7 @@ class DataPipeline:
 
         raw_dir = self.pm.raw_dir(date)
         parquet_dir = self.pm.parquet_dir(date)
-        symbol_dir = raw_dir / "symbol"
-
+        symbol_dir = self.pm.symbol_root()
         FileSystem.ensure_dir(raw_dir)
         FileSystem.ensure_dir(parquet_dir)
         FileSystem.ensure_dir(symbol_dir)

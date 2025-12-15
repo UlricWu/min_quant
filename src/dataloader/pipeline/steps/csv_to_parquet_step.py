@@ -31,7 +31,6 @@ class CsvConvertStep(BasePipelineStep):
         with self.timed():
             for zfile in raw_dir.glob("*.7z"):
                 file_type = self._detect_type(zfile.name)
-                logs.info(zfile)
 
                 # Step 层 skip 策略（冷路径，允许日志）
                 if self.detect_exist(zfile, parquet_dir, file_type):

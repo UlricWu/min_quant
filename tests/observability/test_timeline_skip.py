@@ -46,6 +46,9 @@ class DummyPathManager:
     def parquet_dir(self, date: str) -> Path:
         return Path("/tmp/parquet")
 
+    def symbol_root(self) -> Path:
+        return Path("/tmp/symbol")
+
 
 class DummyFileSystem:
     """防止真实文件系统副作用。"""
