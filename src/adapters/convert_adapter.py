@@ -45,7 +45,7 @@ class BaseCsvConvertAdapter:
         raise NotImplementedError
 
     def convert(self, zfile: Path, out_path) -> None:
-        self.out_file = out_path / f'{zfile.name.split()[0]}.parquet'
+        self.out_file = out_path / f'{zfile.name.split('.')[0]}.parquet'
         self.out_path = out_path
 
         logs.info(f"[CsvConvert] 开始处理: {zfile.name} out_path={self.out_path}")

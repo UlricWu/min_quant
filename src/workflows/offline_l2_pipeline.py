@@ -8,10 +8,14 @@ from src.config.app_config import AppConfig
 # steps
 from src.dataloader.pipeline.steps.download_step import DownloadStep
 from src.dataloader.pipeline.steps.csv_to_parquet_step import CsvConvertStep
+from src.dataloader.pipeline.steps.trade_enrich_step import TradeEnrichStep
+from src.dataloader.pipeline.steps.symbol_split_step import SymbolSplitStep
 
 # adapter
 from src.adapters.convert_adapter import ConvertAdapter, SplitConvertAdapter
 from src.adapters.ftp_download_adapter import FtpDownloadAdapter
+from src.adapters.trade_enrich_adapter import TradeEnrichAdapter
+from src.adapters.symbol_router_adapter import SymbolRouterAdapter
 
 # engine
 from src.engines.trade_enrich_engine import TradeEnrichEngine
@@ -73,12 +77,11 @@ def build_offline_l2_pipeline() -> DataPipeline:
         inst=inst,
     )
 
-    # trade_adapter = TradeEnrichAdapter(
-    #     engine=trade_engine,
-    #     pm=pm,
-    #     symbols=cfg.data.symbols,
-    #     inst=inst,
-    # )
+    # symbol_router_adapter = SymbolRouterAdapter( path_manager=pm, inst=inst)
+    #
+    # symbol_step = SymbolSplitStep(adapter=symbol_router_adapter, path_manager=pm, symbols=cfg.symbols,inst=inst)
+
+    # enricher = TradeEnrichEngine()
     #
     # symbol_router_adapter = SymbolRouterAdapter(
     #     symbols=cfg.data.symbols,
@@ -89,8 +92,8 @@ def build_offline_l2_pipeline() -> DataPipeline:
     # ----------- Step Layer -----------
     steps = [
         DownloadStep(down_adapter, inst=inst),
-        csv_convert_step
-        # SymbolSplitStep(symbol_router_adapter, inst=inst),
+        csv_convert_step,
+        # symbol_router_adapter
         # TradeEnrichStep(trade_adapter, inst=inst),
     ]
 
