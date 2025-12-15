@@ -2,6 +2,7 @@
 from __future__ import annotations
 
 from src.dataloader.pipeline.pipeline import DataPipeline
+from src.engines.symbol_router_engine import SymbolRouterEngine
 from src.utils.path import PathManager
 from src.config.app_config import AppConfig
 
@@ -76,10 +77,11 @@ def build_offline_l2_pipeline() -> DataPipeline:
         sz_adapter=convert_adapter,
         inst=inst,
     )
+    symbol_router_engine = SymbolRouterEngine()
 
-    # symbol_router_adapter = SymbolRouterAdapter( path_manager=pm, inst=inst)
-    #
-    # symbol_step = SymbolSplitStep(adapter=symbol_router_adapter, path_manager=pm, symbols=cfg.symbols,inst=inst)
+    symbol_router_adapter = SymbolRouterAdapter(engine=symbol_router_engine, inst=inst, symbols=cfg.data.symbols)
+
+    symbol_step = SymbolSplitStep(adapter=symbol_router_adapter, inst=inst)
 
     # enricher = TradeEnrichEngine()
     #
@@ -93,7 +95,7 @@ def build_offline_l2_pipeline() -> DataPipeline:
     steps = [
         DownloadStep(down_adapter, inst=inst),
         csv_convert_step,
-        # symbol_router_adapter
+        symbol_step,
         # TradeEnrichStep(trade_adapter, inst=inst),
     ]
 

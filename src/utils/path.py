@@ -99,6 +99,10 @@ class PathManager:
         return p / str(date) if date else p
 
     @classmethod
+    def symbol_root(cls) -> Path:
+        return cls.root() / "symbol"
+
+    @classmethod
     def symbol_dir(cls, symbol: str, date: str | None = None) -> Path:
         p = cls.data_dir() / "symbol" / cls.str_symbol(symbol)
         return p / date if date else p
