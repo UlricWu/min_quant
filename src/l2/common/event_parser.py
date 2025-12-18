@@ -98,6 +98,17 @@ def parse_tick(tick):
 def combine(date, tick_tuple):
     return dt.combine_date_tick(date, tick_tuple)
 
+# ================================================================
+# datetime → int ts（微秒，唯一真相）
+# ================================================================
+def to_int_ts(dt_obj) -> int:
+    """
+    将 tz-aware datetime 转为 int 时间戳（微秒）
+    """
+    if not hasattr(dt_obj, "timestamp"):
+        raise TypeError(f"expect datetime, got {type(dt_obj)}")
+
+    return int(dt_obj.timestamp() * 1_000_000)
 
 # =============================================================================
 # 通用解析函数：df + exchange_id + kind → InternalEvent DataFrame
@@ -128,9 +139,9 @@ def parse_events(
 
     # 2) TickTime → 精确事件时间
     if 'TickTime' in df.columns:
-        df["ts"] = df["TickTime"].apply(lambda x: combine(date, parse_tick(x)))
+        df["ts"] = df["TickTime"].apply(lambda x: to_int_ts(combine(date, parse_tick(x))))
     elif 'OrderTime' in df.columns:
-        df["ts"] = df["OrderTime"].apply(lambda x: combine(date, parse_tick(x)))
+        df["ts"] = df["OrderTime"].apply(lambda x: to_int_ts(combine(date, parse_tick(x))))
     else:
         raise KeyError(f'No TickTime or OrderTime in {df.columns}')
 
@@ -139,11 +150,21 @@ def parse_events(
     # ------------------------------------------------------------------
     exchange_id = infer_exchange_id(df["SecurityID"].iloc[0])
     if exchange_id == 1:
-        return _parse_sh(df, kind)
+        out =_parse_sh(df, kind)
     elif exchange_id == 2:
-        return _parse_sz(df, kind)
+        out = _parse_sz(df, kind)
     else:
         raise ValueError(f"未知交易所 ID: {exchange_id}")
+
+    # =========================================================
+    # 🔥 最终兜底：任何交易所、任何 kind，都不允许 event 泄漏为 NaN/非法
+    # =========================================================
+    out = out.copy()
+    out["event"] = out["event"].astype("string")
+    out = out[out["event"].notna()]
+    # out = out[out["event"].isin(VALID_EVENTS)]
+
+    return out
 
 
 # ============================================================
@@ -154,7 +175,7 @@ def _parse_sh(df: pd.DataFrame, kind: str) -> pd.DataFrame:
     if kind == "order":
         df["event"] = df["TickType"].map({"A": "ADD", "D": "CANCEL", "T": "TRADE"})
         df["order_id"] = df["SubSeq"].astype(int)
-        df["side"] = df["Side"].map({1: "B", 2: "S"})
+        df["side"] = df["Side"].map({'1': "B", '2': "S"})
         df["price"] = df["Price"].astype(float)
         df["volume"] = df["Volume"].astype(int)
         df["buy_no"] = df["BuyNo"]
@@ -164,7 +185,7 @@ def _parse_sh(df: pd.DataFrame, kind: str) -> pd.DataFrame:
         df = df[df["TickType"] == "T"]
         df["event"] = "TRADE"
         df["order_id"] = df["SubSeq"].astype(int)
-        df["side"] = df["Side"].map({1: "B", 2: "S"})
+        df["side"] = df["Side"].map({'1': "B", '2': "S"})
         df["price"] = df["Price"]
         df["volume"] = df["Volume"]
         df["buy_no"] = df["BuyNo"]
@@ -175,8 +196,9 @@ def _parse_sh(df: pd.DataFrame, kind: str) -> pd.DataFrame:
 
 def _parse_sz(df: pd.DataFrame, kind: str) -> pd.DataFrame:
     if kind == "order":
-        df["event"] = df["OrderType"].map({0: "CANCEL", 1: "ADD", 2: "ADD", 3: "ADD"})
-        df["side"] = df["Side"].map({1: "B", 2: "S"})
+        df["event"] = df["OrderType"].map({'0': "CANCEL", '1': "ADD", '2': "ADD", '3': "ADD"})
+
+        df["side"] = df["Side"].map({'1': "B", '2': "S"})
         df["order_id"] = df["SubSeq"]
         df["price"] = df["Price"]
         df["volume"] = df["Volume"]
@@ -184,7 +206,7 @@ def _parse_sz(df: pd.DataFrame, kind: str) -> pd.DataFrame:
         df["sell_no"] = 0
 
     else:  # trade
-        df["event"] = df["ExecType"].map({1: "TRADE", 2: "CANCEL"})
+        df["event"] = df["ExecType"].map({'1': "TRADE", '2': "CANCEL"})
         df["order_id"] = df["SubSeq"]
         df["side"] = None
         df["price"] = df["TradePrice"]
