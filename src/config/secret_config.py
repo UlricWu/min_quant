@@ -2,8 +2,8 @@ from pydantic import BaseModel
 
 
 class SecretConfig(BaseModel):
-    ftp_host: str | None = None
-    ftp_port: int | None = None
-    ftp_user: str | None = None
-    ftp_password: str | None = None
-    tushare_token: str | None = None
+    ftp_host: str = ''
+    ftp_port: int = ''
+    ftp_user: str = ''
+    ftp_password: str = ''
+    tushare_token: str = ''

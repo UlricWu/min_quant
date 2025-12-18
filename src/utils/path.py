@@ -2,114 +2,164 @@
 from pathlib import Path
 from typing import Optional
 
-from pydantic.v1.datetime_parse import date_re
-
 from src import logs
 
 
 class PathManager:
     """
-    统一管理项目中所有路径。
-    默认情况下自动从当前文件往上寻找项目根目录（包含 src/ 的目录）。
-    可通过 set_root() 在测试中覆盖根路径。
+    服务器目录结构：
+
+    /home/wsw
+     ├── dev/
+     │     └── code/src/...
+     ├── data/
+     └── shared/
+
+    root = /home/wsw/dev
+    data_dir = root.parent / data
+    shared_dir = root.parent / shared
     """
 
     _root: Optional[Path] = None
 
+    # ---------------------------------------------------------
+    # root detection
+    # ---------------------------------------------------------
     @classmethod
     def detect_root(cls) -> Path:
         """
-        自动检测项目根路径：
-        原理：从当前文件开始向上查找包含 src/ 目录的路径。
+        自动检测 root:
+        当前文件通常位于：
+            /home/wsw/dev/code/src/utils/path.py
+        因此 root = parents[3] = /home/wsw/dev
         """
         current = Path(__file__).resolve()
 
-        for parent in current.parents:
-            if (parent / "src").exists():
-                logs.debug(f"[PathManager] 检测到项目根目录: {parent}")
-                return parent
+        try:
+            root = current.parents[3]
+            logs.debug(f"[PathManager] detect_root = {root}")
+            return root
+        except Exception:
+            logs.warning("[PathManager] detect_root 失败，使用 cwd()")
+            return Path.cwd()
 
-        # 如果未检测到，fallback 为当前目录
-        logs.warning("[PathManager] 未检测到项目根目录，使用当前路径")
-        return Path.cwd()
+    @classmethod
+    def str_symbol(cls, symbol: str):
+        return f"{int(symbol):06d}"
 
     @classmethod
     def root(cls) -> Path:
-        """返回项目根路径，如果未设定，则自动检测"""
         if cls._root is None:
             cls._root = cls.detect_root()
         return cls._root
 
     @classmethod
-    def set_root(cls, new_root: Path | str):
-        """
-        用于测试环境或自定义环境。
-        """
-        cls._root = Path(new_root)
-        logs.debug(f"[PathManager] 根目录已更新为: {cls._root}")
+    def set_root(cls, new_root: Path | str | None):
+        if new_root is None:
+            cls._root = None
+        else:
+            cls._root = Path(new_root).resolve()
+        logs.debug(f"[PathManager] set_root = {cls._root}")
 
-    # =========================
-    #  通用目录
-    # =========================
+    # ---------------------------------------------------------
+    # Top-level dirs
+    # ---------------------------------------------------------
+    @classmethod
+    def base_dir(cls) -> Path:
+        """
+        root = /home/wsw/dev
+        base_dir = /home/wsw
+        """
+        return cls.root().parent
+
     @classmethod
     def data_dir(cls) -> Path:
-        return cls.root() / "data"
+        return cls.base_dir() / "data"
 
+    @classmethod
+    def shared_dir(cls) -> Path:
+        return cls.base_dir() / "shared"
+
+    # ---------------------------------------------------------
+    # data/
+    # ---------------------------------------------------------
     @classmethod
     def raw_dir(cls, date=None) -> Path:
         p = cls.data_dir() / "raw"
-        if date:
-            return p / date
-        return p
+        return p / date if date else p
 
-    @classmethod
-    def raw_csv_dir(cls) -> Path:
-        return cls.data_dir() / "raw_csv"
+    # @classmethod
+    # def tmp_dir(cls, date=None) -> Path:
+    #     p = cls.data_dir() / "tmp"
+    #     return p / date if date else p
 
     @classmethod
     def parquet_dir(cls, date=None) -> Path:
         p = cls.data_dir() / "parquet"
-        return p
+        return p / str(date) if date else p
 
     @classmethod
-    def logs_dir(cls) -> Path:
-        return cls.root() / "logs"
+    def symbol_root(cls) -> Path:
+        return cls.data_dir() / "symbol"
 
     @classmethod
-    def config_dir(cls) -> Path:
-        return cls.root() / "config"
+    def symbol_dir(cls, symbol: str, date: str | None = None) -> Path:
+        p = cls.data_dir() / "symbol" / cls.str_symbol(symbol)
+        return p / date if date else p
 
     @classmethod
-    def config_file(cls, name: str) -> Path:
-        return cls.config_dir() / name
-
-    @classmethod
-    def models_dir(cls) -> Path:
-        return cls.root() / "models"
-
-    @classmethod
-    def temp_dir(cls, date=None) -> Path:
-        p = cls.root() / "tmp"
-        if date:
-            return p / date
-        return p
-
-    @classmethod
-    def symbol_dir(cls, symbol, date=None) -> Path:
-        p = cls.data_dir() / "symbol" / symbol
-        if date is not None:
-            return p / date
-
-        return p
-
-    @classmethod
-    def order_dir(cls, symbol, date) -> Path:
+    def order_dir(cls, symbol, date):
         return cls.symbol_dir(symbol, date) / "Order.parquet"
 
     @classmethod
-    def trade_dir(cls, symbol, date) -> Path:
+    def trade_dir(cls, symbol, date):
         return cls.symbol_dir(symbol, date) / "Trade.parquet"
 
     @classmethod
-    def snapshot_dir(cls, symbol, date) -> Path:
+    def snapshot_dir(cls, symbol, date):
         return cls.symbol_dir(symbol, date) / "Snapshot.parquet"
+
+    # ---------------------------------------------------------
+    # shared/
+    # ---------------------------------------------------------
+    @classmethod
+    def shared_data_dir(cls) -> Path:
+        return cls.shared_dir() / "data"
+
+    @classmethod
+    def models_dir(cls) -> Path:
+        return cls.shared_dir() / "models"
+
+    @classmethod
+    def pretrained_dir(cls) -> Path:
+        return cls.shared_dir() / "pretrained"
+
+    @classmethod
+    def cache_dir(cls) -> Path:
+        return cls.shared_dir() / "cache"
+
+    # ---------------------------------------------------------
+    # config (priority: src/config > shared/configs)
+    # ---------------------------------------------------------
+    @classmethod
+    def project_config_dir(cls) -> Path:
+        """项目内部配置：dev/code/src/config/"""
+        return cls.root() / "code" / "src" / "config"
+
+    @classmethod
+    def shared_config_dir(cls) -> Path:
+        """共享配置：/home/wsw/shared/configs"""
+        return cls.shared_dir() / "configs"
+
+    @classmethod
+    def config_file(cls, name: str) -> Path:
+        """
+        优先级：
+            1) 项目内部 src/config
+            2) shared/configs
+        """
+        p1 = cls.project_config_dir() / name
+        if p1.exists():
+            return p1
+
+        return cls.shared_config_dir() / name
