@@ -13,7 +13,7 @@ def run(date: str):
     """
     运行指定日期的 L2 Pipeline（完整 Step-based Workflow）
     """
-    date = '2025-11-04'
+    date = '2025-11-06'
     pipeline = build_offline_l2_pipeline()
     print(f"[green]Running L2 Pipeline for {date}[/green]")
     pipeline.run(date)

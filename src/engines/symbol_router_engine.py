@@ -39,24 +39,39 @@ class SymbolRouterEngine:
 
         dataset = ds.dataset(parquet_path)
         writers: dict[str, pq.ParquetWriter] = {}
-
+        logs.info(f'start parquet file: {parquet_path.name}')
         for batch in dataset.to_batches():
+            # SecurityID -> string（已经是 6 位）
             sym_arr = batch["SecurityID"].cast(pa.string())
+
+            # 🔥 只取 batch 中真实存在的 symbol
             unique_syms = pc.unique(sym_arr).to_pylist()
 
-            for sid in unique_syms:
-                sym = str(sid).zfill(6)
+            for sym in unique_syms:
+                if sym is None:
+                    continue
 
+                # 只处理关心的 symbols
                 if sym not in symbols:
                     continue
+
                 mask = pc.equal(sym_arr, sym)
                 sub = batch.filter(mask)
+                if sub.num_rows == 0:
+                    continue
 
                 writer = writers.get(sym)
                 if writer is None:
                     out = symbol_dir / sym / date
                     FileSystem.ensure_dir(out)
-                    out_parquet = out / f"{kind}.parquet"
+
+                    if kind.lower().endswith("order"):
+                        out_parquet = out / "Order.parquet"
+                    elif kind.lower().endswith("trade"):
+                        out_parquet = out / "Trade.parquet"
+                    else:
+                        raise ValueError(f"Unknown kind: {kind}")
+
                     writer = pq.ParquetWriter(out_parquet, sub.schema)
                     writers[sym] = writer
 

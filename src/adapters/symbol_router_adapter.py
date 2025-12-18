@@ -3,6 +3,7 @@ from __future__ import annotations
 from pathlib import Path
 from typing import Iterable
 
+from src import logs
 from src.adapters.base_adapter import BaseAdapter
 from src.engines.symbol_router_engine import SymbolRouterEngine
 
@@ -38,10 +39,12 @@ class SymbolRouterAdapter(BaseAdapter):
         for p in parquet_files:
             kind = self._infer_kind(p.name)
             if kind is None:
+                logs.warning(f"Parquet file {p} has no kind")
                 continue
 
+            name_str = str(p).split("/")[-1]
             # leaf timer（accounting 单元）
-            with self.timer():
+            with self.timer(name_str):
                 self.engine.route_file(
                     date=date,
                     kind=kind,

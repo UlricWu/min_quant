@@ -1,30 +1,25 @@
-#!filepath: src/dataloader/pipeline/steps/trade_enrich_step.py
+#!filepath: src/dataloader/pipeline/steps/normalize_step.py
 from __future__ import annotations
 
 from src.dataloader.pipeline.step import BasePipelineStep
 from src.dataloader.pipeline.context import PipelineContext
-from src.adapters.trade_enrich_adapter import TradeEnrichAdapter
+from src.adapters.normalize_adapter import NormalizeAdapter
 
 
-class TradeEnrichStep(BasePipelineStep):
+class NormalizeStep(BasePipelineStep):
     """
-    TradeEnrich Step（最终版）
+    Normalize Step（最终版）
 
     语义：
-    - Step = 父级时间语义边界（进入 timeline）
+    - Step = 事件标准化阶段
     """
 
-    def __init__(
-        self,
-        adapter: TradeEnrichAdapter,
-        inst=None,
-    ):
+    def __init__(self, adapter: NormalizeAdapter, inst=None):
         super().__init__(inst)
         self.adapter = adapter
 
     def run(self, ctx: PipelineContext) -> PipelineContext:
-        # Step 级 timer（record=True）
-        with self.inst.timer("TradeEnrich"):
+        with self.inst.timer("Normalize"):
             self.adapter.run(
                 date=ctx.date,
                 symbol_root=ctx.symbol_dir,
