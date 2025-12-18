@@ -1,7 +1,10 @@
 # src/dataloader/pipeline/step.py
 from __future__ import annotations
 
+from pathlib import Path
 from typing import Protocol
+
+from src import logs
 from src.dataloader.pipeline.context import PipelineContext
 from src.observability.instrumentation import Instrumentation, NoOpInstrumentation
 
@@ -30,6 +33,7 @@ class BasePipelineStep:
     1. Step 必须使用父级 timer（record=False）
     2. Step 不允许直接进入 timeline
     3. Leaf 计时只能发生在 Step 内部
+    4. Step 支持“存在即跳过”的缓存语义
     """
 
     def __init__(self, inst: Instrumentation | None = None):
@@ -58,6 +62,36 @@ class BasePipelineStep:
             return _DummyTimer()
         return self.inst.timer(self.step_name, record=False)
 
+    # -----------------------------------------------------
+    # ⭐ Step 主输出（用于 skip 判断）
+    # -----------------------------------------------------
+    def output_path(self, ctx: PipelineContext) -> Path | None:
+        """
+        返回 Step 的“主输出文件路径”。
+
+        - None 表示该 Step 不支持 skip
+        - 子类应当 override
+        """
+        return None
+# -----------------------------------------------------
+    # ⭐ 是否跳过本 Step
+    # -----------------------------------------------------
+    def should_skip(self, ctx: PipelineContext) -> bool:
+        """
+        Step 级 skip 规则：
+
+        - 仅当 output_path 存在时跳过
+        - 不进入 Step timer
+        """
+        out = self.output_path(ctx)
+        if out is None:
+            return False
+
+        if out.exists():
+            logs.info(f"[SKIP] {self.step_name} output exists: {out}")
+            return True
+
+        return False
 
 class _DummyTimer:
     """
