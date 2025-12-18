@@ -1,3 +1,18 @@
+# [0.7.0](https://github.com/UlricWu/min_quant/compare/v0.6.12...v0.7.0) (2025-12-18)
+
+
+### Features
+
+* add env detect ([39716bc](https://github.com/UlricWu/min_quant/commit/39716bc636921b568e0a8bffbfe44bec222b91b7))
+* add instrumentation ([425fe45](https://github.com/UlricWu/min_quant/commit/425fe45ecff5f018995276d542923e1a118fec48))
+* server path ([684fa8e](https://github.com/UlricWu/min_quant/commit/684fa8e61120cf7c227070b62ca91e8f2e6991c3))
+* stream ([212105a](https://github.com/UlricWu/min_quant/commit/212105a60b1eb73d8b611649a8e5ed36c960f629))
+
+
+### Performance Improvements
+
+* sh split 80s -> 50s ([49e19e2](https://github.com/UlricWu/min_quant/commit/49e19e24261f3dc1b282f4fbce97c456d1b78a88))
+
 ## [0.6.12](https://github.com/UlricWu/min_quant/compare/v0.6.11...v0.6.12) (2025-12-07)
 
 
