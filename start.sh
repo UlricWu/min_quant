@@ -42,7 +42,7 @@ echo "Log file: $LOG_FILE"
 
 # 3) 后台运行训练任务
 tmux new-session -d -s "$SESSION" \
-"python -m src.cli run $DATE 2>&1 | tee -a $LOG_FILE"
+"python -m src.cli  $DATE 2>&1 | tee -a $LOG_FILE"
 
 echo ""
 echo "=============================="

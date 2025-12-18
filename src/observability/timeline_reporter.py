@@ -18,7 +18,8 @@ class TimelineReporter:
 
         total = 0.0
         for name, sec in self.timeline.items():
-            logs.info(f"[Timeline] {name:<30} {sec:>8.3f}s")
+            name_str = str(name)  # ⭐ 关键修复
+            logs.info(f"[Timeline] {name_str:<30} {sec:>8.3f}s")
             total += sec
 
         logs.info(f"[Timeline] Total{'':<27} {total:>8.3f}s")
