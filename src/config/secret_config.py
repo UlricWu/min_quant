@@ -7,3 +7,4 @@ class SecretConfig(BaseModel):
     ftp_user: str = ''
     ftp_password: str = ''
     tushare_token: str = ''
+    remote_root: str = ''
