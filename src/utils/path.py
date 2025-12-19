@@ -163,3 +163,14 @@ class PathManager:
             return p1
 
         return cls.shared_config_dir() / name
+
+    # PathManager 中（示意）
+    @classmethod
+    def bar_1m_root(cls) -> Path:
+        return cls.data_dir() / "bar" / "1m"
+
+    @classmethod
+    def normalize_dir(cls, date: str='') -> Path:
+        if date:
+            return cls.data_dir() / "normalize" / date
+        return cls.data_dir() / "normalize"

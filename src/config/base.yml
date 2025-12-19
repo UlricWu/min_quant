@@ -5,7 +5,7 @@ log:
   level: "DEBUG"
 
 data:
-  remote_dir: "level2/"
+  remote_dir: "level2"
   local_raw: "dataloader/raw/"
   parquet_root: "dataloader/parquet/"
   symbols: ['603322','002594','300456','300475','300115','300395','001287','688195','300058','688110','688183','001400','300308']

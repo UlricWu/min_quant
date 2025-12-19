@@ -24,29 +24,43 @@ class CsvConvertStep(BasePipelineStep):
 
     # ------------------------------------------------------------------
     def run(self, ctx: PipelineContext) -> PipelineContext:
-        raw_dir: Path = ctx.raw_dir
-        parquet_dir: Path = ctx.parquet_dir
+        raw_dir = ctx.raw_dir
+        parquet_dir = ctx.parquet_dir
 
-        # Step 级父 timer：定义 CsvConvertStep 的 wall-time（不进 timeline）
         with self.timed():
             for zfile in raw_dir.glob("*.7z"):
                 file_type = self._detect_type(zfile.name)
 
-                # Step 层 skip 策略（冷路径，允许日志）
-                if self.detect_exist(zfile, parquet_dir, file_type):
-                    logs.info(
-                        f"[CsvConvertStep] 跳过 {zfile.name}（目标 parquet 已存在）"
-                    )
+                out_files = self._build_out_files(zfile, parquet_dir, file_type)
+
+                if self._all_exist(out_files):
+                    logs.info(f"[CsvConvertStep] skip {zfile.name}")
                     continue
 
-                # file_type 是叶子计时单元（record=True，默认）
                 with self.inst.timer(file_type):
                     if file_type == "SH_MIXED":
-                        self.sh_adapter.convert(zfile, parquet_dir)
+                        self.sh_adapter.convert(zfile, out_files)
                     else:
-                        self.sz_adapter.convert(zfile, parquet_dir)
+                        self.sz_adapter.convert(zfile, out_files)
 
         return ctx
+
+    @staticmethod
+    def _build_out_files(zfile: Path, parquet_dir: Path, file_type: str) -> dict[str, Path]:
+        if file_type == "SH_MIXED":
+            return {
+                "order": parquet_dir / "SH_Order.parquet",
+                "trade": parquet_dir / "SH_Trade.parquet",
+            }
+
+        stem = zfile.stem.replace(".csv", "")
+        return {
+            "default": parquet_dir / f"{stem}.parquet"
+        }
+
+    @staticmethod
+    def _all_exist(out_files: dict[str, Path]) -> bool:
+        return all(p.exists() for p in out_files.values())
 
     # ------------------------------------------------------------------
     @staticmethod
