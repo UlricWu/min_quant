@@ -10,7 +10,7 @@ app = typer.Typer(help="MinQuant Data Pipeline CLI")
 
 
 @app.command()
-def run(date: str):
+def run(date:str):
     """
     运行指定日期的 L2 Pipeline（完整 Step-based Workflow）
     """
@@ -29,6 +29,7 @@ def run(date: str):
         print(f"[green]Running L2 Pipeline for {d}[/green]")
 
         pipeline.run(d)
+        break
 
 #
 # @app.command()

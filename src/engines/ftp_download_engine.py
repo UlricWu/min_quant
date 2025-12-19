@@ -1,35 +1,63 @@
 from __future__ import annotations
-from datetime import datetime
 from typing import List
 
 
 class FtpDownloadEngine:
     """
-    Engine 层：
-    - 不做任何 I/O
-    - 不依赖 ftplib / FileSystem / Path
-    - 只负责业务逻辑：日期校验、文件选择、路径规则
+    Engine（冻结契约版）：
+
+    - 只做下载“决策”
+    - 不使用当前时间
+    - 不做 IO
     """
 
     @staticmethod
-    def resolve_date(date: str | None) -> str:
-        """解析日期为 YYYY-MM-DD"""
-        if date is None:
-            return datetime.now().strftime("%Y-%m-%d")
+    def resolve_date(date: str) -> str:
+        """
+        Input:
+            date: YYYY-MM-DD
 
-        try:
-            dt = datetime.strptime(date, "%Y-%m-%d")
-            return dt.strftime("%Y-%m-%d")
-        except ValueError:
-            raise ValueError(f"日期格式必须为 YYYY-MM-DD（收到: {date}）")
+        Output:
+            resolved_date: YYYY-MM-DD
+
+        Behavior:
+            - date 必须显式给定
+            - 非法格式直接抛错
+        """
+        if not isinstance(date, str):
+            raise TypeError("date must be str YYYY-MM-DD")
+
+        parts = date.split("-")
+        if len(parts) != 3:
+            raise ValueError(f"invalid date format: {date}")
+
+        y, m, d = parts
+        if not (len(y) == 4 and len(m) == 2 and len(d) == 2):
+            raise ValueError(f"invalid date format: {date}")
+
+        return date
 
     @staticmethod
-    def filter_filenames(files: List[str]) -> List[str]:
+    def select_filenames(remote_filenames: List[str]) -> List[str]:
         """
-        过滤掉不需要的文件，如 Bond 等
-        这里保持纯逻辑，不依赖任何 I/O
+        Input:
+            remote_filenames: raw filename list from FTP
+
+        Output:
+            selected_filenames: files that should be downloaded
+
+        Rules (冻结):
+            - 排除 Bond
+            - 排除空字符串
+            - 输出顺序确定
         """
-        return [
-            f for f in files
-            if f and "Bond" not in f
+        if not isinstance(remote_filenames, list):
+            raise TypeError("remote_filenames must be List[str]")
+
+        selected = [
+            fn for fn in remote_filenames
+            if fn and "Bond" not in fn
         ]
+
+        # 冻结：顺序确定
+        return sorted(selected)

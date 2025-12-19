@@ -2,59 +2,47 @@
 from __future__ import annotations
 
 from pathlib import Path
+from typing import Iterable
 
 from src.adapters.base_adapter import BaseAdapter
-from src.engines.context import EngineContext
 from src.engines.normalize_engine import NormalizeEngine
-from src import logs
+from src.engines.context import EngineContext
 
 
 class NormalizeAdapter(BaseAdapter):
     """
-    Normalize Adapter（最终版）
+    NormalizeAdapter（正确契约版）
 
-    职责：
-    - 遍历 symbol
-    - 构造 EngineContext
-    - 调用 engine.execute(ctx)
+    输入：
+        symbol_dir/<symbol>/<date>/{Order,Trade}.parquet
+    输出：
+        symbol_dir/<symbol>/<date>/{order,trade}/Normalized.parquet
     """
 
     def __init__(
-            self,
-            engine: NormalizeEngine,
-            *,
-            symbols: list[str],
-            inst=None,
-    ):
+        self,
+        *,
+        engine: NormalizeEngine,
+        symbols: Iterable[str],
+        inst=None,
+    ) -> None:
         super().__init__(inst)
         self.engine = engine
-        self.symbols = [str(s).zfill(6) for s in symbols]
+        self.symbols = {str(s).zfill(6) for s in symbols}
 
-    # --------------------------------------------------
-    def run(
-            self,
-            *,
-            date: str,
-            symbol_root: Path,
-    ) -> None:
-        for sym in self.symbols:
-            sym_dir = symbol_root / sym / date
-            if not sym_dir.exists():
-                logs.warning(f'sym_dir={sym_dir} does not exist')
+    def run(self, *, date: str, symbol_dir: Path) -> None:
+        for symbol in sorted(self.symbols):
+            base = symbol_dir / symbol / date
+            if not base.exists():
                 continue
 
-            output_path = sym_dir / "Events.parquet"
-
-            if output_path.exists():
-                logs.info(f"[Normalize] Events 已存在 → skip {sym}")
-                continue
             ctx = EngineContext(
                 mode="offline",
-                symbol=sym,
+                symbol=symbol,
                 date=date,
-                input_path=sym_dir,  # 👈 目录
-                output_path=output_path,
+                input_path=base,
+                output_path=base,  # 输出到 order/ trade 子目录
             )
 
-            with self.timer("normalize_symbol"):
+            with self.timer(f"Normalize_{symbol}"):
                 self.engine.execute(ctx)

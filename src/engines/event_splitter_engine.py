@@ -19,6 +19,9 @@ class TickTypeSplitterEngine:
 
     def split(self, batch: pa.RecordBatch):
         """返回 (order_batch, trade_batch)"""
+        if self.TICK_COL not in batch.schema.names:
+            raise ValueError(f"missing column: {self.TICK_COL}")
+
         idx = batch.schema.get_field_index(self.TICK_COL)
         tick_arr = batch.column(idx)
 

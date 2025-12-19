@@ -44,6 +44,11 @@ echo "Log file: $LOG_FILE"
 tmux new-session -d -s "$SESSION" \
 "python -m src.cli  $DATE 2>&1 | tee -a $LOG_FILE"
 
+echo "HOST=$(hostname)"
+echo "USER=$(whoami)"
+echo "PWD=$(pwd)"
+
+
 echo ""
 echo "=============================="
 echo "  已成功启动训练任务！"

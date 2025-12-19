@@ -35,6 +35,7 @@ class DataPipeline:
         raw_dir = self.pm.raw_dir(date)
         parquet_dir = self.pm.parquet_dir(date)
         symbol_dir = self.pm.symbol_root()
+        normalize_dir = self.pm.normalize_dir(date)
         FileSystem.ensure_dir(raw_dir)
         FileSystem.ensure_dir(parquet_dir)
         FileSystem.ensure_dir(symbol_dir)
@@ -44,6 +45,7 @@ class DataPipeline:
             raw_dir=raw_dir,
             parquet_dir=parquet_dir,
             symbol_dir=symbol_dir,
+            normalize_dir=normalize_dir
         )
 
         # --------------------------------------------------
