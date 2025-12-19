@@ -18,7 +18,5 @@ model:
   model_path: "models/"
 
 pipeline:
-  enable_download: true
-  enable_decompress: true
-  enable_parse: true
-  enable_write: true
+  ftp_backend: 'curl'
+

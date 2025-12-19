@@ -53,14 +53,7 @@ def build_offline_l2_pipeline() -> DataPipeline:
     # trade_engine = TradeEnrichEngine()
 
     # ----------- Adapter Layer -----------
-    down_adapter = FtpDownloadAdapter(
-        host=cfg.secret.ftp_host,
-        user=cfg.secret.ftp_user,
-        password=cfg.secret.ftp_password,
-        port=cfg.secret.ftp_port,
-        engine=down_engine,
-        inst=inst,
-    )
+    down_adapter = FtpDownloadAdapter(engine=down_engine, inst=inst, secret=cfg.secret, backend=cfg.pipeline.ftp_backend)
 
     tick = TickTypeSplitterEngine()
     writer = StreamingWriterEngine()

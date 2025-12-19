@@ -53,7 +53,7 @@ class Retry:
     @staticmethod
     def decorator(
         exceptions: Tuple[Type[Exception], ...] = (Exception,),
-        max_attempts: int = 3,
+        max_attempts: int = 2,
         delay: float = 1.0,
         backoff: float = 2.0,
         jitter: bool = True,
