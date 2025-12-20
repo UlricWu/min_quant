@@ -29,7 +29,7 @@ class SymbolSplitStep(BasePipelineStep):
         self.skip_if_exists = skip_if_exists
 
     def run(self, ctx: PipelineContext) -> PipelineContext:
-        normalize_dir: Path = ctx.normalize_dir
+        normalize_dir: Path = ctx.canonical_dir
         symbol_dir: Path = ctx.symbol_dir
         date: str = ctx.date
 

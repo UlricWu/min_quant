@@ -1,17 +1,43 @@
 #!filepath: src/engines/normalize_engine.py
 from __future__ import annotations
-
+from functools import reduce
 from pathlib import Path
 from typing import List
-
+import pyarrow.compute as pc
 import pandas as pd
+from dataclasses import dataclass, asdict
 
 from src.engines.context import EngineContext
-# from src.l2.common.normalized_event import NormalizedEvent
 from src.l2.common.event_parser import parse_events, EventKind
 from src import logs
+import pyarrow as pa
+import pyarrow.parquet as pq
+from src.utils.parquet_writer import ParquetAppendWriter
+ALLOWED_SYMBOL_PREFIXES = {
+    "600", "601", "603", "605",
+    "688",
+    "000", "001", "002", "003",
+    "300",
+}
 
-from dataclasses import dataclass, asdict
+CANONICAL_SCHEMA = pa.schema([
+    ("symbol", pa.string()),
+    ("ts", pa.int64()),
+    ("event", pa.string()),
+    ("order_id", pa.int64()),
+    ("side", pa.string()),
+    ("price", pa.float64()),
+    ("volume", pa.int64()),
+    ("buy_no", pa.int64()),
+    ("sell_no", pa.int64()),
+])
+
+
+def is_valid_a_share_symbol(symbol: str) -> bool:
+    return (
+            symbol.isdigit()
+            and symbol[:3] in ALLOWED_SYMBOL_PREFIXES
+    )
 
 
 @dataclass(slots=True)
@@ -46,113 +72,97 @@ class NormalizedEvent:
 
 class NormalizeEngine:
     """
-    NormalizeEngine（正确契约版）
+    NormalizeEngine（冻结契约版）
 
-    - 统一 schema（symbol / ts 真相）
-    - ts = int（微秒）
-    - order / trade 分文件输出
-    - 排序
-    - 不泄漏 vendor 字段
+    - 输入：交易所级 parquet
+    - 输出：canonical order / trade parquet
+    - symbol 只是字段，不做拆分
     """
 
     VALID_EVENTS = {"ADD", "CANCEL", "TRADE"}
 
-    # ===========================
-    # Public Entry
-    # ===========================
     def execute(self, ctx: EngineContext) -> None:
         assert ctx.mode == "offline"
-        assert ctx.input_path is not None
-        assert ctx.output_path is not None
-        assert ctx.symbol is not None
+        in_dir = ctx.input_path
+        out_dir = ctx.output_path
 
-        symbol = self._normalize_symbol(ctx.symbol)
+        for kind in ("order", "trade"):
+            self._normalize_kind(kind=kind, in_dir=in_dir, out_dir=out_dir)
 
-        order_path = ctx.input_path / "Order.parquet"
-        trade_path = ctx.input_path / "Trade.parquet"
-
-        if order_path.exists():
-            self._normalize_file(
-                path=order_path,
-                kind="order",
-                symbol=symbol,
-                out_dir=ctx.output_path / "order",
-            )
-
-        if trade_path.exists():
-            self._normalize_file(
-                path=trade_path,
-                kind="trade",
-                symbol=symbol,
-                out_dir=ctx.output_path / "trade",
-            )
-
-    # ===========================
-    # Core normalize
-    # ===========================
-    def _normalize_file(
-        self,
-        *,
-        path: Path,
-        kind: EventKind,
-        symbol: str,
-        out_dir: Path,
+    def _normalize_kind(
+            self,
+            *,
+            kind: EventKind,
+            in_dir: Path,
+            out_dir: Path,
     ) -> None:
-        df = pd.read_parquet(path)
-        if df.empty:
-            return
+        for path in sorted(in_dir.glob(f"*_{kind.capitalize()}.parquet")):
+            exchange = path.name.split("_")[0]
 
-        norm_df = parse_events(df, kind=kind)
-        if norm_df.empty:
-            return
+            out_path = out_dir / f"{exchange}_{kind.capitalize()}.parquet"
+            writer = ParquetAppendWriter(out_path, CANONICAL_SCHEMA)
 
-        # 合法事件裁决
-        norm_df = norm_df[norm_df["event"].isin(self.VALID_EVENTS)]
-        if norm_df.empty:
-            return
+            pf = pq.ParquetFile(path)
 
-        # 注入 symbol（Normalize 的职责）
-        norm_df = norm_df.copy()
-        norm_df["symbol"] = symbol
+            for batch in pf.iter_batches(batch_size=1_000_0000):
+                table = pa.Table.from_batches([batch])
+                # ✅ 在这里做 A 股过滤（Arrow）
+                table = filter_a_share_arrow(table)
+                if table.num_rows == 0:
+                    continue
+                # Arrow → pandas（单批）
+                df = table.to_pandas(types_mapper=pd.ArrowDtype)
 
-        # 排序（Normalize 的职责）
-        norm_df.sort_values("ts", inplace=True)
+                if df.empty:
+                    continue
 
-        events = [NormalizedEvent.from_row(r) for r in norm_df.itertuples(index=False)]
-        self._write(events, out_dir)
+                norm = parse_events(df, kind=kind)
+                if norm.empty:
+                    continue
 
-    # ===========================
-    # Write parquet (schema lock)
-    # ===========================
-    def _write(self, events: List[NormalizedEvent], out_dir: Path) -> None:
-        if not events:
-            return
+                norm = norm[norm["event"].isin(self.VALID_EVENTS)]
+                if norm.empty:
+                    continue
 
-        out_dir.mkdir(parents=True, exist_ok=True)
-        out_path = out_dir / "Normalized.parquet"
+                # norm["symbol"] = norm["symbol"].astype(str).str.zfill(6)
+                norm = norm[norm["symbol"].apply(is_valid_a_share_symbol)]
+                if norm.empty:
+                    continue
+                logs.debug(f"[Normalize] start batch rows={len(df)}")
+                norm.sort_values("ts", inplace=True)
 
-        rows = [e.to_dict() for e in events]
-        df = pd.DataFrame(rows)
+                # ⚠️ 关键：直接 DataFrame → Arrow Table
+                table = pa.Table.from_pandas(
+                    norm[
+                        [
+                            "symbol",
+                            "ts",
+                            "event",
+                            "order_id",
+                            "side",
+                            "price",
+                            "volume",
+                            "buy_no",
+                            "sell_no",
+                        ]
+                    ],
+                    schema=CANONICAL_SCHEMA,
+                    preserve_index=False,
+                )
 
-        expected_cols = [
-            "symbol",
-            "ts",
-            "event",
-            "order_id",
-            "side",
-            "price",
-            "volume",
-            "buy_no",
-            "sell_no",
-        ]
-        df = df[expected_cols]
+                writer.write(table)
 
-        if not pd.api.types.is_integer_dtype(df["ts"]):
-            raise TypeError("[NormalizeEngine] ts must be int")
+            writer.close()
+def filter_a_share_arrow(table: pa.Table) -> pa.Table:
+    symbol = pc.cast(table["SecurityID"], pa.string())
 
-        df.to_parquet(out_path, index=False)
-        logs.info(f"[Normalize] wrote {len(df)} → {out_path}")
+    prefixes = [
+        "600", "601", "603", "605", "688",
+        "000", "001", "002", "003", "300",
+    ]
 
-    @staticmethod
-    def _normalize_symbol(symbol: str | int) -> str:
-        return str(symbol).strip().zfill(6)
+    masks = [pc.starts_with(symbol, p) for p in prefixes]
+
+    mask = reduce(pc.or_, masks)
+
+    return table.filter(mask)

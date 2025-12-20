@@ -68,4 +68,4 @@ def main() -> None:
 
 if __name__ == "__main__":
     main()
-# python scripts/clean_by_date.py  --date 2025-11-06 --files Trade_Enriched.parquet Order.parquet Snapshot.parquet
+# python scripts/clean_by_date.py  --date 20251201 --files Trade_Enriched.parquet Order.parquet Snapshot.parquet

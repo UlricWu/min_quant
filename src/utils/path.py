@@ -170,7 +170,7 @@ class PathManager:
         return cls.data_dir() / "bar" / "1m"
 
     @classmethod
-    def normalize_dir(cls, date: str='') -> Path:
+    def canonical_dir(cls, date: str= '') -> Path:
         if date:
-            return cls.data_dir() / "normalize" / date
-        return cls.data_dir() / "normalize"
+            return cls.data_dir() / "canonical" / date
+        return cls.data_dir() / "canonical"

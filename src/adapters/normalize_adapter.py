@@ -4,6 +4,7 @@ from __future__ import annotations
 from pathlib import Path
 from typing import Iterable
 
+from src import FileSystem
 from src.adapters.base_adapter import BaseAdapter
 from src.engines.normalize_engine import NormalizeEngine
 from src.engines.context import EngineContext
@@ -11,38 +12,41 @@ from src.engines.context import EngineContext
 
 class NormalizeAdapter(BaseAdapter):
     """
-    NormalizeAdapter（正确契约版）
+    NormalizeAdapter（冻结契约版）
 
     输入：
-        symbol_dir/<symbol>/<date>/{Order,Trade}.parquet
+        /data/parquet/<date>/
+            SH_Trade.parquet
+            SH_Order.parquet
+            SZ_Trade.parquet
+            SZ_Order.parquet
+
     输出：
-        symbol_dir/<symbol>/<date>/{order,trade}/Normalized.parquet
+        /data/canonical/<date>/
+            SH_Trade.parquet
+            SH_Order.parquet
+            SZ_Trade.parquet
+            SZ_Order.parquet
     """
 
     def __init__(
-        self,
-        *,
-        engine: NormalizeEngine,
-        symbols: Iterable[str],
-        inst=None,
+            self,
+            *,
+            engine: NormalizeEngine,
+            symbols: Iterable[str],
+            inst=None,
     ) -> None:
         super().__init__(inst)
         self.engine = engine
         self.symbols = {str(s).zfill(6) for s in symbols}
 
-    def run(self, *, date: str, symbol_dir: Path) -> None:
-        for symbol in sorted(self.symbols):
-            base = symbol_dir / symbol / date
-            if not base.exists():
-                continue
-
+    def run(self, *, date: str, output_dir: Path, input_dir: Path) -> None:
+        with self.timer():
             ctx = EngineContext(
                 mode="offline",
-                symbol=symbol,
                 date=date,
-                input_path=base,
-                output_path=base,  # 输出到 order/ trade 子目录
+                input_path=input_dir,
+                output_path=output_dir,
             )
 
-            with self.timer(f"Normalize_{symbol}"):
-                self.engine.execute(ctx)
+            self.engine.execute(ctx)

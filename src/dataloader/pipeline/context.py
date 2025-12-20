@@ -13,7 +13,7 @@ class PipelineContext:
     parquet_dir: Path
 
     # Canonical (after Normalize)
-    normalize_dir: Path
+    canonical_dir: Path
 
     # Partitioned
     symbol_dir: Path

@@ -20,7 +20,7 @@ class EngineContext:
     mode: Literal["offline", "replay", "realtime"]
 
     # 通用
-    symbol: str
+    symbol: str =''
     date: Optional[str] = ''
 
     # offline
