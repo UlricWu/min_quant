@@ -49,6 +49,9 @@ class DummyPathManager:
     def symbol_root(self) -> Path:
         return Path("/tmp/symbol")
 
+    def canonical_dir(self, date) -> Path:
+        return Path("/tmp/canonical")
+
 
 class DummyFileSystem:
     """防止真实文件系统副作用。"""
@@ -78,6 +81,7 @@ def ctx(tmp_path: Path) -> PipelineContext:
         raw_dir=tmp_path / "raw",
         parquet_dir=tmp_path / "parquet",
         symbol_dir=tmp_path / "symbol",
+        canonical_dir=tmp_path / "canonical",
     )
 
 

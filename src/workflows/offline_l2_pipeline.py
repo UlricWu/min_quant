@@ -161,17 +161,17 @@ def build_offline_l2_pipeline() -> DataPipeline:
         ),
 
         # 4️⃣ Canonical → symbol partition
-        SymbolSplitStep(
-            adapter=symbol_router_adapter,
-            inst=inst,
-            skip_if_exists=True,
-        ),
+        # SymbolSplitStep(
+        #     adapter=symbol_router_adapter,
+        #     inst=inst,
+        #     skip_if_exists=True,
+        # ),
 
         # 5️⃣ Trade enrich (canonical only)
-        TradeEnrichStep(
-            adapter=trade_enrich_adapter,
-            inst=inst,
-        ),
+        # TradeEnrichStep(
+        #     adapter=trade_enrich_adapter,
+        #     inst=inst,
+        # ),
 
         # # 6️⃣ 1-minute bar aggregation
         # AggregateMinuteBarStep(
@@ -180,10 +180,10 @@ def build_offline_l2_pipeline() -> DataPipeline:
         # ),
 
         # 7️⃣ OrderBook rebuild (research / replay)
-        OrderBookRebuildStep(
-            adapter=orderbook_adapter,
-            inst=inst,
-        ),
+        # OrderBookRebuildStep(
+        #     adapter=orderbook_adapter,
+        #     inst=inst,
+        # ),
     ]
 
     return DataPipeline(
