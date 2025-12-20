@@ -161,11 +161,11 @@ def build_offline_l2_pipeline() -> DataPipeline:
         ),
 
         # 4️⃣ Canonical → symbol partition
-        # SymbolSplitStep(
-        #     adapter=symbol_router_adapter,
-        #     inst=inst,
-        #     skip_if_exists=True,
-        # ),
+        SymbolSplitStep(
+            adapter=symbol_router_adapter,
+            inst=inst,
+            skip_if_exists=True,
+        ),
 
         # 5️⃣ Trade enrich (canonical only)
         # TradeEnrichStep(

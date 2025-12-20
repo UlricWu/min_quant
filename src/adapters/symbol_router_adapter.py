@@ -10,7 +10,6 @@ from src.adapters.base_adapter import BaseAdapter
 from src.engines.symbol_router_engine import SymbolRouterEngine
 from src import logs
 
-
 FileType = Literal["order", "trade"]
 
 
@@ -30,23 +29,23 @@ class SymbolRouterAdapter(BaseAdapter):
     """
 
     def __init__(
-        self,
-        *,
-        engine: SymbolRouterEngine,
-        inst=None,
-        compression: str = "zstd",
+            self,
+            *,
+            engine: SymbolRouterEngine,
+            inst=None,
+            compression: str = "zstd",
     ) -> None:
         super().__init__(inst)
         self.engine = engine
         self.compression = compression
 
     def run(
-        self,
-        *,
-        parquet_path: Path,
-        out_root: Path,
-        file_type: FileType,
-        date: str,
+            self,
+            *,
+            parquet_path: Path,
+            out_root: Path,
+            file_type: FileType,
+            date: str,
     ) -> None:
         if not parquet_path.exists():
             raise FileNotFoundError(parquet_path)
@@ -57,12 +56,8 @@ class SymbolRouterAdapter(BaseAdapter):
         split_map = self.engine.split(table)
 
         for symbol, sub_table in split_map.items():
-            out_path = (
-                out_root
-                / symbol
-                / file_type
-                / f"date={date}.parquet"
-            )
+            out_path = out_root / symbol / date / f'{file_type}.parquet'
+
             out_path.parent.mkdir(parents=True, exist_ok=True)
 
             pq.write_table(

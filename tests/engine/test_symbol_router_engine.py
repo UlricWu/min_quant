@@ -8,7 +8,7 @@ def test_split_basic():
 
     table = pa.table(
         {
-            "Symbol": ["000001", "000002", "000001", "000002"],
+            "symbol": ["000001", "000002", "000001", "000002"],
             "price": ["10", "20", "11", "21"],
         }
     )
@@ -31,7 +31,7 @@ def test_split_accepts_recordbatch():
             pa.array(["000001", "000001", "000002"]),
             pa.array(["1", "2", "3"]),
         ],
-        names=["Symbol", "qty"],
+        names=["symbol", "qty"],
     )
 
     out = engine.split(batch)
@@ -45,7 +45,7 @@ def test_schema_preserved():
 
     table = pa.table(
         {
-            "Symbol": ["000001", "000002"],
+            "symbol": ["000001", "000002"],
             "a": ["x", "y"],
             "b": ["1", "2"],
         }
@@ -61,7 +61,7 @@ def test_row_order_preserved():
 
     table = pa.table(
         {
-            "Symbol": ["A", "B", "A", "A", "B"],
+            "symbol": ["A", "B", "A", "A", "B"],
             "seq": ["1", "2", "3", "4", "5"],
         }
     )
@@ -75,7 +75,7 @@ def test_none_symbol_rows_ignored():
 
     table = pa.table(
         {
-            "Symbol": ["000001", None, "000001"],
+            "symbol": ["000001", None, "000001"],
             "v": ["a", "b", "c"],
         }
     )
@@ -93,14 +93,14 @@ def test_missing_symbol_column_raises():
         }
     )
 
-    with pytest.raises(ValueError, match="Symbol"):
+    with pytest.raises(ValueError, match="symbol"):
         engine.split(table)
 def test_symbol_must_be_string():
     engine = SymbolRouterEngine()
 
     table = pa.table(
         {
-            "Symbol": pa.array([1, 2], type=pa.int32()),
+            "symbol": pa.array([1, 2], type=pa.int32()),
             "v": ["a", "b"],
         }
     )
@@ -112,7 +112,7 @@ def test_no_symbol_whitelist_filtering():
 
     table = pa.table(
         {
-            "Symbol": ["000001", "999999"],
+            "symbol": ["000001", "999999"],
             "x": ["a", "b"],
         }
     )
@@ -125,7 +125,7 @@ def test_deterministic_output():
 
     table = pa.table(
         {
-            "Symbol": ["A", "B", "A"],
+            "symbol": ["A", "B", "A"],
             "v": ["1", "2", "3"],
         }
     )
