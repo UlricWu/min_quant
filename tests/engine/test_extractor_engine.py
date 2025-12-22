@@ -2,7 +2,7 @@ import subprocess
 from pathlib import Path
 from unittest.mock import MagicMock, patch
 import pyarrow as pa
-from src.engines.extractor_engine import ExtractorEngine
+from logs.engines import ExtractorEngine
 import pytest
 
 def test_read_header_reads_first_line_only():

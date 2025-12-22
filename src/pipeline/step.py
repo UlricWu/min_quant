@@ -5,7 +5,7 @@ from pathlib import Path
 from typing import Protocol
 
 from src import logs
-from src.dataloader.pipeline.context import PipelineContext
+from src.pipeline.context import PipelineContext
 from src.observability.instrumentation import Instrumentation, NoOpInstrumentation
 
 

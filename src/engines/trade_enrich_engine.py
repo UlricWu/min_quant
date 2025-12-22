@@ -1,12 +1,16 @@
+#!filepath: src/engines/trade_enrich_engine.py
 from __future__ import annotations
 
 from dataclasses import dataclass
-from typing import Iterable, Optional
-import pandas as pd
 from datetime import datetime
-from src.engines.context import EngineContext
-from src.l2.common.normalized_event import NormalizedEvent
-from src import logs
+
+import pyarrow as pa
+import pyarrow.compute as pc
+import pyarrow.parquet as pq
+
+from src.pipeline.context import EngineContext
+
+
 # =========================
 # 输入 / 输出事件定义
 # =========================
@@ -15,7 +19,7 @@ class RawTradeEvent:
     ts: datetime
     price: float
     volume: int
-    side: str | None   # 'B' / 'S' / None
+    side: str | None  # 'B' / 'S' / None
 
 
 @dataclass(frozen=True)
@@ -26,6 +30,8 @@ class EnrichedTradeEvent:
     side: str | None
     notional: float
     signed_volume: int
+
+
 @dataclass
 class TradeEnrichConfig:
     """
@@ -38,120 +44,63 @@ class TradeEnrichConfig:
 
 class TradeEnrichEngine:
     """
-    Trade Enrich Engine（严格 trade-only）
+    TradeEnrichEngine (Arrow-only, FINAL)
 
-    ✔ offline / realtime 共用
-    ✔ 不依赖盘口 / snapshot / orderbook
-    ✔ 不推断 aggressor
-    ✔ 不计算 VPIN / impact
+    Assumptions (FROZEN):
+    - input parquet is trade-only (already normalized)
+    - columns exist: ts, price, volume, side
+    - v1: materialize trade.parquet
     """
 
-    def __init__(self, config: Optional[TradeEnrichConfig] = None) -> None:
-        self.cfg = config or TradeEnrichConfig()
-
-        # realtime / offline 共用状态
-        self._rows: list[dict] = []
-        self._last_ts_ms: Optional[int] = None
-        self._burst_id: int = 0
-
-        # offline 才会用到
-        self._volume_series: list[int] = []
-        self._small_thr: Optional[float] = None
-        self._large_thr: Optional[float] = None
-
-    # ======================================================
-    # 唯一入口
-    # ======================================================
+    # --------------------------------------------------
     def execute(self, ctx: EngineContext) -> None:
-        if ctx.mode == "offline":
-            assert ctx.input_path and ctx.output_path
-            self._run_offline(ctx)
-        else:
-            assert ctx.event
-            self._apply(ctx.event)
+        assert ctx.mode == "offline"
+        assert ctx.input_path and ctx.output_path
 
-    # ======================================================
-    # Offline
-    # ======================================================
-    def _run_offline(self, ctx: EngineContext) -> None:
-        logs.info(f"[TradeEnrich] trade-only symbol={ctx.symbol} date={ctx.date}")
+        self._run_offline(ctx.input_path, ctx.output_path)
 
-        df = pd.read_parquet(ctx.input_path)
+    # --------------------------------------------------
+    def _run_offline(self, input_path, output_path) -> None:
+        # ① 只读必要列（真裁剪）
+        table = pq.read_table(
+            input_path,
+            columns=["ts", "price", "volume", "side"],
+        )
 
-        # ① 只保留 TRADE
-        trade_df = df[df["event"] == "TRADE"].copy()
-        if trade_df.empty:
-            logs.warning("[TradeEnrich] no TRADE events")
-            pd.DataFrame().to_parquet(ctx.output_path, index=False)
+        if table.num_rows == 0:
+            pq.write_table(table, output_path)
             return
 
-        # ② 预计算分位数（trade_bucket 用）
-        self._prepare_volume_buckets(trade_df["volume"])
+        price = table["price"]
+        volume = table["volume"]
+        side = table["side"]
 
-        # ③ 顺序处理
-        for ev in self._iter_events(trade_df):
-            self._apply(ev)
+        # ② notional = price * volume
+        notional = pc.multiply(price, volume)
 
-        out_df = pd.DataFrame(self._rows)
-        out_df.to_parquet(ctx.output_path, index=False)
+        # ③ signed_volume
+        # side == 'B' → +volume
+        # else         → -volume
+        signed_volume = pc.multiply(
+            volume,
+            pc.if_else(
+                pc.equal(side, pa.scalar("B")),
+                pa.scalar(1, pa.int8()),
+                pa.scalar(-1, pa.int8()),
+            ),
+        )
 
-    # ======================================================
-    # 核心逻辑（trade-only）
-    # ======================================================
-    def _apply(self, ev: NormalizedEvent) -> None:
-        if ev.event != "TRADE":
-            return
-
-        ts_ms = int(ev.ts) // 1_000_000
-
-        # ---------- burst ----------
-        if self._last_ts_ms is not None:
-            if ts_ms - self._last_ts_ms > self.cfg.burst_window_ms:
-                self._burst_id += 1
-        self._last_ts_ms = ts_ms
-
-        # ---------- signed volume ----------
-        if ev.side == "B":
-            signed_volume = ev.volume
-        elif ev.side == "S":
-            signed_volume = -ev.volume
-        else:
-            signed_volume = 0
-
-        # ---------- trade bucket ----------
-        bucket = self._bucket_trade_size(ev.volume)
-
-        self._rows.append(
+        # ④ 组装输出 Table（无 pandas）
+        out_table = pa.table(
             {
-                "ts": ev.ts,
-                "price": ev.price,
-                "volume": ev.volume,
-                "side": ev.side,
-                "notional": ev.price * ev.volume,
+                "ts": table["ts"],
+                "price": price,
+                "volume": volume,
+                "side": side,
+                "notional": notional,
                 "signed_volume": signed_volume,
-                "trade_bucket": bucket,
-                "burst_id": self._burst_id,
             }
         )
 
-    # ======================================================
-    # Helpers
-    # ======================================================
-    def _prepare_volume_buckets(self, volume: pd.Series) -> None:
-        self._small_thr = volume.quantile(self.cfg.medium_trade_pct)
-        self._large_thr = volume.quantile(self.cfg.large_trade_pct)
-
-    def _bucket_trade_size(self, v: int) -> str:
-        if self._large_thr is None or self._small_thr is None:
-            return "U"  # Unknown（realtime / 未初始化）
-
-        if v >= self._large_thr:
-            return "L"
-        elif v >= self._small_thr:
-            return "M"
-        return "S"
-
-    @staticmethod
-    def _iter_events(df: pd.DataFrame) -> Iterable[NormalizedEvent]:
-        for row in df.itertuples(index=False):
-            yield NormalizedEvent.from_row(row)
+        # ⑤ 写 parquet（一次）
+        pq.write_table(out_table, output_path)

@@ -64,9 +64,11 @@ class Logging:
         logger.info(msg, *args, **kwargs)
 
     def warning(self, msg: str, *args, **kwargs):
+        print(msg)
         logger.warning(msg, *args, **kwargs)
 
     def error(self, msg: str, *args, **kwargs):
+        print(msg)
         logger.error(msg, *args, **kwargs)
 
     def exception(self, msg: str, *args, **kwargs):

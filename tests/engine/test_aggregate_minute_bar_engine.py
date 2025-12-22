@@ -1,7 +1,7 @@
 import pandas as pd
 import pytest
 
-from src.engines.aggregate_minute_bar_engine import AggregateMinuteBarEngine
+from logs.engines.aggregate_minute_bar_engine import AggregateMinuteBarEngine
 @pytest.fixture
 def engine():
     return AggregateMinuteBarEngine()

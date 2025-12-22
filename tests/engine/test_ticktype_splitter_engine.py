@@ -1,6 +1,6 @@
 import pyarrow as pa
 
-from src.engines.event_splitter_engine import TickTypeSplitterEngine
+from logs.engines.event_splitter_engine import TickTypeSplitterEngine
 
 
 def test_splitter_basic_split():
