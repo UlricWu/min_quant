@@ -32,8 +32,8 @@ class MinuteTradeAggStep(PipelineStep):
         # 你的目录结构是：symbol/{date}/{sym}/xxx.parquet（从你 meta 输出看是这种）
         # 如果你实际是 symbol/{sym}/{date}/，把下面路径拼接换一下即可。
         sym_dirs = [p for p in symbol_root.iterdir() if p.is_dir()]
-        logs.info(f"[MinuteTradeAggStep] process count: {len(sym_dirs)}")
 
+        count = 0
         with self.inst.timer("MinuteTradeAggStep"):
 
             for sym_dir in sym_dirs:
@@ -53,5 +53,9 @@ class MinuteTradeAggStep(PipelineStep):
                     output_path=out_path,
                 )
                 self.engine.execute(ectx)
+                count += 1
+
+        logs.info(f"[MinuteTradeAggStep] process count: {count}")
+
 
         return ctx

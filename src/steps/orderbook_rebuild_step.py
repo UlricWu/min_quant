@@ -28,7 +28,7 @@ class OrderBookRebuildStep(PipelineStep):
     # --------------------------------------------------
     def run(self, ctx) -> None:
         input_dir: Path = ctx.symbol_dir
-        input_file = 'trade.parquet'
+        input_file = 'order.parquet'
         out_name = "orderbook.parquet"
 
         # 遍历当日 universe（和 SymbolSplit 完全一致）
@@ -59,6 +59,6 @@ class OrderBookRebuildStep(PipelineStep):
 
                 self.engine.execute(ctx_engine)
 
-        logs.info(f'[TradeEnrichStep] process count: {count}')
+        logs.info(f'[OrderBookRebuildStep] process count: {count}')
 
         return ctx

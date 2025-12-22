@@ -1,12 +1,14 @@
 # tests/conftest.py
 from __future__ import annotations
 
+from dataclasses import dataclass
 from pathlib import Path
-from typing import Literal
+from typing import Literal, Dict, Any
 
 import pandas as pd
 import pytest
-
+import pyarrow as pa
+import pyarrow.parquet as pq
 
 @pytest.fixture(scope="session")
 def date() -> str:
@@ -149,7 +151,7 @@ def canonical_output_dir(tmp_path: Path, date: str) -> Path:
 # ============================================================
 @pytest.fixture(autouse=True)
 def _patch_parse_events(monkeypatch):
-    import logs.engines.normalize_engine as ne
+    import src.engines.parser_engine as ne
 
     def _stub_parse_events(df: pd.DataFrame, kind: Literal["order", "trade"]):
         symbol = df["SecurityID"].astype(str).str.zfill(6)
@@ -197,3 +199,27 @@ def _patch_parse_events(monkeypatch):
         )
 
     monkeypatch.setattr(ne, "parse_events", _stub_parse_events, raising=True)
+
+@dataclass(frozen=True)
+class ParquetIO:
+    def write(self, path: Path, table: pa.Table) -> None:
+        path.parent.mkdir(parents=True, exist_ok=True)
+        pq.write_table(table, path)
+
+    def read(self, path: Path) -> pa.Table:
+        return pq.read_table(path)
+
+
+@pytest.fixture()
+def pqio() -> ParquetIO:
+    return ParquetIO()
+
+
+def assert_table_schema_exact(table: pa.Table, expected: pa.Schema) -> None:
+    # Arrow schema comparison: names + types in order
+    assert table.schema == expected, f"\nExpected: {expected}\nGot:      {table.schema}"
+
+
+def table_to_dict(table: pa.Table) -> Dict[str, Any]:
+    # Stable conversion for assertions
+    return table.to_pydict()

@@ -29,7 +29,8 @@ class MinuteOrderAggStep(PipelineStep):
             return
 
         sym_dirs = [p for p in symbol_root.iterdir() if p.is_dir()]
-        logs.info(f"[MinuteOrderAggStep] process count: {len(sym_dirs)}")
+        count = 0
+
 
         with self.inst.timer("MinuteOrderAggStep"):
 
@@ -38,7 +39,8 @@ class MinuteOrderAggStep(PipelineStep):
                 in_path = sym_dir / "orderbook_events.parquet"
                 out_path = sym_dir / "minute_order.parquet"
 
-                if not in_path.exists():
+                if not in_path.exists() or in_path.stat().st_size ==0:
+                    logs.warning(f"[MinuteOrderAggStep] skipping {in_path}")
                     continue
 
                 if out_path.exists():
@@ -50,5 +52,8 @@ class MinuteOrderAggStep(PipelineStep):
                     output_path=out_path,
                 )
                 self.engine.execute(ectx)
+                count += 1
+        logs.info(f"[MinuteOrderAggStep] process count: {count}")
+
 
         return ctx

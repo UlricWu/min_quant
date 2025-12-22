@@ -51,7 +51,8 @@ class OrderBook:
         self.last_ts: Optional[int] = None
 
     # --------------------------------------------------
-    def add_order(self, *, ts: int, order_id: int, side: Optional[str], price: Optional[float], volume: Optional[int]) -> None:
+    def add_order(self, *, ts: int, order_id: int, side: Optional[str], price: Optional[float],
+                  volume: Optional[int]) -> None:
         if side not in ("B", "S") or price is None or volume is None:
             return
         if order_id in self.orders:
@@ -213,10 +214,25 @@ class OrderBookRebuildEngine:
     - Arrow-only IO
     - 不再走 pandas / itertuples / NormalizedEvent.from_row
     - 仍然保持你的唯一真相：所有事件最终只走 _apply
+
+    产物：
+      - orderbook.parquet         (snapshot)
+      - orderbook_events.parquet  (event stream)
     """
+    EVENT_FLUSH_SIZE = 100_000
 
     def __init__(self) -> None:
         self.book: Optional[OrderBook] = None
+        # event buffers (columnar)
+        self._ev_ts: list[int] = []
+        self._ev_event: list[str] = []
+        self._ev_order_id: list[int] = []
+        self._ev_side: list[Optional[str]] = []
+        self._ev_price: list[Optional[float]] = []
+        self._ev_volume: list[int] = []
+        self._ev_notional: list[float] = []
+
+        self._event_writer: Optional[pq.ParquetWriter] = None
 
     # ======================================================
     def execute(self, ctx: EngineContext) -> None:
@@ -246,40 +262,61 @@ class OrderBookRebuildEngine:
     def _run_offline(self, input_path: Path, output_path: Path) -> None:
         pf = pq.ParquetFile(input_path)
 
+        event_out = output_path.with_name("orderbook_events.parquet")
+        event_schema = pa.schema(
+            [
+                ("ts", pa.int64()),
+                ("event", pa.string()),
+                ("order_id", pa.int64()),
+                ("side", pa.string()),
+                ("price", pa.float64()),
+                ("volume", pa.int64()),
+                ("notional", pa.float64()),
+            ]
+        )
+        self._event_writer = pq.ParquetWriter(event_out, event_schema)
+
         # 只读重建需要的列（真裁剪）
         cols = ["ts", "event", "order_id", "side", "price", "volume"]
 
         for batch in pf.iter_batches(columns=cols):
-            ts_arr = batch.column(batch.schema.get_field_index("ts"))
-            ev_arr = batch.column(batch.schema.get_field_index("event"))
-            oid_arr = batch.column(batch.schema.get_field_index("order_id"))
-            side_arr = batch.column(batch.schema.get_field_index("side"))
-            price_arr = batch.column(batch.schema.get_field_index("price"))
-            vol_arr = batch.column(batch.schema.get_field_index("volume"))
 
+            # ✅ 关键：一次性转 pylist，避免 per-row as_py()
+            ts_list = batch.column(0).to_pylist()
+            ev_list = batch.column(1).to_pylist()
+            oid_list = batch.column(2).to_pylist()
+            side_list = batch.column(3).to_pylist()
+            price_list = batch.column(4).to_pylist()
+            vol_list = batch.column(5).to_pylist()
+
+            n = batch.num_rows
             # 必须逐事件推进状态（orderbook 的本质），但避免构造对象
-            for i in range(batch.num_rows):
+
+            for i in range(n):
                 self._apply(
-                    ts=int(ts_arr[i].as_py()),
-                    event=ev_arr[i].as_py(),
-                    order_id=int(oid_arr[i].as_py()),
-                    side=side_arr[i].as_py(),
-                    price=price_arr[i].as_py(),
-                    volume=vol_arr[i].as_py(),
+                    ts=int(ts_list[i]),
+                    event=ev_list[i],
+                    order_id=int(oid_list[i]),
+                    side=side_list[i],
+                    price=price_list[i],
+                    volume=vol_list[i],
                 )
+
+        self._flush_events()
+        self._event_writer.close()
 
         self._emit_snapshot(output_path)
 
     # ======================================================
     def _apply(
-        self,
-        *,
-        ts: int,
-        event: str,
-        order_id: int,
-        side: Optional[str],
-        price: Optional[float],
-        volume: Optional[int],
+            self,
+            *,
+            ts: int,
+            event: str,
+            order_id: int,
+            side: Optional[str],
+            price: Optional[float],
+            volume: Optional[int],
     ) -> None:
         assert self.book is not None
 
@@ -292,9 +329,62 @@ class OrderBookRebuildEngine:
         else:
             raise ValueError(f"Unknown event={event}")
 
+            # -------------------------------
+            # ② 再记录规范化事件（新增）
+            # -------------------------------
+        v = int(volume) if volume is not None else 0
+        p = float(price) if price is not None else 0.0
+
+        self._ev_ts.append(ts)
+        self._ev_event.append(event)
+        self._ev_order_id.append(order_id)
+        self._ev_side.append(side)
+        self._ev_price.append(p if price is not None else None)
+        self._ev_volume.append(v)
+        self._ev_notional.append(p * v if price is not None else 0.0)
+        if len(self._ev_ts) >= self.EVENT_FLUSH_SIZE:
+            self._flush_events()
+
+        # ======================================================
+
+    def _flush_events(self) -> None:
+        if not self._ev_ts:
+            return
+        assert self._event_writer is not None
+
+        batch = pa.record_batch(
+            [
+                pa.array(self._ev_ts, pa.int64()),
+                pa.array(self._ev_event, pa.string()),
+                pa.array(self._ev_order_id, pa.int64()),
+                pa.array(self._ev_side, pa.string()),
+                pa.array(self._ev_price, pa.float64()),
+                pa.array(self._ev_volume, pa.int64()),
+                pa.array(self._ev_notional, pa.float64()),
+            ],
+            names=[
+                "ts",
+                "event",
+                "order_id",
+                "side",
+                "price",
+                "volume",
+                "notional",
+            ],
+        )
+
+        self._event_writer.write_batch(batch)
+
+        self._ev_ts.clear()
+        self._ev_event.clear()
+        self._ev_order_id.clear()
+        self._ev_side.clear()
+        self._ev_price.clear()
+        self._ev_volume.clear()
+        self._ev_notional.clear()
+
     # ======================================================
     def _emit_snapshot(self, out: Path) -> None:
         assert self.book is not None
         table = self.book.snapshot_table(depth=10)
         pq.write_table(table, out)
-        # logs.info(f"[OrderBook] snapshot written → {out}")
