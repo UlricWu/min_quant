@@ -12,7 +12,7 @@ from pathlib import Path
 from src.utils.filesystem import FileSystem
 from src.utils.logger import logs
 
-
+import pyarrow as pa
 class SymbolSplitStep(PipelineStep):
     """
     SymbolSplitStep（Meta-aware，冻结版）
@@ -61,24 +61,33 @@ class SymbolSplitStep(PipelineStep):
                 if not symbols:
                     logs.warning(f"[SymbolSplitStep] skip {file.stem}")
                     continue
-                # ② 读取 canonical table（一次）
                 table = pq.read_table(file)
-                # ③ 执行 split（纯逻辑）
-                payloads = self.engine.split_many(table, symbols)
+                symbol_tables = self.engine.split_many(table, symbols)
+                for sym, sub_table in symbol_tables.items():
+                    FileSystem.ensure_dir(output_dir / sym)
 
-                # ④ 写文件 + 记录 meta
-                meta.begin_new()
-
-                for sym, data in payloads.items():
                     out_file = output_dir / sym / file.name.split('_')[1]
-                    FileSystem.safe_write(out_file, data)
-                    meta.record_output(sym, out_file)
 
-                meta.commit()
+                    # file = output_dir / file.name.split('_')[1]
+                    pa.parquet.write_table(sub_table, out_file)
+                # ② 读取 canonical table（一次）
+                # table = pq.read_table(file)
+                # # ③ 执行 split（纯逻辑）
+                # payloads = self.engine.split_many(table, symbols)
+                #
+                # # ④ 写文件 + 记录 meta
+                # meta.begin_new()
+                #
+                # for sym, data in payloads.items():
+                #     out_file = output_dir / sym / file.name.split('_')[1]
+                #     FileSystem.safe_write(out_file, data)
+                #     meta.record_output(sym, out_file)
+
+                # meta.commit()
 
         return ctx
 
-    @logs.catch()
+
     def _needs_split(self, file: Path, meta_dir: Path) -> tuple[Any, MetaRegistry]:
         # ① 修正 step 语义：pipeline step + file
         step_key = f"{self.__class__.__name__}:{file.stem}"
