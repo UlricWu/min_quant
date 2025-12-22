@@ -4,7 +4,7 @@ from __future__ import annotations
 import pyarrow as pa
 import pyarrow.parquet as pq
 from typing import Iterable
-
+from src import logs
 
 class SymbolSplitEngine:
     """
@@ -44,6 +44,7 @@ class SymbolSplitEngine:
         return sink.getvalue().to_pybytes()
 
     # --------------------------------------------------
+    @logs.catch()
     def split_many(
             self,
             table: pa.Table,

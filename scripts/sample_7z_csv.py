@@ -18,7 +18,7 @@ INPUT_DATE = '2025-12-01'
 OUTPUT_DATE = "2015-01-01"
 
 
-SAMPLE_ROWS = 50_000  # ← 每个文件抽多少行，自己调
+SAMPLE_ROWS = 50_000_00  # ← 每个文件抽多少行，自己调
 RANDOM_SEED = 42
 
 

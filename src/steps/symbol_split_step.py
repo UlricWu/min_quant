@@ -78,6 +78,7 @@ class SymbolSplitStep(PipelineStep):
 
         return ctx
 
+    @logs.catch()
     def _needs_split(self, file: Path, meta_dir: Path) -> tuple[Any, MetaRegistry]:
         # ① 修正 step 语义：pipeline step + file
         step_key = f"{self.__class__.__name__}:{file.stem}"
