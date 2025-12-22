@@ -16,7 +16,7 @@ class NormalizeStep(BasePipelineStep):
 
         for file in list(input_dir.glob("*.parquet")):
             filename = file.stem
-            output_file = output_dir / filename
+            output_file = output_dir / filename.lower()
 
             if output_file.exists():
                 continue

@@ -17,7 +17,7 @@ class CsvConvertStep(BasePipelineStep):
         for zfile in input_dir.glob("*.7z"):
             out_files = self._build_out_files(zfile, out_dir)
             if self._all_exist(out_files):
-                logs.warning(f"[CsvConvertStep] skip {zfile.name}")
+                logs.warning(f"[CsvConvertStep] {zfile.name} 已存在 ->skip ")
                 continue
 
             with self.inst.timer(f'Process_{zfile.name}'):
