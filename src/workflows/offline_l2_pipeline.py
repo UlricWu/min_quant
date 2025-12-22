@@ -67,8 +67,11 @@ def build_offline_l2_pipeline() -> DataPipeline:
     trade_engine = TradeEnrichEngine()
     trade_step = TradeEnrichStep(engine=trade_engine, inst=inst)
 
-    order_engine = OrderBookRebuildEngine()
-    order_step = OrderBookRebuildStep(engine=order_engine, inst=inst)
+    # order_engine = OrderBookRebuildEngine()
+    order_step = OrderBookRebuildStep(
+                                      inst=inst,
+                                      max_workers=10,          # 5900X 建议 8~12
+                                       mp_start_method="fork")  # Linux)
 
     min_trade_engine = MinuteTradeAggEngine()
     min_trade_step = MinuteTradeAggStep(engine=min_trade_engine, inst=inst)

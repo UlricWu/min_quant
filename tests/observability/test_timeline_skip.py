@@ -46,11 +46,14 @@ class DummyPathManager:
     def parquet_dir(self, date: str) -> Path:
         return Path("/tmp/parquet")
 
-    def symbol_root(self) -> Path:
+    def symbol_dir(self, date) -> Path:
         return Path("/tmp/symbol")
 
     def canonical_dir(self, date) -> Path:
         return Path("/tmp/canonical")
+
+    def meta_dir(self, date) -> Path:
+        return Path("/tmp/meta")
 
 
 class DummyFileSystem:
@@ -82,6 +85,7 @@ def ctx(tmp_path: Path) -> PipelineContext:
         parquet_dir=tmp_path / "parquet",
         symbol_dir=tmp_path / "symbol",
         canonical_dir=tmp_path / "canonical",
+        meta_dir=tmp_path/'meta'
     )
 
 

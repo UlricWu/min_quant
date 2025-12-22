@@ -22,7 +22,7 @@ class Order:
     side: Literal["B", "S"]
     price: float
     volume: int
-    ts: int  # 你原注释要求 ts 必须是 int
+    ts: int  #  必须是 int
 
 
 class OrderBook:
@@ -221,7 +221,8 @@ class OrderBookRebuildEngine:
     """
     EVENT_FLUSH_SIZE = 100_000
 
-    def __init__(self) -> None:
+    def __init__(self, record_events: bool = False) -> None:
+        self.record_events = record_events
         self.book: Optional[OrderBook] = None
         # event buffers (columnar)
         self._ev_ts: list[int] = []
@@ -242,39 +243,43 @@ class OrderBookRebuildEngine:
         if ctx.mode == "offline":
             assert ctx.input_path and ctx.output_path
             self._run_offline(ctx.input_path, ctx.output_path)
-        else:
-            # realtime: ctx.event 仍保留，但这里建议你后续也改为原始字段
-            assert ctx.event is not None
-            ev = ctx.event
-            self._apply(
-                ts=int(ev.ts),
-                event=ev.event,
-                order_id=int(ev.order_id),
-                side=ev.side,
-                price=float(ev.price) if ev.price is not None else None,
-                volume=int(ev.volume) if ev.volume is not None else None,
-            )
-            if ctx.emit_snapshot:
-                assert ctx.output_path is not None
-                self._emit_snapshot(ctx.output_path)
+            return
+        # realtime
+        assert ctx.event is not None
+        ev = ctx.event
+        self._apply(
+            ts=int(ev.ts),
+            event=str(ev.event),
+            order_id=int(ev.order_id),
+            side=ev.side,
+            price=float(ev.price) if ev.price is not None else None,
+            volume=int(ev.volume) if ev.volume is not None else None,
+        )
+        if ctx.emit_snapshot:
+            assert ctx.output_path is not None
+            self._emit_snapshot(ctx.output_path)
 
     # ======================================================
     def _run_offline(self, input_path: Path, output_path: Path) -> None:
         pf = pq.ParquetFile(input_path)
 
-        event_out = output_path.with_name("orderbook_events.parquet")
-        event_schema = pa.schema(
-            [
-                ("ts", pa.int64()),
-                ("event", pa.string()),
-                ("order_id", pa.int64()),
-                ("side", pa.string()),
-                ("price", pa.float64()),
-                ("volume", pa.int64()),
-                ("notional", pa.float64()),
-            ]
-        )
-        self._event_writer = pq.ParquetWriter(event_out, event_schema)
+        # record_events=True 才生成 orderbook_events.parquet
+        if self.record_events:
+            event_out = output_path.with_name("orderbook_events.parquet")
+            event_schema = pa.schema(
+                [
+                    ("ts", pa.int64()),
+                    ("event", pa.string()),
+                    ("order_id", pa.int64()),
+                    ("side", pa.string()),
+                    ("price", pa.float64()),
+                    ("volume", pa.int64()),
+                    ("notional", pa.float64()),
+                ]
+            )
+            self._event_writer = pq.ParquetWriter(event_out, event_schema)
+        else:
+            self._event_writer = None
 
         # 只读重建需要的列（真裁剪）
         cols = ["ts", "event", "order_id", "side", "price", "volume"]
@@ -302,8 +307,11 @@ class OrderBookRebuildEngine:
                     volume=vol_list[i],
                 )
 
-        self._flush_events()
-        self._event_writer.close()
+        if self.record_events:
+            self._flush_events()
+            assert self._event_writer is not None
+            self._event_writer.close()
+            self._event_writer = None
 
         self._emit_snapshot(output_path)
 
@@ -332,22 +340,25 @@ class OrderBookRebuildEngine:
             # -------------------------------
             # ② 再记录规范化事件（新增）
             # -------------------------------
-        v = int(volume) if volume is not None else 0
-        p = float(price) if price is not None else 0.0
+        if self.record_events:
+            v = int(volume) if volume is not None else 0
+            p = float(price) if price is not None else 0.0
 
-        self._ev_ts.append(ts)
-        self._ev_event.append(event)
-        self._ev_order_id.append(order_id)
-        self._ev_side.append(side)
-        self._ev_price.append(p if price is not None else None)
-        self._ev_volume.append(v)
-        self._ev_notional.append(p * v if price is not None else 0.0)
-        if len(self._ev_ts) >= self.EVENT_FLUSH_SIZE:
-            self._flush_events()
+            self._ev_ts.append(ts)
+            self._ev_event.append(event)
+            self._ev_order_id.append(order_id)
+            self._ev_side.append(side)
+            self._ev_price.append(p if price is not None else None)
+            self._ev_volume.append(v)
+            self._ev_notional.append(p * v if price is not None else 0.0)
+            if len(self._ev_ts) >= self.EVENT_FLUSH_SIZE:
+                self._flush_events()
 
         # ======================================================
 
     def _flush_events(self) -> None:
+        if not self.record_events:
+            return
         if not self._ev_ts:
             return
         assert self._event_writer is not None

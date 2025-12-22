@@ -41,7 +41,7 @@ class MinuteOrderAggStep(PipelineStep):
                 out_path = sym_dir / "minute_order.parquet"
 
                 if not in_path.exists() or in_path.stat().st_size ==0:
-                    logs.warning(f"[MinuteOrderAggStep] skipping {in_path}")
+                    # logs.warning(f"[MinuteOrderAggStep] {in_path} 一存在 -> skip")
                     continue
 
                 if out_path.exists():
