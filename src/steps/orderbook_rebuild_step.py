@@ -60,3 +60,5 @@ class OrderBookRebuildStep(PipelineStep):
                 self.engine.execute(ctx_engine)
 
         logs.info(f'[TradeEnrichStep] process count: {count}')
+
+        return ctx

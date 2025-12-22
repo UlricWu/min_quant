@@ -19,6 +19,8 @@ from src.engines.trade_enrich_engine import TradeEnrichEngine
 
 from src.engines.orderbook_rebuild_engine import OrderBookRebuildEngine
 from src.steps.orderbook_rebuild_step import OrderBookRebuildStep
+from src.engines.minute_trade_agg_engine import MinuteTradeAggEngine
+from src.steps.minute_trade_agg_step import MinuteTradeAggStep
 def build_offline_l2_pipeline() -> DataPipeline:
     """
     Offline Level-2 Pipeline (FINAL / FROZEN)
@@ -57,7 +59,10 @@ def build_offline_l2_pipeline() -> DataPipeline:
     order_engine = OrderBookRebuildEngine()
     order_step = OrderBookRebuildStep(engine=order_engine, inst=inst)
 
-    steps = [extractor_steps, normalize_steps, symbol_split_steps, trade_step, order_step]
+    min_trade_engine = MinuteTradeAggEngine()
+    min_trade_step = MinuteTradeAggStep(engine=min_trade_engine, inst=inst)
+
+    steps = [extractor_steps, normalize_steps, symbol_split_steps, trade_step, order_step, min_trade_step]
 
     return DataPipeline(
         steps=steps,
