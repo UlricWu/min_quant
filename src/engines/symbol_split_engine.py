@@ -1,10 +1,17 @@
 #!filepath: src/engines/symbol_split_engine.py
 from __future__ import annotations
 
+from collections import defaultdict
+
 import pyarrow as pa
 import pyarrow.parquet as pq
-from typing import Iterable
+from typing import Iterable, Optional
+
+from pandas import options
+
 from src import logs
+import pyarrow.compute as pc
+
 
 class SymbolSplitEngine:
     """
@@ -24,7 +31,7 @@ class SymbolSplitEngine:
     """
 
     def __init__(self, symbol_field: str = "symbol"):
-        self.symbol_field = symbol_field
+        self.symbol_col = symbol_field
 
     # --------------------------------------------------
     def split_one(
@@ -35,7 +42,7 @@ class SymbolSplitEngine:
         """
         从 canonical table 中切出某一个 symbol
         """
-        mask = pa.compute.equal(table[self.symbol_field], symbol)
+        mask = pa.compute.equal(table[self.symbol_col], symbol)
         sub = table.filter(mask)
 
         sink = pa.BufferOutputStream()
@@ -48,14 +55,43 @@ class SymbolSplitEngine:
     def split_many(
             self,
             table: pa.Table,
-            symbols: Iterable[str],
+            needs_symbol: list = [],
+            batch_size: int = 200_000,
     ) -> dict[str, bytes]:
         """
         一次切多个 symbol（可选优化）
         """
-        result: dict[str, bytes] = {}
+        """
+                返回：
+                    symbol -> Arrow Table
+                """
+        # ------------------------------------------------------------------
+        # 0️⃣ 关键：合并 chunk（必须做）
+        # ------------------------------------------------------------------
+        table = table.combine_chunks()
 
-        for sym in symbols:
-            result[sym] = self.split_one(table, sym)
+        symbols = table[self.symbol_col].to_pylist()
+        num_rows = table.num_rows
+
+        # symbol -> row indices
+        index_map: dict[str, list[int]] = defaultdict(list)
+
+        # ------------------------------------------------------------------
+        # 1️⃣ 一次顺序扫描
+        # ------------------------------------------------------------------
+        for i in range(num_rows):
+            sym = symbols[i]
+            if sym not in needs_symbol:
+                continue
+            index_map[sym].append(i)
+
+        # ------------------------------------------------------------------
+        # 2️⃣ 生成子表
+        # ------------------------------------------------------------------
+        result: dict[str, pa.Table] = {}
+
+        for sym, indices in index_map.items():
+            idx_array = pa.array(indices, type=pa.int32())
+            result[sym] = table.take(idx_array)
 
         return result
