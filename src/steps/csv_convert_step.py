@@ -3,8 +3,10 @@ from src.pipeline.step import BasePipelineStep
 from src.pipeline.pipeline import PipelineContext
 from src.utils.logger import logs
 from src.engines.convert_engine import ConvertEngine
+
+
 class CsvConvertStep(BasePipelineStep):
-    def __init__(self, engine:ConvertEngine, inst=None):
+    def __init__(self, engine: ConvertEngine, inst=None):
         super().__init__(inst)
         self.engine = engine
 
@@ -17,7 +19,9 @@ class CsvConvertStep(BasePipelineStep):
             if self._all_exist(out_files):
                 logs.warning(f"[CsvConvertStep] skip {zfile.name}")
                 continue
+
             with self.inst.timer(f'Process_{zfile.name}'):
+                logs.info(f'[CsvConvertStep] start converting {zfile.name}')
                 self.engine.convert(zfile, out_files)
 
         return ctx

@@ -1,3 +1,4 @@
+from src import logs
 from src.pipeline.context import PipelineContext
 from src.pipeline.step import BasePipelineStep
 from src.engines.normalize_engine import NormalizeEngine
@@ -20,6 +21,7 @@ class NormalizeStep(BasePipelineStep):
             if output_file.exists():
                 continue
             with self.inst.timer(f'NormalizeStep_{filename}'):
+                logs.info(f'[NormalizeStep] start normalizing {filename}')
                 self.engine.execute(
                     input_file=input_dir / file,
                     output_dir=output_dir,

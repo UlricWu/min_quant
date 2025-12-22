@@ -147,7 +147,7 @@ class MinuteOrderAggEngine:
         }
 
         # if self.cfg.include_order_count:
-        # cols["order_count"] = grouped["event_count"]
+        cols["event_count"] = grouped["event_count"]
 
         result = pa.table(cols)
 

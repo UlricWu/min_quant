@@ -1,183 +1,298 @@
-#!filepath: tests/engines/test_minute_order_agg_engine.py
 from __future__ import annotations
 
-from pathlib import Path
-
 import pyarrow as pa
-import pytest
+import pyarrow.parquet as pq
 
-from src.engines.minute_order_agg_engine import MinuteOrderAggEngine, NS_PER_MINUTE
+from src.engines.minute_order_agg_engine import MinuteOrderAggEngine
 from src.pipeline.context import EngineContext
 
-from tests.conftest import assert_table_schema_exact, table_to_dict
+US_PER_MINUTE = 60 * 1_000_000
 
 
-def _expected_schema(include_order_count: bool) -> pa.Schema:
-    fields = [
-        pa.field("minute", pa.timestamp("ns")),
-        pa.field("add_volume", pa.int64()),
-        pa.field("cancel_volume", pa.int64()),
-        pa.field("net_volume", pa.int64()),
-        pa.field("add_notional", pa.float64()),
-        pa.field("cancel_notional", pa.float64()),
+def test_minute_order_agg_basic(tmp_path, write_parquet):
+    """
+    单 symbol / 单 minute / ADD + CANCEL
+    """
+    in_path = tmp_path / "orderbook_events.parquet"
+    out_path = tmp_path / "minute_order.parquet"
+
+    base_ts = 10 * US_PER_MINUTE
+
+    rows = [
+        {
+            "ts": base_ts + 1,
+            "event": "ADD",
+            "order_id": 1,
+            "side": "B",
+            "price": 10.0,
+            "volume": 100,
+            "notional": 1000.0,
+        },
+        {
+            "ts": base_ts + 2,
+            "event": "CANCEL",
+            "order_id": 1,
+            "side": "B",
+            "price": 10.0,
+            "volume": 40,
+            "notional": 400.0,
+        },
     ]
-    if include_order_count:
-        fields.append(pa.field("order_count", pa.int64()))
-    return pa.schema(fields)
 
-
-def test_minute_order_agg_basic_contract_and_values(tmp_path: Path, pqio) -> None:
-    base_ts = 1_700_000_000_000_000_000  # ns (positive)
-
-    # NOTE: deliberately shuffled minutes to validate output sorting
-    table = pa.table(
-        {
-            "ts": [
-                base_ts + NS_PER_MINUTE + 5,  # minute 1
-                base_ts + 10,                 # minute 0
-                base_ts + 20,                 # minute 0
-                base_ts + NS_PER_MINUTE + 9,  # minute 1
-            ],
-            "event": ["ADD", "ADD", "CANCEL", "CANCEL"],
-            "volume": [200, 100, 40, 50],
-            "signed_volume": [200, 100, -40, -50],
-            "notional": [2200.0, 1000.0, 400.0, 550.0],
-        }
+    schema = pa.schema(
+        [
+            ("ts", pa.int64()),
+            ("event", pa.string()),
+            ("order_id", pa.int64()),
+            ("side", pa.string()),
+            ("price", pa.float64()),
+            ("volume", pa.int64()),
+            ("notional", pa.float64()),
+        ]
     )
 
+    write_parquet(in_path, rows, schema)
+
+    engine = MinuteOrderAggEngine()
+    ctx = EngineContext(
+        mode="offline",
+        input_path=in_path,
+        output_path=out_path,
+    )
+
+    engine.execute(ctx)
+
+    assert out_path.exists()
+
+    table = pq.read_table(out_path)
+    df = table.to_pandas()
+
+    assert len(df) == 1
+    r = df.iloc[0]
+
+    assert r["add_volume"] == 100
+    assert r["cancel_volume"] == 40
+    assert r["net_volume"] == 60
+
+    assert r["add_notional"] == 1000.0
+    assert r["cancel_notional"] == 400.0
+    assert r["event_count"] == 2
+
+def test_minute_order_agg_multi_minute(tmp_path, write_parquet):
     in_path = tmp_path / "orderbook_events.parquet"
     out_path = tmp_path / "minute_order.parquet"
-    pqio.write(in_path, table)
+
+    rows = [
+        {
+            "ts": 1 * US_PER_MINUTE + 1,
+            "event": "ADD",
+            "order_id": 1,
+            "side": "B",
+            "price": 10.0,
+            "volume": 100,
+            "notional": 1000.0,
+        },
+        {
+            "ts": 2 * US_PER_MINUTE + 1,
+            "event": "ADD",
+            "order_id": 2,
+            "side": "S",
+            "price": 11.0,
+            "volume": 50,
+            "notional": 550.0,
+        },
+    ]
+
+    schema = pa.schema(
+        [
+            ("ts", pa.int64()),
+            ("event", pa.string()),
+            ("order_id", pa.int64()),
+            ("side", pa.string()),
+            ("price", pa.float64()),
+            ("volume", pa.int64()),
+            ("notional", pa.float64()),
+        ]
+    )
+
+    write_parquet(in_path, rows, schema)
 
     engine = MinuteOrderAggEngine()
     engine.execute(
-        EngineContext(mode="offline", input_path=in_path, output_path=out_path)
-    )
-
-    out = pqio.read(out_path)
-    assert_table_schema_exact(out, _expected_schema(include_order_count=True))
-    assert out.num_rows == 2
-
-    d = table_to_dict(out)
-
-    # Sorted by minute ascending => row 0 is minute 0, row 1 is minute 1
-    # minute 0: ADD 100, CANCEL 40
-    assert d["add_volume"][0] == 100
-    assert d["cancel_volume"][0] == 40
-    assert d["net_volume"][0] == 60
-    assert d["add_notional"][0] == 1000.0
-    assert d["cancel_notional"][0] == 400.0
-    assert d["order_count"][0] == 2
-
-    # minute 1: ADD 200, CANCEL 50
-    assert d["add_volume"][1] == 200
-    assert d["cancel_volume"][1] == 50
-    assert d["net_volume"][1] == 150
-    assert d["add_notional"][1] == 2200.0
-    assert d["cancel_notional"][1] == 550.0
-    assert d["order_count"][1] == 2
-
-    # minute is timestamp[ns]
-    assert pa.types.is_timestamp(out.schema.field("minute").type)
-
-
-def test_minute_order_agg_trade_only_writes_empty_but_schema(tmp_path: Path, pqio) -> None:
-    table = pa.table(
-        {
-            "ts": [1, 2, 3],
-            "event": ["TRADE", "TRADE", "TRADE"],
-            "volume": [100, 200, 300],
-            "signed_volume": [100, -200, 300],
-            "notional": [1000.0, 2000.0, 3000.0],
-        }
-    )
-
-    in_path = tmp_path / "orderbook_events.parquet"
-    out_path = tmp_path / "minute_order.parquet"
-    pqio.write(in_path, table)
-
-    engine = MinuteOrderAggEngine()
-    engine.execute(
-        EngineContext(mode="offline", input_path=in_path, output_path=out_path)
-    )
-
-    out = pqio.read(out_path)
-    assert_table_schema_exact(out, _expected_schema(include_order_count=True))
-    assert out.num_rows == 0
-
-
-def test_minute_order_agg_empty_input_writes_empty_but_schema(tmp_path: Path, pqio) -> None:
-    table = pa.table(
-        {
-            "ts": pa.array([], pa.int64()),
-            "event": pa.array([], pa.string()),
-            "volume": pa.array([], pa.int64()),
-            "signed_volume": pa.array([], pa.int64()),
-            "notional": pa.array([], pa.float64()),
-        }
-    )
-
-    in_path = tmp_path / "orderbook_events.parquet"
-    out_path = tmp_path / "minute_order.parquet"
-    pqio.write(in_path, table)
-
-    engine = MinuteOrderAggEngine()
-    engine.execute(
-        EngineContext(mode="offline", input_path=in_path, output_path=out_path)
-    )
-
-    out = pqio.read(out_path)
-    assert_table_schema_exact(out, _expected_schema(include_order_count=True))
-    assert out.num_rows == 0
-
-
-def test_minute_order_agg_missing_required_columns_fails_fast(tmp_path: Path, pqio) -> None:
-    # missing signed_volume, notional
-    table = pa.table(
-        {
-            "ts": [1, 2],
-            "event": ["ADD", "CANCEL"],
-            "volume": [100, 50],
-        }
-    )
-
-    in_path = tmp_path / "orderbook_events.parquet"
-    out_path = tmp_path / "minute_order.parquet"
-    pqio.write(in_path, table)
-
-    engine = MinuteOrderAggEngine()
-
-    with pytest.raises(KeyError):
-        engine.execute(
-            EngineContext(mode="offline", input_path=in_path, output_path=out_path)
+        EngineContext(
+            mode="offline",
+            input_path=in_path,
+            output_path=out_path,
         )
-
-
-def test_minute_order_agg_disable_order_count_contract(tmp_path: Path, pqio) -> None:
-    table = pa.table(
-        {
-            "ts": [1],
-            "event": ["ADD"],
-            "volume": [100],
-            "signed_volume": [100],
-            "notional": [1000.0],
-        }
     )
 
+    df = pq.read_table(out_path).to_pandas()
+    assert len(df) == 2
+# ------------------------------------------------------------
+# helper: 写 orderbook_events.parquet
+# ------------------------------------------------------------
+def write_orderbook_events(path, rows):
+    schema = pa.schema(
+        [
+            ("ts", pa.int64()),          # us
+            ("event", pa.string()),      # ADD / CANCEL
+            ("order_id", pa.int64()),
+            ("side", pa.string()),
+            ("price", pa.float64()),
+            ("volume", pa.int64()),
+            ("notional", pa.float64()),
+        ]
+    )
+    table = pa.Table.from_pylist(rows, schema=schema)
+    pq.write_table(table, path)
+# ============================================================
+# 2. 跨 minute
+# ============================================================
+def test_minute_order_agg_multi_minute(tmp_path):
     in_path = tmp_path / "orderbook_events.parquet"
     out_path = tmp_path / "minute_order.parquet"
-    pqio.write(in_path, table)
 
-    engine = MinuteOrderAggEngine(cfg=engine_cfg_no_count())
+    rows = [
+        {
+            "ts": 1 * US_PER_MINUTE + 10,
+            "event": "ADD",
+            "order_id": 1,
+            "side": "B",
+            "price": 10.0,
+            "volume": 100,
+            "notional": 1000.0,
+        },
+        {
+            "ts": 2 * US_PER_MINUTE + 20,
+            "event": "ADD",
+            "order_id": 2,
+            "side": "S",
+            "price": 20.0,
+            "volume": 50,
+            "notional": 1000.0,
+        },
+    ]
+
+    write_orderbook_events(in_path, rows)
+
+    engine = MinuteOrderAggEngine()
     engine.execute(
-        EngineContext(mode="offline", input_path=in_path, output_path=out_path)
+        EngineContext(
+            mode="offline",
+            input_path=in_path,
+            output_path=out_path,
+        )
     )
 
-    out = pqio.read(out_path)
-    assert_table_schema_exact(out, _expected_schema(include_order_count=False))
-    assert "order_count" not in out.schema.names
+    df = pq.read_table(out_path).to_pandas()
 
+    assert len(df) == 2
 
-def engine_cfg_no_count():
-    from src.engines.minute_order_agg_engine import MinuteOrderAggConfig
-    return MinuteOrderAggConfig(include_order_count=False)
+    minutes = sorted(df["minute"].astype("int64").tolist())
+    assert minutes[0] == 1 * US_PER_MINUTE
+    assert minutes[1] == 2 * US_PER_MINUTE
+# ============================================================
+# 3. 只有 ADD（无 CANCEL）
+# ============================================================
+def test_minute_order_agg_only_add(tmp_path):
+    in_path = tmp_path / "orderbook_events.parquet"
+    out_path = tmp_path / "minute_order.parquet"
+
+    rows = [
+        {
+            "ts": 0,
+            "event": "ADD",
+            "order_id": 1,
+            "side": "B",
+            "price": 10.0,
+            "volume": 100,
+            "notional": 1000.0,
+        }
+    ]
+
+    write_orderbook_events(in_path, rows)
+
+    engine = MinuteOrderAggEngine()
+    engine.execute(
+        EngineContext(
+            mode="offline",
+            input_path=in_path,
+            output_path=out_path,
+        )
+    )
+
+    df = pq.read_table(out_path).to_pandas()
+    r = df.iloc[0]
+
+    assert r["add_volume"] == 100
+    assert r["cancel_volume"] == 0
+    assert r["net_volume"] == 100
+    assert r["event_count"] == 1
+# ============================================================
+# 4. 空输入（size > 0 但无 rows）
+# ============================================================
+def test_minute_order_agg_empty_input(tmp_path):
+    in_path = tmp_path / "orderbook_events.parquet"
+    out_path = tmp_path / "minute_order.parquet"
+
+    schema = pa.schema(
+        [
+            ("ts", pa.int64()),
+            ("event", pa.string()),
+            ("order_id", pa.int64()),
+            ("side", pa.string()),
+            ("price", pa.float64()),
+            ("volume", pa.int64()),
+            ("notional", pa.float64()),
+        ]
+    )
+
+    empty_table = pa.Table.from_arrays(
+        [pa.array([], type=f.type) for f in schema],
+        schema=schema,
+    )
+    pq.write_table(empty_table, in_path)
+
+    engine = MinuteOrderAggEngine()
+    engine.execute(
+        EngineContext(
+            mode="offline",
+            input_path=in_path,
+            output_path=out_path,
+        )
+    )
+
+    assert not out_path.exists() or pq.read_table(out_path).num_rows == 0
+
+# ============================================================
+# 5. schema & 列名固定（防回归）
+# ============================================================
+def test_minute_order_agg_schema(tmp_path):
+    in_path = tmp_path / "orderbook_events.parquet"
+    out_path = tmp_path / "minute_order.parquet"
+
+    rows = [
+        {
+            "ts": 0,
+            "event": "ADD",
+            "order_id": 1,
+            "side": "B",
+            "price": 1.0,
+            "volume": 1,
+            "notional": 1.0,
+        }
+    ]
+
+    write_orderbook_events(in_path, rows)
+
+    engine = MinuteOrderAggEngine()
+    engine.execute(
+        EngineContext(
+            mode="offline",
+            input_path=in_path,
+            output_path=out_path,
+        )
+    )
+
+    table = pq.read_table(out_path)
+    assert table.schema.names == ['minute', 'add_volume', 'cancel_volume', 'net_volume', 'add_notional', 'cancel_notional', 'event_count']

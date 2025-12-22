@@ -25,6 +25,9 @@ from src.steps.minute_trade_agg_step import MinuteTradeAggStep
 from src.engines.minute_order_agg_engine import MinuteOrderAggEngine
 from src.steps.minute_order_agg_step import MinuteOrderAggEngine, MinuteOrderAggStep
 
+from src.engines.ftp_download_engine import FtpDownloadEngine
+from src.steps.download_step import DownloadStep
+
 
 def build_offline_l2_pipeline() -> DataPipeline:
     """
@@ -50,6 +53,9 @@ def build_offline_l2_pipeline() -> DataPipeline:
     pm = PathManager()
     inst = Instrumentation()
 
+    download_engine = FtpDownloadEngine()
+    download_step = DownloadStep(engine=download_engine, inst=inst, secret=cfg.secret, remote_root=cfg.data.remote_dir)
+
     extractor_engine = ConvertEngine()
     extractor_steps = CsvConvertStep(engine=extractor_engine, inst=inst)
 
@@ -70,7 +76,8 @@ def build_offline_l2_pipeline() -> DataPipeline:
     min_order_engine = MinuteOrderAggEngine()
     min_order_step = MinuteOrderAggStep(engine=min_order_engine, inst=inst)
 
-    steps = [extractor_steps, normalize_steps, symbol_split_steps, trade_step, order_step, min_trade_step, min_order_step]
+    steps = [download_step, extractor_steps, normalize_steps, symbol_split_steps, trade_step, order_step,
+             min_trade_step, min_order_step]
 
     return DataPipeline(
         steps=steps,

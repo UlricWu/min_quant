@@ -13,6 +13,8 @@ from src.utils.filesystem import FileSystem
 from src.utils.logger import logs
 
 import pyarrow as pa
+
+
 class SymbolSplitStep(PipelineStep):
     """
     SymbolSplitStep（Meta-aware，冻结版）
@@ -86,8 +88,7 @@ class SymbolSplitStep(PipelineStep):
                 # meta.commit()
 
         return ctx
-
-
+    @logs.catch()
     def _needs_split(self, file: Path, meta_dir: Path) -> tuple[Any, MetaRegistry]:
         # ① 修正 step 语义：pipeline step + file
         step_key = f"{self.__class__.__name__}:{file.stem}"
@@ -109,4 +110,5 @@ class SymbolSplitStep(PipelineStep):
         else:
             status = meta.validate_outputs()
             symbols = [k for k, ok in status.items() if not ok]
+        logs.info(f"[SymbolSplitStep] {file.stem}: needs {len(symbols)} split")
         return meta, symbols
