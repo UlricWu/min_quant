@@ -10,8 +10,7 @@ import pyarrow.parquet as pq
 from src.pipeline.context import EngineContext
 from src.utils.logger import logs
 
-
-NS_PER_MINUTE = 60 * 1_000_000_000
+US_PER_MINUTE = 60 * 1_000_000
 
 
 @dataclass(frozen=True)
@@ -32,14 +31,15 @@ class MinuteOrderAggEngine:
         - notional
 
     Output:
-      minute_order.parquet
-        - minute
-        - add_volume
-        - cancel_volume
-        - net_volume
-        - add_notional
-        - cancel_notional
-        - order_count (optional)
+        minute_order.parquet
+          - minute           timestamp[us]
+          - add_volume       int64
+          - cancel_volume    int64
+          - net_volume       int64
+          - add_notional     float64
+          - cancel_notional  float64
+          - order_count      int64   (optional)
+
     """
 
     def __init__(self, cfg: Optional[MinuteOrderAggConfig] = None) -> None:
@@ -58,17 +58,23 @@ class MinuteOrderAggEngine:
         table = pq.read_table(ctx.input_path)
 
         if table.num_rows == 0:
-            logs.warning("[MinuteOrderAgg] empty input")
-            pq.write_table(table, ctx.output_path)
+            # logs.warning("[MinuteOrderAgg] empty input")
+            # pq.write_table(table, ctx.output_path)
             return
+
 
         # --------------------------------------------------
         # 1. minute bucket
         # --------------------------------------------------
-        minute_id = pc.cast(
-            pc.divide(table["ts"], pa.scalar(NS_PER_MINUTE)),
-            pa.int64(),
-        )
+        ts_us = pc.cast(table["ts"], pa.int64())
+        US_PER_MINUTE = 60 * 1_000_000
+
+        minute_id = pc.divide(ts_us, pa.scalar(US_PER_MINUTE))
+
+        # minute_id = pc.cast(
+        #     pc.divide(table["ts"], pa.scalar(US_PER_MINUTE)),
+        #     pa.int64(),
+        # )
         table = table.append_column("minute_id", minute_id)
 
         # --------------------------------------------------
@@ -118,9 +124,10 @@ class MinuteOrderAggEngine:
             grouped["cancel_volume_sum"],
         )
 
+
         minute_ts = pc.cast(
-            pc.multiply(grouped["minute_id"], pa.scalar(NS_PER_MINUTE)),
-            pa.timestamp("ns"),
+            pc.multiply(grouped["minute_id"], pa.scalar(US_PER_MINUTE)),
+            pa.timestamp("us"),
         )
 
         grouped = (
@@ -130,4 +137,18 @@ class MinuteOrderAggEngine:
             .drop(["minute_id"])
         )
 
-        pq.write_table(grouped, ctx.output_path)
+        cols = {
+            "minute": minute_ts,
+            "add_volume": grouped["add_volume_sum"],
+            "cancel_volume": grouped["cancel_volume_sum"],
+            "net_volume": net_volume,
+            "add_notional": grouped["add_notional_sum"],
+            "cancel_notional": grouped["cancel_notional_sum"],
+        }
+
+        # if self.cfg.include_order_count:
+        # cols["order_count"] = grouped["event_count"]
+
+        result = pa.table(cols)
+
+        pq.write_table(result, ctx.output_path)

@@ -282,3 +282,5 @@ def parse_events_arrow(
     )
 
     return out.cast(INTERNAL_SCHEMA)
+
+parse_events = parse_events_arrow
