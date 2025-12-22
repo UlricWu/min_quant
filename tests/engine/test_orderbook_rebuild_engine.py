@@ -8,8 +8,8 @@ from typing import Any
 import pandas as pd
 import pytest
 
-from src.engines.context import EngineContext
-from src.engines.orderbook_rebuild_engine import OrderBookRebuildEngine
+from logs.engines import EngineContext
+from logs.engines.orderbook_rebuild_engine import OrderBookRebuildEngine
 from src.l2.common.normalized_event import NormalizedEvent
 
 # ======================================================

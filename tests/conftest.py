@@ -149,7 +149,7 @@ def canonical_output_dir(tmp_path: Path, date: str) -> Path:
 # ============================================================
 @pytest.fixture(autouse=True)
 def _patch_parse_events(monkeypatch):
-    import src.engines.normalize_engine as ne
+    import logs.engines.normalize_engine as ne
 
     def _stub_parse_events(df: pd.DataFrame, kind: Literal["order", "trade"]):
         symbol = df["SecurityID"].astype(str).str.zfill(6)

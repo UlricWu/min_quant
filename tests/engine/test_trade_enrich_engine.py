@@ -1,10 +1,8 @@
 import pandas as pd
-import pytest
-from dataclasses import dataclass
 from pathlib import Path
 
-from src.engines.trade_enrich_engine import TradeEnrichEngine, TradeEnrichConfig
-from src.engines.context import EngineContext
+from logs.engines import TradeEnrichEngine, TradeEnrichConfig
+from logs.engines import EngineContext
 from src.l2.common.normalized_event import NormalizedEvent
 
 

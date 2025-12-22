@@ -19,13 +19,13 @@ class BaseEngine(ABC, Generic[InEvent, OutEvent]):
     """
 
     @abstractmethod
-    def process(self, event: InEvent) -> OutEvent:
+    def execute(self, event: InEvent) -> OutEvent:
         """
         处理单个事件（最小粒度单位）。
         """
         raise NotImplementedError
 
-    def process_stream(self, events: Iterable[InEvent]) -> Iterable[OutEvent]:
+    def execute_stream(self, events: Iterable[InEvent]) -> Iterable[OutEvent]:
         """
         流式处理一批事件，默认逐个调用 process。
         如需状态机可在子类中覆写。

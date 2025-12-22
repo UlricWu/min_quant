@@ -1,7 +1,7 @@
 import pytest
 import pyarrow as pa
 
-from src.engines.symbol_router_engine import SymbolRouterEngine
+from logs.engines.symbol_router_engine import SymbolRouterEngine
 
 def test_split_basic():
     engine = SymbolRouterEngine()

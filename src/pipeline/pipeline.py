@@ -1,13 +1,12 @@
-#!filepath: src/dataloader/pipeline/pipeline.py
+#!filepath: src/pipeline/pipeline.py
 from __future__ import annotations
 
-from src.dataloader.pipeline.context import PipelineContext
-from src.dataloader.pipeline.step import PipelineStep
+from src.pipeline.context import PipelineContext
+from src.pipeline.step import PipelineStep
 from src.utils.path import PathManager
 from src.utils.filesystem import FileSystem
 from src import logs
 from src.observability.instrumentation import Instrumentation
-
 
 class DataPipeline:
     """
@@ -34,20 +33,23 @@ class DataPipeline:
 
         raw_dir = self.pm.raw_dir(date)
         parquet_dir = self.pm.parquet_dir(date)
-        symbol_dir = self.pm.symbol_root()
+        symbol_dir = self.pm.symbol_dir(date)
         normalize_dir = self.pm.canonical_dir(date)
+        meta_dir = self.pm.meta_dir(date)
 
         FileSystem.ensure_dir(raw_dir)
         FileSystem.ensure_dir(parquet_dir)
         FileSystem.ensure_dir(symbol_dir)
         FileSystem.ensure_dir(normalize_dir)
+        FileSystem.ensure_dir(meta_dir)
 
         ctx = PipelineContext(
             date=date,
             raw_dir=raw_dir,
             parquet_dir=parquet_dir,
+            canonical_dir=normalize_dir,
             symbol_dir=symbol_dir,
-            canonical_dir=normalize_dir
+            meta_dir=meta_dir,
         )
 
         # --------------------------------------------------

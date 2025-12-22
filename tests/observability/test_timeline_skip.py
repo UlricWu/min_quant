@@ -5,9 +5,9 @@ from pathlib import Path
 
 import pytest
 
-from src.dataloader.pipeline.pipeline import DataPipeline
-from src.dataloader.pipeline.context import PipelineContext
-from src.dataloader.pipeline.step import BasePipelineStep
+from src.pipeline.pipeline import DataPipeline
+from src.pipeline.context import PipelineContext
+from src.pipeline.step import BasePipelineStep
 from src.observability.instrumentation import Instrumentation
 
 

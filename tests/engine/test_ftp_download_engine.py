@@ -1,6 +1,6 @@
 import pytest
 
-from src.engines.ftp_download_engine import FtpDownloadEngine
+from logs.engines import FtpDownloadEngine
 def test_resolve_date_valid():
     date = "2025-11-04"
     out = FtpDownloadEngine.resolve_date(date)

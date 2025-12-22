@@ -7,20 +7,31 @@ import pyarrow.parquet as pq
 
 
 class ParquetAppendWriter:
-    def __init__(self, path: Path, schema: pa.Schema):
-        self.path = path
-        self.schema = schema
-        self._writer: pq.ParquetWriter | None = None
+    def __init__(self):
+        self._schemas: dict[Path, pa.Schema] = {}
+        self._writers: dict[Path, pq.ParquetWriter] = {}
 
-    def write(self, table: pa.Table) -> None:
-        if self._writer is None:
-            self.path.parent.mkdir(parents=True, exist_ok=True)
-            self._writer = pq.ParquetWriter(
-                self.path, self.schema, compression="zstd"
+    def write_batches(self, path: Path, batches: list[pa.RecordBatch]) -> None:
+        if not batches:
+            return
+
+        writer = self._writers.get(path)
+        if writer is None:
+            # schema 来自第一个 batch
+            schema = batches[0].schema
+            path.parent.mkdir(parents=True, exist_ok=True)
+            writer = pq.ParquetWriter(
+                path,
+                schema,
+                compression="zstd",
             )
-        self._writer.write_table(table)
+            self._writers[path] = writer
+            self._schemas[path] = schema
+
+        table = pa.Table.from_batches(batches)
+        writer.write_table(table)
 
     def close(self) -> None:
-        if self._writer:
-            self._writer.close()
-            self._writer = None
+        for writer in self._writers.values():
+            writer.close()
+        self._writers.clear()
