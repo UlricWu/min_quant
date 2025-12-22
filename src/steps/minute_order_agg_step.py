@@ -7,6 +7,7 @@ from src.pipeline.context import PipelineContext, EngineContext
 from src.engines.minute_order_agg_engine import MinuteOrderAggEngine
 from src.utils.logger import logs
 
+# from src.observability.timer import noop_timer
 
 class MinuteOrderAggStep(PipelineStep):
     """
@@ -33,7 +34,7 @@ class MinuteOrderAggStep(PipelineStep):
 
 
         with self.inst.timer("MinuteOrderAggStep"):
-
+            logs.info(f"[MinuteOrderAggStep] start minute order aggregation")
             for sym_dir in sym_dirs:
 
                 in_path = sym_dir / "orderbook_events.parquet"

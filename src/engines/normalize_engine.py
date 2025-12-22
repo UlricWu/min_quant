@@ -17,7 +17,7 @@ class NormalizeEngine:
     """
 
     VALID_EVENTS = {"ADD", "CANCEL", "TRADE"}
-    batch_size = 1_000_0000
+    batch_size = 5_000_000_0
 
     def execute(self, input_file: Path, output_dir: Path) -> None:
         exchange, kind = input_file.stem.split("_", 1)

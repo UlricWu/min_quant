@@ -35,7 +35,7 @@ class MinuteTradeAggStep(PipelineStep):
 
         count = 0
         with self.inst.timer("MinuteTradeAggStep"):
-
+            logs.info(f"[MinuteTradeAggStep] start minute trade aggregation")
             for sym_dir in sym_dirs:
 
                 in_path = sym_dir / "trade_enriched.parquet"

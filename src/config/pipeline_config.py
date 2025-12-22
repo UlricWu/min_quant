@@ -9,4 +9,4 @@ class DownloadBackend(str, Enum):
 
 
 class PipelineConfig(BaseModel):
-    ftp_backend: DownloadBackend = DownloadBackend.FTPLIB
+    ftp_backend: DownloadBackend = DownloadBackend.CURL

@@ -42,7 +42,7 @@ class TradeEnrichStep:
         count = 0
 
         with self.inst.timer(self.__class__.__name__):
-
+            logs.info(f'[TradeEnrichStep] start enriching {input_file}')
             for sym_dir in sorted(input_dir.iterdir()):
                 if not sym_dir.is_dir():
                     continue

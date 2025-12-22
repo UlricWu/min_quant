@@ -113,33 +113,3 @@ class SymbolSplitEngine:
         result[prev] = sorted_table.slice(start, num_rows - start)
 
         return result
-        # # ------------------------------------------------------------------
-        # # 0️⃣ 关键：合并 chunk（必须做）
-        # # ------------------------------------------------------------------
-        # table = table.combine_chunks()
-        #
-        # symbols = table[self.symbol_col].to_pylist()
-        # num_rows = table.num_rows
-        #
-        # # symbol -> row indices
-        # index_map: dict[str, list[int]] = defaultdict(list)
-        #
-        # # ------------------------------------------------------------------
-        # # 1️⃣ 一次顺序扫描
-        # # ------------------------------------------------------------------
-        # for i in range(num_rows):
-        #     sym = symbols[i]
-        #     if sym not in needs_symbol:
-        #         continue
-        #     index_map[sym].append(i)
-        #
-        # # ------------------------------------------------------------------
-        # # 2️⃣ 生成子表
-        # # ------------------------------------------------------------------
-        # result: dict[str, pa.Table] = {}
-        #
-        # for sym, indices in index_map.items():
-        #     idx_array = pa.array(indices, type=pa.int32())
-        #     result[sym] = table.take(idx_array)
-        #
-        # return result

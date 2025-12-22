@@ -200,26 +200,10 @@ def _patch_parse_events(monkeypatch):
 
     monkeypatch.setattr(ne, "parse_events", _stub_parse_events, raising=True)
 
-@dataclass(frozen=True)
-class ParquetIO:
-    def write(self, path: Path, table: pa.Table) -> None:
-        path.parent.mkdir(parents=True, exist_ok=True)
+@pytest.fixture
+def write_parquet(tmp_path):
+    def _write(path, rows, schema):
+        table = pa.Table.from_pylist(rows, schema=schema)
         pq.write_table(table, path)
-
-    def read(self, path: Path) -> pa.Table:
-        return pq.read_table(path)
-
-
-@pytest.fixture()
-def pqio() -> ParquetIO:
-    return ParquetIO()
-
-
-def assert_table_schema_exact(table: pa.Table, expected: pa.Schema) -> None:
-    # Arrow schema comparison: names + types in order
-    assert table.schema == expected, f"\nExpected: {expected}\nGot:      {table.schema}"
-
-
-def table_to_dict(table: pa.Table) -> Dict[str, Any]:
-    # Stable conversion for assertions
-    return table.to_pydict()
+        return path
+    return _write
