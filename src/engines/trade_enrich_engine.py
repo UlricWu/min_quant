@@ -1,106 +1,130 @@
-#!filepath: src/engines/trade_enrich_engine.py
+# src/engines/trade_enrich_engine.py
 from __future__ import annotations
-
-from dataclasses import dataclass
-from datetime import datetime
 
 import pyarrow as pa
 import pyarrow.compute as pc
-import pyarrow.parquet as pq
-
-from src.pipeline.context import EngineContext
-
-
-# =========================
-# 输入 / 输出事件定义
-# =========================
-@dataclass(frozen=True)
-class RawTradeEvent:
-    ts: datetime
-    price: float
-    volume: int
-    side: str | None  # 'B' / 'S' / None
-
-
-@dataclass(frozen=True)
-class EnrichedTradeEvent:
-    ts: datetime
-    price: float
-    volume: int
-    side: str | None
-    notional: float
-    signed_volume: int
-
-
-@dataclass
-class TradeEnrichConfig:
-    """
-    Trade-only 增强配置
-    """
-    burst_window_ms: int = 30
-    large_trade_pct: float = 0.90
-    medium_trade_pct: float = 0.50
 
 
 class TradeEnrichEngine:
     """
-    TradeEnrichEngine (Arrow-only, FINAL)
+    TradeEnrichEngine（冻结版）
 
-    Assumptions (FROZEN):
-    - input parquet is trade-only (already normalized)
-    - columns exist: ts, price, volume, side
-    - v1: materialize trade.parquet
+    输入（契约）：
+      - 单 symbol、已按 (symbol, ts) 排序的 Arrow Table
+      - 至少包含列：price, volume
+      - table.num_rows 允许为 0
+
+    输出：
+      - 行数不变
+      - 仅新增列：
+          - notional: float64  (price * volume)
+          - trade_side: int8   (tick rule: +1 / -1 / 0)
     """
 
-    # --------------------------------------------------
-    def execute(self, ctx: EngineContext) -> None:
-        assert ctx.mode == "offline"
-        assert ctx.input_path and ctx.output_path
+    def __init__(
+        self,
+        *,
+        price_col: str = "price",
+        volume_col: str = "volume",
+        notional_col: str = "notional",
+        side_col: str = "trade_side",
+    ) -> None:
+        self.price_col = price_col
+        self.volume_col = volume_col
+        self.notional_col = notional_col
+        self.side_col = side_col
 
-        self._run_offline(ctx.input_path, ctx.output_path)
+    # ==========================================================
+    # Public API
+    # ==========================================================
+    def execute(self, table: pa.Table) -> pa.Table:
+        if table.num_rows == 0:
+            return table
 
-    # --------------------------------------------------
-    def _run_offline(self, input_path, output_path) -> None:
-        # ① 只读必要列（真裁剪）
-        table = pq.read_table(
-            input_path,
-            columns=["ts", "price", "volume", "side"],
+        self._validate_input(table)
+
+        price = table[self.price_col]
+        volume = table[self.volume_col]
+
+        # notional = price * volume
+        notional = pc.multiply(
+            pc.cast(price, pa.float64()),
+            pc.cast(volume, pa.float64()),
         )
 
-        if table.num_rows == 0:
-            pq.write_table(table, output_path)
-            return
+        # trade_side via tick rule on price
+        trade_side = self._infer_trade_side(price)
 
-        price = table["price"]
-        volume = table["volume"]
-        side = table["side"]
+        # Append columns (schema-safe)
+        out = table
+        out = self._append_or_replace(out, self.notional_col, notional)
+        out = self._append_or_replace(out, self.side_col, trade_side)
+        return out
 
-        # ② notional = price * volume
-        notional = pc.multiply(price, volume)
+    # ==========================================================
+    # Internal helpers
+    # ==========================================================
+    def _validate_input(self, table: pa.Table) -> None:
+        missing = []
+        if self.price_col not in table.column_names:
+            missing.append(self.price_col)
+        if self.volume_col not in table.column_names:
+            missing.append(self.volume_col)
 
-        # ③ signed_volume
-        # side == 'B' → +volume
-        # else         → -volume
-        signed_volume = pc.multiply(
-            volume,
+        if missing:
+            raise ValueError(f"TradeEnrichEngine missing required columns: {missing}")
+
+    def _infer_trade_side(self, price: pa.ChunkedArray | pa.Array) -> pa.Array:
+        """
+        Tick rule：
+          price[i] > price[i-1] -> +1
+          price[i] < price[i-1] -> -1
+          else -> 0
+
+        说明：
+          - 第 0 行 prev_price 为 null -> diff 为 null -> side=0
+        """
+        # 确保是 Array（而不是 ChunkedArray）
+        if isinstance(price, pa.ChunkedArray):
+            price = price.combine_chunks()
+
+        n = len(price)
+        if n == 0:
+            return pa.array([], type=pa.int8())
+
+        # 构造 prev_price = [null] + price[:-1]
+        null_head = pa.array([None], type=price.type)
+        prev_tail = price.slice(0, n - 1)
+        prev_price = pa.concat_arrays([null_head, prev_tail])
+
+        diff = pc.subtract(
+            pc.cast(price, pa.float64()),
+            pc.cast(prev_price, pa.float64()),
+        )
+
+        buy = pc.greater(diff, 0)
+        sell = pc.less(diff, 0)
+
+        side = pc.if_else(
+            buy,
+            pa.scalar(1, pa.int8()),
             pc.if_else(
-                pc.equal(side, pa.scalar("B")),
-                pa.scalar(1, pa.int8()),
+                sell,
                 pa.scalar(-1, pa.int8()),
+                pa.scalar(0, pa.int8()),
             ),
         )
 
-        # ④ 组装输出 Table（无 pandas）
-        out_table = pa.table(
-            {
-                "ts": table["ts"],
-                "price": price,
-                "volume": volume,
-                "side": side,
-                "notional": notional,
-                "signed_volume": signed_volume,
-            }
-        )
+        # 确保最终是 int8 array（if_else 通常已推断，但这里更稳）
+        return pc.cast(side, pa.int8())
 
-        # ⑤ 写 parquet（一次）
-        pq.write_table(out_table, output_path)
+    @staticmethod
+    def _append_or_replace(table: pa.Table, name: str, arr: pa.Array) -> pa.Table:
+        """
+        如果列已存在则替换，否则追加。
+        这样可以让 rerun 幂等（不会报重复列名）。
+        """
+        if name in table.column_names:
+            idx = table.column_names.index(name)
+            return table.set_column(idx, name, arr)
+        return table.append_column(name, arr)

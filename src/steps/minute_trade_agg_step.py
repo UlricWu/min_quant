@@ -7,8 +7,9 @@ from src.pipeline.step import PipelineStep
 from src.pipeline.context import PipelineContext, EngineContext
 from src.engines.minute_trade_agg_engine import MinuteTradeAggEngine
 from src.utils.logger import logs
-
-
+from src.meta.meta import BaseMeta, MetaResult
+import pyarrow as pa
+import pyarrow.parquet as pq
 class MinuteTradeAggStep(PipelineStep):
     """
     MinuteTradeAggStep（无 Meta，文件存在即跳过）
@@ -23,39 +24,57 @@ class MinuteTradeAggStep(PipelineStep):
         self.inst = inst
 
     def run(self, ctx: PipelineContext) -> None:
-        symbol_root: Path = ctx.symbol_dir
+        fact_dir: Path = ctx.fact_dir
+        meta_dir: Path = ctx.meta_dir
 
-        if not symbol_root.exists():
-            logs.warning(f"[MinuteTradeAggStep] symbol_root not found: {symbol_root}")
-            return
+        stage = "min"
+        meta = BaseMeta(meta_dir, stage=stage)
 
-        # 你的目录结构是：symbol/{date}/{sym}/xxx.parquet（从你 meta 输出看是这种）
-        # 如果你实际是 symbol/{sym}/{date}/，把下面路径拼接换一下即可。
-        sym_dirs = [p for p in symbol_root.iterdir() if p.is_dir()]
+        for input_file in fact_dir.glob("*_enriched.parquet"):
+            name = input_file.stem.replace("_enriched", "")  # sh_trade / sz_trade
+            # --------------------------------------------------
+            # 1. 判定 enriched 事实是否仍然成立
+            # --------------------------------------------------
+            if not meta.upstream_changed(input_file):
+                logs.warning(f"[MinuteTradeAgg] {name} unchanged -> skip")
+                continue
 
-        count = 0
-        with self.inst.timer("MinuteTradeAggStep"):
-            logs.info(f"[MinuteTradeAggStep] start minute trade aggregation")
-            for sym_dir in sym_dirs:
+            # --------------------------------------------------
+            # 2. 读取 enrich fact
+            # --------------------------------------------------
+            table = pq.read_table(input_file)
+            if table.num_rows == 0:
+                logs.warning(f"[MinuteTradeAgg] {name} empty -> skip")
+                continue
+            # --------------------------------------------------
+            # 3. 聚合（业务逻辑在 Engine）
+            # --------------------------------------------------
+            with self.inst.timer(f"MinuteTradeAgg_{name}"):
+                result_table = self.engine.execute(table)
 
-                in_path = sym_dir / "trade_enriched.parquet"
-                out_path = sym_dir / "minute_trade.parquet"
+            if result_table.num_rows == 0:
+                logs.warning(f"[MinuteTradeAgg] {name} no minute data")
+                continue
 
-                if not in_path.exists():
-                    continue
+            # --------------------------------------------------
+            # 4. 写出 minute fact
+            # --------------------------------------------------
+            output_file = fact_dir / f"{name}_{stage}.parquet"
+            pq.write_table(result_table, output_file)
 
-                if out_path.exists():
-                    continue
+            # --------------------------------------------------
+            # 5. 提交 Meta（证明结果成立）
+            # --------------------------------------------------
+            result = MetaResult(
+                input_file=input_file,
+                output_file=output_file,
+                rows=result_table.num_rows,
+            )
+            meta.commit(result)
 
-                ectx = EngineContext(
-                    mode="offline",
-                    input_path=in_path,
-                    output_path=out_path,
-                )
-                self.engine.execute(ectx)
-                count += 1
-
-        logs.info(f"[MinuteTradeAggStep] process count: {count}")
-
+            logs.info(
+                f"[MinuteTradeAgg] written {output_file.name} "
+                f"(rows={result_table.num_rows})"
+            )
 
         return ctx

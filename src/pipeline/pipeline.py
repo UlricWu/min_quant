@@ -7,7 +7,11 @@ from src.utils.path import PathManager
 from src.utils.filesystem import FileSystem
 from src import logs
 from src.observability.instrumentation import Instrumentation
-
+class PipelineAbort(Exception):
+    """
+    用于 Step 主动中断 Pipeline 的信号异常
+    """
+    pass
 class DataPipeline:
     """
     DataPipeline = 调度器（Scheduler）
@@ -33,13 +37,13 @@ class DataPipeline:
 
         raw_dir = self.pm.raw_dir(date)
         parquet_dir = self.pm.parquet_dir(date)
-        symbol_dir = self.pm.symbol_dir(date)
+        fact_dir = self.pm.fact_dir(date)
         normalize_dir = self.pm.canonical_dir(date)
         meta_dir = self.pm.meta_dir(date)
 
         FileSystem.ensure_dir(raw_dir)
         FileSystem.ensure_dir(parquet_dir)
-        FileSystem.ensure_dir(symbol_dir)
+        FileSystem.ensure_dir(fact_dir)
         FileSystem.ensure_dir(normalize_dir)
         FileSystem.ensure_dir(meta_dir)
 
@@ -48,15 +52,19 @@ class DataPipeline:
             raw_dir=raw_dir,
             parquet_dir=parquet_dir,
             canonical_dir=normalize_dir,
-            symbol_dir=symbol_dir,
+            fact_dir=fact_dir,
             meta_dir=meta_dir,
         )
 
         # --------------------------------------------------
         # 核心循环：Pipeline 不打 timer
         # --------------------------------------------------
-        for step in self.steps:
-            ctx = step.run(ctx)
+        try:
+            for step in self.steps:
+                ctx = step.run(ctx)
+        except PipelineAbort as e:
+            logs.info(f"[Pipeline][SKIP] {e}")
+            return ctx
 
         # Timeline 只包含 leaf（由 Step / Adapter 写入）
         self.inst.generate_timeline_report(date)

@@ -1,6 +1,8 @@
 # tests/conftest.py
 from __future__ import annotations
 
+from __future__ import annotations
+
 from dataclasses import dataclass
 from pathlib import Path
 from typing import Literal, Dict, Any
@@ -9,6 +11,7 @@ import pandas as pd
 import pytest
 import pyarrow as pa
 import pyarrow.parquet as pq
+
 
 @pytest.fixture(scope="session")
 def date() -> str:
@@ -157,8 +160,8 @@ def _patch_parse_events(monkeypatch):
         symbol = df["SecurityID"].astype(str).str.zfill(6)
         ts = df["LocalTimeStamp"].astype(int)
         order_id = (
-            df.get("MainSeq", 0).astype(int) * 1_000_000
-            + df.get("SubSeq", 0).astype(int)
+                df.get("MainSeq", 0).astype(int) * 1_000_000
+                + df.get("SubSeq", 0).astype(int)
         )
 
         if kind == "trade":
@@ -200,10 +203,21 @@ def _patch_parse_events(monkeypatch):
 
     monkeypatch.setattr(ne, "parse_events", _stub_parse_events, raising=True)
 
+
 @pytest.fixture
 def write_parquet(tmp_path):
     def _write(path, rows, schema):
         table = pa.Table.from_pylist(rows, schema=schema)
         pq.write_table(table, path)
         return path
+
     return _write
+
+# tests/conftest.py
+import multiprocessing
+import pytest
+
+
+@pytest.fixture(scope="session", autouse=True)
+def _set_start_method():
+    multiprocessing.set_start_method("spawn", force=True)

@@ -19,7 +19,7 @@ def test_step_skips_missing_input(tmp_path):
 
     ctx = PipelineContext(
         date="2015-01-01",
-        symbol_dir=tmp_path / "symbol",
+        fact_dir=tmp_path / "symbol",
         raw_dir='',
         parquet_dir='',
         canonical_dir='',
@@ -69,7 +69,7 @@ def test_step_runs_successfully(tmp_path, write_parquet):
 
     ctx = PipelineContext(
         date="2015-01-01",
-        symbol_dir=symbol_root,
+        fact_dir=symbol_root,
         raw_dir='',
         parquet_dir='',
         canonical_dir='',
