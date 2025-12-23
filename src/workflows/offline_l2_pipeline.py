@@ -12,8 +12,8 @@ from src.steps.csv_convert_step import CsvConvertStep
 from src.engines.normalize_engine import NormalizeEngine
 from src.steps.normalize_step import NormalizeStep
 
-from src.engines.symbol_split_engine import SymbolSplitEngine
-from src.steps.symbol_split_step import SymbolSplitStep
+# from src.engines.symbol_split_engine import SymbolSplitEngine
+# from src.steps.symbol_split_step import SymbolSplitStep
 from src.steps.trade_enrich_step import TradeEnrichStep
 from src.engines.trade_enrich_engine import TradeEnrichEngine
 
@@ -27,7 +27,7 @@ from src.steps.minute_order_agg_step import MinuteOrderAggEngine, MinuteOrderAgg
 
 from src.engines.ftp_download_engine import FtpDownloadEngine
 from src.steps.download_step import DownloadStep
-
+from src.engines.trade_enrich_engine import TradeEnrichEngine
 
 def build_offline_l2_pipeline() -> DataPipeline:
     """
@@ -53,34 +53,42 @@ def build_offline_l2_pipeline() -> DataPipeline:
     pm = PathManager()
     inst = Instrumentation()
 
-    download_engine = FtpDownloadEngine()
-    download_step = DownloadStep(engine=download_engine, inst=inst, secret=cfg.secret, remote_root=cfg.data.remote_dir)
+    # ----------- 非并行 Step（保留 engine）-----------
+    download_step = DownloadStep(
+        engine=FtpDownloadEngine(),
+        inst=inst,
+        secret=cfg.secret,
+        remote_root=cfg.data.remote_dir,
+    )
 
-    extractor_engine = ConvertEngine()
-    extractor_steps = CsvConvertStep(engine=extractor_engine, inst=inst)
+    normalize_steps = NormalizeStep(
+        engine=NormalizeEngine(),
+        inst=inst,
+    )
 
-    normalize_engine = NormalizeEngine()
-    normalize_steps = NormalizeStep(engine=normalize_engine, inst=inst)
-    symbol_split_engine = SymbolSplitEngine()
-    symbol_split_steps = SymbolSplitStep(engine=symbol_split_engine, inst=inst)
+    # ----------- 并行 Step（不传 engine）-----------
+    extractor_steps = CsvConvertStep(inst=inst)
 
-    trade_engine = TradeEnrichEngine()
-    trade_step = TradeEnrichStep(engine=trade_engine, inst=inst)
+    trade_step = TradeEnrichStep(inst=inst, engine=TradeEnrichEngine())
+    #
+    min_trade_step = MinuteTradeAggStep(inst=inst, engine=MinuteTradeAggEngine())
+    #
+    # min_order_step = MinuteOrderAggStep(inst=inst)
+    #
+    # order_step = OrderBookRebuildStep(
+    #     inst=inst,
+    #     max_workers=10,
+    #     mp_start_method="fork",
+    # )
 
-    # order_engine = OrderBookRebuildEngine()
-    order_step = OrderBookRebuildStep(
-                                      inst=inst,
-                                      max_workers=10,          # 5900X 建议 8~12
-                                       mp_start_method="fork")  # Linux)
-
-    min_trade_engine = MinuteTradeAggEngine()
-    min_trade_step = MinuteTradeAggStep(engine=min_trade_engine, inst=inst)
-
-    min_order_engine = MinuteOrderAggEngine()
-    min_order_step = MinuteOrderAggStep(engine=min_order_engine, inst=inst)
-
-    steps = [download_step, extractor_steps, normalize_steps, symbol_split_steps, trade_step, order_step,
-             min_trade_step, min_order_step]
+    steps = [
+        download_step,
+        extractor_steps,
+        normalize_steps,
+        trade_step,
+        min_trade_step,
+        # min_order_step,
+    ]
 
     return DataPipeline(
         steps=steps,

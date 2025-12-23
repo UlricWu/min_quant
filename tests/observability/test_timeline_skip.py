@@ -83,7 +83,7 @@ def ctx(tmp_path: Path) -> PipelineContext:
         date="2025-11-04",
         raw_dir=tmp_path / "raw",
         parquet_dir=tmp_path / "parquet",
-        symbol_dir=tmp_path / "symbol",
+        fact_dir=tmp_path / "symbol",
         canonical_dir=tmp_path / "canonical",
         meta_dir=tmp_path/'meta'
     )

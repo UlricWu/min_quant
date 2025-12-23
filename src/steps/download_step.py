@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import ftplib
+import json
 import subprocess
 from pathlib import Path
 from typing import Optional
@@ -14,6 +15,8 @@ from src.utils.logger import logs
 from src.config.secret_config import SecretConfig
 from src.config.pipeline_config import DownloadBackend
 
+from src.pipeline.pipeline import PipelineAbort
+
 
 class DownloadStep(BasePipelineStep):
     """
@@ -23,6 +26,8 @@ class DownloadStep(BasePipelineStep):
       - FTP 连接 / curl 下载
       - 重试 / 超时 / 本地落盘
       - 下载规则全部委托给 FtpDownloadEngine
+       - 非程序错误（交易时间 / 无数据 / 业务限制） → 跳过 pipeline
+        - 程序错误（curl 崩 / 网络异常 / 代码 bug） → 原样抛异常
     """
 
     def __init__(
@@ -53,7 +58,7 @@ class DownloadStep(BasePipelineStep):
 
         # 已有 7z → 跳过
         if list(local_dir.glob("*.7z")):
-            logs.info("[DownloadStep] raw/*.7z 已存在 → skip")
+            logs.warning("[DownloadStep] raw/*.7z 已存在 → skip")
             return ctx
 
         date_str = self.engine.resolve_date(ctx.date)
@@ -94,7 +99,17 @@ class DownloadStep(BasePipelineStep):
                         plan=plan,
                         local_path=local_path,
                     )
+        except Exception as e:
+            msg = str(e)
+            if self._is_non_fatal_error(msg):
+                logs.warning(
+                    f"[DownloadStep][SKIP] server issue → skip pipeline | {msg}"
+                )
+                # 关键：用于终止 pipeline，但不是错误
+                raise PipelineAbort(msg)
 
+                # 关键：其它异常必须继续抛
+            raise
         finally:
             if ftp is not None:
                 try:
@@ -103,6 +118,22 @@ class DownloadStep(BasePipelineStep):
                     pass
 
         return ctx
+
+    @staticmethod
+    def _is_non_fatal_error(msg: str) -> bool:
+        msg = msg.lower()
+        return any(
+            k in msg
+            for k in (
+                "trading",
+                "no data",
+                "no such file",
+                "not found",
+                "550",
+                "permission",
+                "Failed to change directory"
+            )
+        )
 
     # ======================================================
     @logs.catch()
@@ -122,8 +153,8 @@ class DownloadStep(BasePipelineStep):
     # ======================================================
     @Retry.decorator(
         exceptions=(ftplib.error_temp, ftplib.error_perm, OSError, TimeoutError),
-        max_attempts=3,
-        delay=1,
+        max_attempts=2,
+        delay=30,
         backoff=2,
         jitter=True,
     )
@@ -143,7 +174,7 @@ class DownloadStep(BasePipelineStep):
     @Retry.decorator(
         exceptions=(RuntimeError, OSError),
         max_attempts=3,
-        delay=1,
+        delay=30,
         backoff=2,
         jitter=True,
     )
@@ -174,7 +205,7 @@ class DownloadStep(BasePipelineStep):
             "--show-error",
             "--stderr", "-",  # ★ 强制 stderr 输出
             "--write-out",
-            "speed=%{speed_download}*8/1000000 size=%{size_download}\n",  # curl 的下载进度 / 速度信息
+            "speed=%{speed_download*8/1000000} size=%{size_download}\n",  # curl 的下载进度 / 速度信息
             "-o", str(local_path),
             url,
         ]
@@ -186,27 +217,7 @@ class DownloadStep(BasePipelineStep):
             text=True,
             timeout=600,
         )
-
-        if result.returncode != 0:
-            raise RuntimeError(
-                f"[FTP] curl failed {remote_file}: {result.stderr.strip()}"
-            )
-        # curl 的 write-out 在 stdout
-        # if result.stdout:
-        #     logs.info(f"[FTP] {remote_file} {result.stdout.strip()}")
-
-        meta = result.stderr.strip()
-
-        parts = dict(
-            kv.split("=") for kv in meta.split()
-        )
-
-        speed_bps = int(parts["speed_bps"])
-        speed_mbps = round(speed_bps * 8 / 1_000_000, 2)
-
         logs.info(
-            f"[FTP] %s {remote_file} speed=%.2f Mbps size=%s bytes",
-            remote_file,
-            speed_mbps,
-            parts["size"],
+            f"[Download] {remote_file} → {local_path} | "
+            f"download finished "
         )

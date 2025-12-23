@@ -1,8 +1,14 @@
+from pathlib import Path
+from datetime import datetime, timezone
+import hashlib
+import json
+
 from src import logs
 from src.pipeline.context import PipelineContext
 from src.pipeline.step import BasePipelineStep
 from src.engines.normalize_engine import NormalizeEngine
-from pathlib import Path
+
+from src.meta.meta import BaseMeta
 
 
 class NormalizeStep(BasePipelineStep):
@@ -10,21 +16,19 @@ class NormalizeStep(BasePipelineStep):
         super().__init__(inst)
         self.engine = engine
 
-    def run(self, ctx: PipelineContext) -> None:
-        input_dir: Path = ctx.parquet_dir
-        output_dir: Path = ctx.canonical_dir
+    def run(self, ctx: PipelineContext) -> PipelineContext:
+        meta = BaseMeta(ctx.meta_dir, stage='normalize')
 
-        for file in list(input_dir.glob("*.parquet")):
-            filename = file.stem
-            output_file = output_dir / filename.lower()
-
-            if output_file.exists():
+        for input_file in ctx.parquet_dir.glob("*.parquet"):
+            if not meta.upstream_changed(input_file):
+                logs.warning(f"[NormalizeStep] {input_file.name} unchanged -> skip")
                 continue
-            with self.inst.timer(f'NormalizeStep_{filename}'):
-                logs.info(f'[NormalizeStep] start normalizing {filename}')
-                self.engine.execute(
-                    input_file=input_dir / file,
-                    output_dir=output_dir,
-                )
 
+            with self.inst.timer(f'[NormalizeStep] {input_file.name}'):
+
+                result = self.engine.execute(
+                    input_file=input_file,
+                    output_dir=ctx.canonical_dir,
+                )
+                meta.commit(result)
         return ctx

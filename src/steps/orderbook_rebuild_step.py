@@ -174,7 +174,7 @@ class OrderBookRebuildStep(BasePipelineStep):
     # ------------------------------------------------------------
     def run(self, ctx: PipelineContext) -> None:
         # date = ctx.date  # 你现有 PipelineContext 已经在用 ctx.date
-        input_dir = ctx.symbol_dir
+        input_dir = ctx.fact_dir
         t0 = time.perf_counter()
 
         jobs = list(self._iter_jobs(input_dir))

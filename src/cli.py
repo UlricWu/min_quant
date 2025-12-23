@@ -18,8 +18,8 @@ def run(date:str):
     pipeline = build_offline_l2_pipeline()
     # print(f"[green]Running L2 Pipeline for {date}[/green]")
     # pipeline.run(date)
-    start = '20251201'
-    end = '20251209'
+    start = '2005-12-22'
+    end = '2026-12-09'
     dates = pd.date_range(start, end)
     #
     print(f"[blue]Running L2 Pipeline for range {start} -> {end}[/blue]")

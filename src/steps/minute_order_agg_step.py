@@ -23,7 +23,7 @@ class MinuteOrderAggStep(PipelineStep):
         self.inst = inst
 
     def run(self, ctx: PipelineContext) -> None:
-        symbol_root: Path = ctx.symbol_dir
+        symbol_root: Path = ctx.fact_dir
 
         if not symbol_root.exists():
             logs.warning(f"[MinuteOrderAggStep] symbol_root not found: {symbol_root}")
