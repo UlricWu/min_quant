@@ -78,25 +78,26 @@ class NormalizeEngine:
         )
         table = table.take(sort_indices)
 
-        # --------------------------------------------------
-        # 3. 构建 symbol slice index（O(N)）
-        # --------------------------------------------------
-        symbol_col = table["symbol"]
-        symbols = symbol_col.to_pylist()
-
-        index: Dict[str, Tuple[int, int]] = {}
-
-        start = 0
-        current = symbols[0]
-
-        for i in range(1, len(symbols)):
-            if symbols[i] != current:
-                index[current] = (start, i - start)
-                current = symbols[i]
-                start = i
-
-        # 最后一个 symbol
-        index[current] = (start, len(symbols) - start)
+        # # --------------------------------------------------
+        # # 3. 构建 symbol slice index（O(N)）
+        # # --------------------------------------------------
+        # symbol_col = table["symbol"]
+        # symbols = symbol_col.to_pylist()
+        #
+        # index: Dict[str, Tuple[int, int]] = {}
+        #
+        # start = 0
+        # current = symbols[0]
+        #
+        # for i in range(1, len(symbols)):
+        #     if symbols[i] != current:
+        #         index[current] = (start, i - start)
+        #         current = symbols[i]
+        #         start = i
+        #
+        # # 最后一个 symbol
+        # index[current] = (start, len(symbols) - start)
+        index = self.build_symbol_slice_index(table)
 
         # --------------------------------------------------
         # 4. 写 parquet（一次性）
@@ -131,43 +132,27 @@ class NormalizeEngine:
 
     @staticmethod
     def build_symbol_slice_index(sorted_table: pa.Table) -> Dict[str, Tuple[int, int]]:
-        """
-        Build symbol -> (start, length) without symbol_col.to_pylist().
-
-        Preconditions:
-          - sorted_table is globally sorted by ('symbol', 'ts') ascending
-          - 'symbol' column exists and is not empty
-
-        Complexity:
-          - Arrow C++ O(N) for run-end encoding
-          - Python loop over #symbols (typically a few thousand)
-        """
         if sorted_table.num_rows == 0:
             return {}
 
         sym = sorted_table["symbol"]
 
-        # Ensure symbol is a simple type (string or dictionary<string>)
-        # RLE works well on dictionary too; but casting to string is OK if needed.
         if not pa.types.is_string(sym.type) and not pa.types.is_dictionary(sym.type):
             sym = pc.cast(sym, pa.string())
 
-        # run_end_encode returns a StructArray with fields: 'values' and 'run_ends'
-        # run_ends are 1-based end positions (exclusive end indices).
         ree = pc.run_end_encode(sym)
-
-        values = ree.field("values")
-        run_ends = ree.field("run_ends")  # int32/int64 array
-
-        # Convert ONLY per-symbol arrays to python lists (few thousand items)
-        vals_py = values.to_pylist()
-        ends_py = run_ends.to_pylist()
-
+        single_array = ree.combine_chunks()
+        run_ends = single_array.run_ends
+        run_values = single_array.values
+        # Convert ONLY per-symbol info to Python
+        values_py = run_values.to_pylist()
+        run_ends_py = run_ends.to_pylist()
         index: Dict[str, Tuple[int, int]] = {}
         start = 0
-        for v, end_exclusive in zip(vals_py, ends_py):
-            length = int(end_exclusive) - start
-            index[str(v)] = (start, length)
-            start = int(end_exclusive)
+
+        for sym_val, end_exclusive in zip(values_py, run_ends_py):
+            end_exclusive = int(end_exclusive)
+            index[str(sym_val)] = (start, end_exclusive - start)
+            start = end_exclusive
 
         return index
