@@ -1,8 +1,12 @@
-#!filepath: src/config/pipeline_config.py
+# src/config/pipeline_config.py
 from pydantic import BaseModel
+from enum import Enum
+
+
+class DownloadBackend(str, Enum):
+    FTPLIB = "ftplib"
+    CURL = "curl"
+
 
 class PipelineConfig(BaseModel):
-    enable_download: bool = True
-    enable_decompress: bool = True
-    enable_parse: bool = True
-    enable_write: bool = True
+    ftp_backend: DownloadBackend = DownloadBackend.CURL

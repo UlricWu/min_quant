@@ -56,7 +56,7 @@ class ExtractorEngine:
             autogenerate_column_names=False,
             skip_rows=1,  # 🔥 跳过 header 行
             column_names=column_names,
-            block_size=1 << 25,   # 16MB
+            block_size=1 << 26,   # 64MB
             use_threads=True,
         )
 

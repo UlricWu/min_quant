@@ -1,165 +1,158 @@
-#!filepath: src/engines/normalize_engine.py
-from __future__ import annotations
+from dataclasses import dataclass
+from pathlib import Path
+from typing import Dict, Tuple
+
+import pyarrow as pa
+import pyarrow.compute as pc
+import pyarrow.parquet as pq
+
+from src.engines.parser_engine import parse_events_arrow
+from src.meta.meta import MetaResult
 
 from pathlib import Path
-from typing import List
-
-import pandas as pd
-
-from src.engines.context import EngineContext
-from src.l2.common.normalized_event import NormalizedEvent
-from src.l2.common.event_parser import parse_events, EventKind
-from src import logs
+from functools import reduce
+from typing import Dict, Tuple
 
 
 class NormalizeEngine:
     """
-    NormalizeEngine（Offline + Realtime 共用，最终版）
+    NormalizeEngine（冻结契约版）
 
-    职责（红线）：
-    - 逐笔 / 委托 / 成交 → NormalizedEvent
-    - ts 在此 Engine 内被“钉死”为 int（唯一真相）
-    - 负责时间排序
-    - 负责 parquet 输出（offline）
-
-    下游 Engine：
-    - 不允许再看到 Timestamp / datetime
+    - 输入：交易所级 parquet
+    - 输出：canonical parquet（symbol, ts 全量排序）
+    - 计算 symbol slice index（不拆分）
     """
 
-    # ==================================================
-    # 唯一 public 入口（Adapter 只调用这个）
-    # ==================================================
-    def execute(self, ctx: EngineContext) -> List[NormalizedEvent]:
-        """
-        返回 NormalizedEvent 列表
+    VALID_EVENTS = {"ADD", "CANCEL", "TRADE"}
+    batch_size = 50_000_000  # 5e7
 
-        - offline :
-            * 从 Order.parquet / Trade.parquet 读取
-            * normalize
-            * 排序
-            * 写 Events.parquet
-            * 返回 events
+    def execute(self, input_file: Path, output_dir: Path) -> MetaResult:
+        exchange, kind = input_file.stem.split("_", 1)
+        output_file = output_dir / input_file.name
 
-        - realtime / replay :
-            * ctx.event != None
-            * 返回 [NormalizedEvent]
-        """
-        if ctx.mode == "offline":
-            return self._run_offline(ctx)
+        pf = pq.ParquetFile(input_file)
+        tables: list[pa.Table] = []
 
-        # realtime / replay
-        if ctx.event is None:
-            raise ValueError("[NormalizeEngine] ctx.event is required in realtime mode")
+        # --------------------------------------------------
+        # 1. 读取 + 过滤 + parse（批次级）
+        # --------------------------------------------------
+        for batch in pf.iter_batches(self.batch_size):
+            table = pa.Table.from_batches([batch])
 
-        return [self._normalize_one(ctx.event)]
+            table = self.filter_a_share_arrow(table)
+            if table.num_rows == 0:
+                continue
 
-    # ==================================================
-    # Offline：目录 → Events.parquet
-    # ==================================================
-    def _run_offline(self, ctx: EngineContext) -> List[NormalizedEvent]:
-        assert ctx.input_path is not None
-        assert ctx.output_path is not None
-
-        events: List[NormalizedEvent] = []
-
-        order_path = ctx.input_path / "Order.parquet"
-        trade_path = ctx.input_path / "Trade.parquet"
-
-        if order_path.exists():
-            events.extend(self._normalize_file(order_path, kind="order"))
-
-        if trade_path.exists():
-            events.extend(self._normalize_file(trade_path, kind="trade"))
-
-        if not events:
-            logs.warning(
-                f"[NormalizeEngine] no events "
-                f"symbol={ctx.symbol} date={ctx.date}"
+            table = parse_events_arrow(
+                table,
+                exchange=exchange,
+                kind=kind,
             )
-            return []
+            if table.num_rows == 0:
+                continue
 
-        # NormalizeEngine 的责任：时间排序
-        events.sort(key=lambda e: e.ts)
+            tables.append(table)
 
-        self._write_parquet(events, ctx.output_path)
-        return events
-
-    # ==================================================
-    # parquet → NormalizedEvent[]
-    # ==================================================
-    def _normalize_file(self, path: Path, *, kind: EventKind) -> List[NormalizedEvent]:
-        df = pd.read_parquet(path)
-        if df.empty:
-            return []
-
-        # SH / SZ / Order / Trade → 统一 schema DataFrame
-        # 🔒 核心立法：只允许合法事件
-        norm_df = parse_events(df, kind=kind)
-        if norm_df.empty:
-            return []
-
-        # 🔒 核心立法：只允许合法事件
-        before = len(norm_df)
-        norm_df = norm_df[norm_df["event"].isin(["ADD", "CANCEL", "TRADE"])]
-
-        dropped = before - len(norm_df)
-        if dropped > 0:
-            logs.debug(
-                f"[NormalizeEngine] drop {dropped} invalid events "
-                f"({kind}, path={path.name})"
+        if not tables:
+            # 空输出也要生成 parquet（但 index 为空）
+            empty = pa.table({})
+            pq.write_table(empty, output_file)
+            return MetaResult(
+                input_file=input_file,
+                output_file=output_file,
+                rows=0,
+                index={},
             )
 
-        events: List[NormalizedEvent] = []
+        # --------------------------------------------------
+        # 2. 拼接 + 全量排序（关键）
+        # --------------------------------------------------
+        table = pa.concat_tables(tables, promote_options="default")
 
-        # ⚠️ 这里假定：
-        # - parse_events 已经输出 ts = int
-        # - NormalizeEngine 之后不允许 Timestamp
-        for row in norm_df.itertuples(index=False):
-            events.append(NormalizedEvent.from_row(row))
-
-        return events
-
-    # ==================================================
-    # Realtime：单条事件 → NormalizedEvent
-    # ==================================================
-    def _normalize_one(self, raw_event) -> NormalizedEvent:
-        """
-        raw_event:
-            - dict
-            - namedtuple
-            - vendor event
-
-        返回：
-            - NormalizedEvent（ts = int）
-        """
-        df = pd.DataFrame([raw_event])
-        norm_df = parse_events(df, kind='trade')
-
-        if norm_df.empty:
-            raise ValueError("[NormalizeEngine] normalize_one got empty result")
-
-        row = norm_df.iloc[0]
-        return NormalizedEvent.from_row(row)
-
-    # ==================================================
-    # 写 parquet（Engine 内部细节）
-    # ==================================================
-    def _write_parquet(
-            self,
-            events: List[NormalizedEvent],
-            output_path: Path,
-    ) -> None:
-        output_path.parent.mkdir(parents=True, exist_ok=True)
-
-        rows = [e.to_dict() for e in events]
-        df = pd.DataFrame(rows)
-
-        # 再次兜底校验（防 ts 泄漏）
-        if not pd.api.types.is_integer_dtype(df["ts"]):
-            raise TypeError("[NormalizeEngine] ts must be int before writing parquet")
-
-        df.to_parquet(output_path, index=False)
-
-        logs.info(
-            f"[NormalizeEngine] wrote {len(df)} events → {output_path}"
+        sort_indices = pc.sort_indices(
+            table,
+            sort_keys=[
+                ("symbol", "ascending"),
+                ("ts", "ascending"),
+            ],
         )
+        table = table.take(sort_indices)
+
+        # # --------------------------------------------------
+        # # 3. 构建 symbol slice index（O(N)）
+        # # --------------------------------------------------
+        # symbol_col = table["symbol"]
+        # symbols = symbol_col.to_pylist()
+        #
+        # index: Dict[str, Tuple[int, int]] = {}
+        #
+        # start = 0
+        # current = symbols[0]
+        #
+        # for i in range(1, len(symbols)):
+        #     if symbols[i] != current:
+        #         index[current] = (start, i - start)
+        #         current = symbols[i]
+        #         start = i
+        #
+        # # 最后一个 symbol
+        # index[current] = (start, len(symbols) - start)
+        index = self.build_symbol_slice_index(table)
+
+        # --------------------------------------------------
+        # 4. 写 parquet（一次性）
+        # --------------------------------------------------
+        pq.write_table(table, output_file)
+
+        # --------------------------------------------------
+        # 5. 返回 NormalizeResult（最小完备）
+        # --------------------------------------------------
+        return MetaResult(
+            input_file=input_file,
+            output_file=output_file,
+            rows=table.num_rows,
+            index=index,
+        )
+
+    # --------------------------------------------------
+    # A 股过滤（保持你原有逻辑）
+    # --------------------------------------------------
+    def filter_a_share_arrow(self, table: pa.Table) -> pa.Table:
+        symbol = pc.cast(table["SecurityID"], pa.string())
+
+        prefixes = [
+            "60", "688",
+            "00", "300",
+        ]
+
+        masks = [pc.starts_with(symbol, p) for p in prefixes]
+        mask = reduce(pc.or_, masks)
+
+        return table.filter(mask)
+
+    @staticmethod
+    def build_symbol_slice_index(sorted_table: pa.Table) -> Dict[str, Tuple[int, int]]:
+        if sorted_table.num_rows == 0:
+            return {}
+
+        sym = sorted_table["symbol"]
+
+        if not pa.types.is_string(sym.type) and not pa.types.is_dictionary(sym.type):
+            sym = pc.cast(sym, pa.string())
+
+        ree = pc.run_end_encode(sym)
+        single_array = ree.combine_chunks()
+        run_ends = single_array.run_ends
+        run_values = single_array.values
+        # Convert ONLY per-symbol info to Python
+        values_py = run_values.to_pylist()
+        run_ends_py = run_ends.to_pylist()
+        index: Dict[str, Tuple[int, int]] = {}
+        start = 0
+
+        for sym_val, end_exclusive in zip(values_py, run_ends_py):
+            end_exclusive = int(end_exclusive)
+            index[str(sym_val)] = (start, end_exclusive - start)
+            start = end_exclusive
+
+        return index

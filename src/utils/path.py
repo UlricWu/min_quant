@@ -99,25 +99,29 @@ class PathManager:
         return p / str(date) if date else p
 
     @classmethod
-    def symbol_root(cls) -> Path:
-        return cls.data_dir() / "symbol"
+    def fact_dir(cls, date:str) -> Path:
+        if date:
+            return cls.data_dir() / "fact" / date
+        return cls.data_dir() / "fact"
 
-    @classmethod
-    def symbol_dir(cls, symbol: str, date: str | None = None) -> Path:
-        p = cls.data_dir() / "symbol" / cls.str_symbol(symbol)
-        return p / date if date else p
 
-    @classmethod
-    def order_dir(cls, symbol, date):
-        return cls.symbol_dir(symbol, date) / "Order.parquet"
 
-    @classmethod
-    def trade_dir(cls, symbol, date):
-        return cls.symbol_dir(symbol, date) / "Trade.parquet"
-
-    @classmethod
-    def snapshot_dir(cls, symbol, date):
-        return cls.symbol_dir(symbol, date) / "Snapshot.parquet"
+    # @classmethod
+    # def symbol_dir(cls, symbol: str, date: str | None = None) -> Path:
+    #     p = cls.data_dir() / "symbol" / cls.str_symbol(symbol)
+    #     return p / date if date else p
+    #
+    # @classmethod
+    # def order_dir(cls, symbol, date):
+    #     return cls.symbol_dir(symbol, date) / "Order.parquet"
+    #
+    # @classmethod
+    # def trade_dir(cls, symbol, date):
+    #     return cls.symbol_dir(symbol, date) / "Trade.parquet"
+    #
+    # @classmethod
+    # def snapshot_dir(cls, symbol, date):
+    #     return cls.symbol_dir(symbol, date) / "Snapshot.parquet"
 
     # ---------------------------------------------------------
     # shared/
@@ -163,3 +167,20 @@ class PathManager:
             return p1
 
         return cls.shared_config_dir() / name
+
+    # PathManager 中（示意）
+    @classmethod
+    def bar_1m_root(cls) -> Path:
+        return cls.data_dir() / "bar" / "1m"
+
+    @classmethod
+    def canonical_dir(cls, date: str = '') -> Path:
+        if date:
+            return cls.data_dir() / "canonical" / date
+        return cls.data_dir() / "canonical"
+
+    @classmethod
+    def meta_dir(cls, date: str = '') -> Path:
+        if date:
+            return cls.data_dir() / "meta" / date
+        return cls.data_dir() / "meta"

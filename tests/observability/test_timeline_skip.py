@@ -5,13 +5,13 @@ from pathlib import Path
 
 import pytest
 
-from src.dataloader.pipeline.pipeline import DataPipeline
-from src.dataloader.pipeline.context import PipelineContext
-from src.dataloader.pipeline.step import BasePipelineStep
+from src.pipeline.pipeline import DataPipeline
+from src.pipeline.context import PipelineContext
+from src.pipeline.step import PipelineStep
 from src.observability.instrumentation import Instrumentation
 
 
-class DummySkipStep(BasePipelineStep):
+class DummySkipStep(PipelineStep):
     """
     一个始终 skip 的 Step：
     - 不产生任何 leaf timer
@@ -25,7 +25,7 @@ class DummySkipStep(BasePipelineStep):
         return ctx
 
 
-class DummyLeafStep(BasePipelineStep):
+class DummyLeafStep(PipelineStep):
     """
     一个会真实执行 leaf timer 的 Step，用于对照测试。
     """
@@ -46,8 +46,14 @@ class DummyPathManager:
     def parquet_dir(self, date: str) -> Path:
         return Path("/tmp/parquet")
 
-    def symbol_root(self) -> Path:
-        return Path("/tmp/symbol")
+    def fact_dir(self, date) -> Path:
+        return Path("/tmp/fact")
+
+    def canonical_dir(self, date) -> Path:
+        return Path("/tmp/canonical")
+
+    def meta_dir(self, date) -> Path:
+        return Path("/tmp/meta")
 
 
 class DummyFileSystem:
@@ -77,7 +83,9 @@ def ctx(tmp_path: Path) -> PipelineContext:
         date="2025-11-04",
         raw_dir=tmp_path / "raw",
         parquet_dir=tmp_path / "parquet",
-        symbol_dir=tmp_path / "symbol",
+        fact_dir=tmp_path / "symbol",
+        canonical_dir=tmp_path / "canonical",
+        meta_dir=tmp_path/'meta'
     )
 
 
