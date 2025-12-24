@@ -1,4 +1,5 @@
 #!filepath: src/cli.py
+import pandas as pd
 import typer
 from rich import print
 from typing import Optional
@@ -9,14 +10,23 @@ app = typer.Typer(help="MinQuant Data Pipeline CLI")
 
 
 @app.command()
+def version():
+    print("v0.1.0")
+
+
+@app.command()
 def run(date: str):
     """
     运行指定日期的 L2 Pipeline（完整 Step-based Workflow）
     """
-    date = '2025-11-06'
-    pipeline = build_offline_l2_pipeline()
     print(f"[green]Running L2 Pipeline for {date}[/green]")
+
+    pipeline = build_offline_l2_pipeline()
     pipeline.run(date)
+
+
+if __name__ == "__main__":
+    app()
 
 #
 # @app.command()
@@ -49,9 +59,6 @@ def run(date: str):
 #     print(f"[yellow]Running L2 Pipeline for today: {date}[/yellow]")
 #     pipeline.run(date)
 
-
-if __name__ == "__main__":
-    app()
 
 #  ftp->7z->csv->parquet->sh_order_trade split->symbol_date ->trade_enrich -> orderbook
 

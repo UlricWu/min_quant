@@ -36,10 +36,7 @@ def sample_config_file(tmp_path):
             "model_path": "models/"
         },
         "pipeline": {
-            "enable_download": True,
-            "enable_decompress": False,
-            "enable_parse": True,
-            "enable_write": True
+            'ftp_backend': 'curl'
         }
     }
 
@@ -90,8 +87,7 @@ def test_pipeline_config_values(sample_config_file):
     """检查 pipeline 配置内容是否读取正确"""
     cfg = AppConfig.load(path=str(sample_config_file))
 
-    assert cfg.pipeline.enable_download is True
-    assert cfg.pipeline.enable_decompress is False
+    assert cfg.pipeline.ftp_backend == "curl"
 
 
 def test_missing_field_should_fail(tmp_path):
