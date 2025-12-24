@@ -1,111 +1,94 @@
 #!filepath: src/workflows/offline_l2_pipeline.py
 from __future__ import annotations
 
-from src.adapters import normalize_adapter
-from src.dataloader.pipeline.pipeline import DataPipeline
+from src.pipeline.pipeline import DataPipeline
 from src.utils.path import PathManager
 from src.config.app_config import AppConfig
-
-# steps
-from src.dataloader.pipeline.steps.download_step import DownloadStep
-from src.dataloader.pipeline.steps.csv_to_parquet_step import CsvConvertStep
-from src.dataloader.pipeline.steps.symbol_split_step import SymbolSplitStep
-from src.dataloader.pipeline.steps.normalize_step import NormalizeStep
-from src.dataloader.pipeline.steps.trade_enrich_step import TradeEnrichStep
-from src.dataloader.pipeline.steps.orderbook_step import OrderBookRebuildStep
-
-# adapter
-from src.adapters.convert_adapter import ConvertAdapter, SplitConvertAdapter
-from src.adapters.ftp_download_adapter import FtpDownloadAdapter
-from src.adapters.trade_enrich_adapter import TradeEnrichAdapter
-from src.adapters.normalize_adapter import NormalizeAdapter
-from src.adapters.symbol_router_adapter import SymbolRouterAdapter
-from src.adapters.orderbook_rebuild_adapter import OrderBookRebuildAdapter
-
-# engines
-from src.engines.symbol_router_engine import SymbolRouterEngine
-from src.engines.trade_enrich_engine import TradeEnrichEngine
-from src.engines.ftp_download_engine import FtpDownloadEngine
 from src.observability.instrumentation import Instrumentation
-from src.engines.WriterEngine import StreamingWriterEngine
-from src.engines.extractor_engine import ExtractorEngine
-from src.engines.event_splitter_engine import TickTypeSplitterEngine
-from src.engines.orderbook_rebuild_engine import OrderBookRebuildEngine
+
+from src.engines.convert_engine import ConvertEngine
+from src.steps.csv_convert_step import CsvConvertStep
+
 from src.engines.normalize_engine import NormalizeEngine
+from src.steps.normalize_step import NormalizeStep
+
+# from src.engines.symbol_split_engine import SymbolSplitEngine
+# from src.steps.symbol_split_step import SymbolSplitStep
+from src.steps.trade_enrich_step import TradeEnrichStep
+from src.engines.trade_enrich_engine import TradeEnrichEngine
+
+from src.engines.orderbook_rebuild_engine import OrderBookRebuildEngine
+from src.steps.orderbook_rebuild_step import OrderBookRebuildStep
+from src.engines.minute_trade_agg_engine import MinuteTradeAggEngine
+from src.steps.minute_trade_agg_step import MinuteTradeAggStep
+
+from src.engines.minute_order_agg_engine import MinuteOrderAggEngine
+from src.steps.minute_order_agg_step import MinuteOrderAggEngine, MinuteOrderAggStep
+
+from src.engines.ftp_download_engine import FtpDownloadEngine
+from src.steps.download_step import DownloadStep
+from src.engines.trade_enrich_engine import TradeEnrichEngine
 
 def build_offline_l2_pipeline() -> DataPipeline:
     """
-    Offline L2 处理（Level-2 → parquet → symbol-split → enrich）
-    三层架构：
-        Workflow     = 本文件
-        Pipeline     = DataPipeline
-        Step         = DownloadStep / CsvConvertStep / SymbolSplitStep / TradeEnrichStep
-        Adapter      = CsvConvertAdapter / ...
-        Engine       = CsvConvertEngine / ...
+    Offline Level-2 Pipeline (FINAL / FROZEN)
+
+    Semantic Order (LAW):
+        Download
+        → CsvConvert              (vendor CSV → vendor parquet)
+        → Normalize               (vendor → canonical Events.parquet)
+        → SymbolSplit             (canonical → symbol-partitioned)
+        → TradeEnrich             (canonical enrichment)
+        → AggregateMinuteBar      (1m bars)
+        → OrderBookRebuild        (optional, replay / research)
+
+    After Normalize:
+        - ONLY canonical schema allowed
+        - Symbol MUST exist
+        - ts MUST be int (microsecond)
+        - vendor fields FORBIDDEN
     """
 
     cfg = AppConfig.load()
     pm = PathManager()
     inst = Instrumentation()
 
-    # ----------- Engine Layer -----------
-    down_engine = FtpDownloadEngine()
-    # trade_engine = TradeEnrichEngine()
+    # ----------- 非并行 Step（保留 engine）-----------
+    download_step = DownloadStep(
+        engine=FtpDownloadEngine(),
+        inst=inst,
+        secret=cfg.secret,
+        remote_root=cfg.data.remote_dir,
+    )
 
-    # ----------- Adapter Layer -----------
-    down_adapter = FtpDownloadAdapter(
-        host=cfg.secret.ftp_host,
-        user=cfg.secret.ftp_user,
-        password=cfg.secret.ftp_password,
-        port=cfg.secret.ftp_port,
-        engine=down_engine,
+    normalize_steps = NormalizeStep(
+        engine=NormalizeEngine(),
         inst=inst,
     )
 
-    tick = TickTypeSplitterEngine()
-    writer = StreamingWriterEngine()
+    # ----------- 并行 Step（不传 engine）-----------
+    extractor_steps = CsvConvertStep(inst=inst)
 
-    convert_adapter = ConvertAdapter(
-        extractor=ExtractorEngine(),
-        writer=writer,
+    trade_step = TradeEnrichStep(inst=inst, engine=TradeEnrichEngine())
+    #
+    min_trade_step = MinuteTradeAggStep(inst=inst, engine=MinuteTradeAggEngine())
+    #
+    # min_order_step = MinuteOrderAggStep(inst=inst)
+    #
 
-    )
 
-    split_adapter = SplitConvertAdapter(extractor=ExtractorEngine(),
-                                        writer=writer,
-                                        splitter=tick
-                                        )
-
-    csv_convert_step = CsvConvertStep(
-        sh_adapter=split_adapter,
-        sz_adapter=convert_adapter,
-        inst=inst,
-    )
-    symbol_router_engine = SymbolRouterEngine()
-
-    symbol_router_adapter = SymbolRouterAdapter(engine=symbol_router_engine, inst=inst, symbols=cfg.data.symbols)
-
-    symbol_step = SymbolSplitStep(adapter=symbol_router_adapter, inst=inst)
-
-    normalize_engine = NormalizeEngine()
-    norm_adapter = NormalizeAdapter(engine=normalize_engine, inst=inst, symbols=cfg.data.symbols)
-    normalize_step = NormalizeStep(adapter=norm_adapter, inst=inst)
-
-    enricher = TradeEnrichEngine()
-    enricher_adapter = TradeEnrichAdapter(engine=enricher, inst=inst, symbols=cfg.data.symbols)
-
-    order_engine = OrderBookRebuildEngine()
-    order_adapter = OrderBookRebuildAdapter(engine=order_engine, inst=inst, symbols=cfg.data.symbols)
-    order_step = OrderBookRebuildStep(adapter=order_adapter, inst=inst)
-
-    # ----------- Step Layer -----------
     steps = [
-        DownloadStep(down_adapter, inst=inst),
-        csv_convert_step,
-        symbol_step,
-        normalize_step,
-        TradeEnrichStep(enricher_adapter,  inst=inst),
-        order_step
+        # download_step,
+        extractor_steps,
+        normalize_steps,
+        trade_step,
+        min_trade_step,
+        # min_order_step,
     ]
 
-    return DataPipeline(steps, pm, inst)
+    return DataPipeline(
+        steps=steps,
+        pm=pm,
+        inst=inst,
+    )
+# python -m src.cli run 2025-11-04

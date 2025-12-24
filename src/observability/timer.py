@@ -26,3 +26,8 @@ class Timer:
             return 0.0
         elapsed = time.perf_counter() - self._start.pop(name)
         return elapsed
+from contextlib import contextmanager
+
+@contextmanager
+def noop_timer(_name: str):
+    yield

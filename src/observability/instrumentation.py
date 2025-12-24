@@ -61,6 +61,10 @@ class Instrumentation:
                 return
 
             inst._timer.start(name)
+            # -------------------------------------------------
+            # 仅在开始时打印一次（不进入热路径）
+            # -------------------------------------------------
+            logs.info(f"[Timer] ▶ start {name}")
             try:
                 yield
             finally:
