@@ -1,3 +1,24 @@
+# [0.8.0](https://github.com/UlricWu/min_quant/compare/v0.7.0...v0.8.0) (2025-12-24)
+
+
+### Bug Fixes
+
+* use curl download ([2b73d51](https://github.com/UlricWu/min_quant/commit/2b73d51b03d255de66c457022bccdb4475ef9325))
+
+
+### Features
+
+* add min ([e966d81](https://github.com/UlricWu/min_quant/commit/e966d8106d46b08aad1259912c1583b432a5e867))
+* follow contract ([617532b](https://github.com/UlricWu/min_quant/commit/617532b6b5b12593bf42d53f993ef59c04a562eb))
+* mutliple core OrderBookRebuildStep ([dfa579d](https://github.com/UlricWu/min_quant/commit/dfa579d6d8e4a73bbb5066ac41186c1f73d1a8a6))
+* rm symbol split ([ccdd9bb](https://github.com/UlricWu/min_quant/commit/ccdd9bb21e699ecc114398defa36d7d68f51cd46))
+* stream normalize ([579dd77](https://github.com/UlricWu/min_quant/commit/579dd7790145b10a3550a90b6518efd33b2c47b5))
+
+
+### Performance Improvements
+
+* symbol split =sort+ pyarrow slice ([dfec900](https://github.com/UlricWu/min_quant/commit/dfec900dd8ff46ce287d4c8944ce81168e33156a))
+
 # [0.7.0](https://github.com/UlricWu/min_quant/compare/v0.6.12...v0.7.0) (2025-12-18)
 
 
