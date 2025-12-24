@@ -75,14 +75,10 @@ def build_offline_l2_pipeline() -> DataPipeline:
     #
     # min_order_step = MinuteOrderAggStep(inst=inst)
     #
-    # order_step = OrderBookRebuildStep(
-    #     inst=inst,
-    #     max_workers=10,
-    #     mp_start_method="fork",
-    # )
+
 
     steps = [
-        download_step,
+        # download_step,
         extractor_steps,
         normalize_steps,
         trade_step,

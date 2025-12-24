@@ -14,6 +14,8 @@ from src.pipeline.parallel.types import ParallelKind
 
 from src.engines.convert_engine import ConvertEngine
 
+from src.meta.meta import BaseMeta, MetaResult
+
 
 class CsvConvertStep(BasePipelineStep):
     """
@@ -38,27 +40,73 @@ class CsvConvertStep(BasePipelineStep):
     # ======================================================
     def run(self, ctx: PipelineContext):
         raw_dir = ctx.raw_dir
+        parquet_dir = ctx.parquet_dir
 
         zfiles = sorted(raw_dir.glob("*.7z"))
         if not zfiles:
             logs.warning("[CsvConvertStep] no .7z files found")
             return ctx
 
+        meta = BaseMeta(ctx.meta_dir, stage="convert")
+
         items = []
         for zfile in zfiles:
-            out_files = _build_out_files(zfile, ctx.parquet_dir)
-            if _all_exist(out_files):
-                logs.warning(f"[CsvConvertStep] {zfile.name} exists -> skip (pre)")
-                continue
-            items.append((str(zfile), str(ctx.parquet_dir)))
-
-            with self.inst.timer('CsvConvertStep'):
-                # Path 不能保证在所有平台 / 所有 start method / 所有 Python 版本下是 100% 可预期
-                ParallelExecutor.run(
-                    kind=ParallelKind.FILE,
-                    items=items,
-                    handler=_convert_one_file,
+            out_files = _build_out_files(zfile, parquet_dir)
+            # --------------------------------------------------
+            # Meta 判断：是否需要重新转换
+            # --------------------------------------------------
+            if not meta.upstream_changed(zfile):
+                logs.info(
+                    f"[CsvConvertStep] meta hit → skip {zfile.name}"
                 )
+                continue
+
+            # 输出文件若部分缺失，也必须重跑
+            if not _all_exist(out_files):
+                items.append((str(zfile), str(parquet_dir)))
+            else:
+                logs.info(
+                    f"[CsvConvertStep] outputs exist but meta mismatch → rerun {zfile.name}"
+                )
+                items.append((str(zfile), str(parquet_dir)))
+
+        if not items:
+            logs.info("[CsvConvertStep] nothing to convert")
+            return ctx
+
+        with self.inst.timer('CsvConvertStep'):
+            # Path 不能保证在所有平台 / 所有 start method / 所有 Python 版本下是 100% 可预期
+            ParallelExecutor.run(
+                kind=ParallelKind.FILE,
+                items=items,
+                handler=_convert_one_file,
+            )
+
+        # --------------------------------------------------
+        # 成功后提交 Meta（逐文件）
+        # --------------------------------------------------
+        for zfile in zfiles:
+            if not meta.upstream_changed(zfile):
+                continue
+
+            out_files = _build_out_files(zfile, parquet_dir)
+            if not _all_exist(out_files):
+                continue
+
+            # 选一个“主输出”作为 manifest 的 outputs.file
+            main_output = next(iter(out_files.values()))
+
+            meta.commit(
+                MetaResult(
+                    input_file=zfile,
+                    output_file=main_output,
+                    rows=0,  # CsvConvert 阶段不关心 rows
+                )
+            )
+
+            logs.info(
+                f"[CsvConvertStep] meta committed for {zfile.name}"
+            )
 
         return ctx
 
@@ -85,8 +133,6 @@ def _convert_one_file(item: tuple[str, str]) -> None:
     logs.info(
         f"[CsvConvertWorker] pid={os.getpid()} file={Path(zfile).name}"
     )
-
-    logs.info(f"[CsvConvertStep] start converting {zpath.name}")
 
     engine = ConvertEngine()
     engine.convert(zpath, out_files)

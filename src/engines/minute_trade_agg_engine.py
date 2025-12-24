@@ -17,11 +17,35 @@ class MinuteTradeAggEngine:
     输出：
       - minute trade Arrow Table（OHLCV + amount）
 
+        Input (Trade_Enriched.parquet) columns (minimum):
+      - ts (int64, us)
+      - price (float)
+      - volume (int)
+      - notional (float)
+
+    Output (Minute_Trade.parquet):
+      - minute_ts
+      - open, high, low, close
+      - volume, signed_volume, notional
+      - trade_count (optional)
+
     设计原则：
       - 纯计算
       - 无状态
       - 不做 IO
       - 不关心 Meta / Pipeline
+
+    Cross-day semantics (Frozen):
+
+- MinuteTradeAggEngine performs pure time-based aggregation.
+- It does NOT infer trading days or session boundaries.
+- It does NOT fill missing minutes.
+- Cross-day gaps (e.g. 23:59 → 09:30) are preserved as-is.
+- Trading calendar semantics must be handled upstream.
+MinuteTradeAggEngine outputs naive datetime minute buckets.
+Timezone semantics are intentionally excluded and must be handled upstream.
+
+
     """
 
     def __init__(self):
@@ -44,6 +68,8 @@ class MinuteTradeAggEngine:
         """
         if table.num_rows == 0:
             return table
+
+        self._assert_sorted_ts(table["ts"])
 
         # --------------------------------------------------
         # 1. 生成 minute bucket
@@ -124,148 +150,8 @@ class MinuteTradeAggEngine:
 
         return pa.table(cols)
 
-# from __future__ import annotations
-#
-# from dataclasses import dataclass
-# from pathlib import Path
-# from typing import Optional
-#
-# import pyarrow as pa
-# import pyarrow.compute as pc
-# import pyarrow.parquet as pq
-#
-# from src.pipeline.context import EngineContext
-# from src.utils.logger import logs
-#
-# US_PER_MINUTE = 60 * 1_000_000
-#
-#
-# @dataclass(frozen=True)
-# class MinuteTradeAggConfig:
-#     # 你可以之后扩展：是否输出 trade_count、是否保留 side 等
-#     include_trade_count: bool = True
-#
-#
-# class MinuteTradeAggEngine:
-#     """
-#     MinuteTradeAggEngine（Arrow-only）
-#
-#     Input (Trade_Enriched.parquet) columns (minimum):
-#       - ts (int64, us)
-#       - price (float)
-#       - volume (int)
-#       - signed_volume (int)
-#       - notional (float)
-#
-#     Output (Minute_Trade.parquet):
-#       - minute_ts
-#       - open, high, low, close
-#       - volume, signed_volume, notional
-#       - trade_count (optional)
-#     """
-#
-#     def __init__(self, cfg: Optional[MinuteTradeAggConfig] = None) -> None:
-#         self.cfg = cfg or MinuteTradeAggConfig()
-#
-#     # ======================================================
-#     # 唯一入口
-#     # ======================================================
-#     def execute(self, ctx: EngineContext) -> None:
-#         if ctx.mode != "offline":
-#             raise NotImplementedError("MinuteTradeAggEngine 目前只做 offline batch")
-#
-#         assert ctx.input_path and ctx.output_path
-#         self._run_offline(ctx)
-#
-#     # ======================================================
-#     # Offline
-#     # ======================================================
-#     def _run_offline(self, ctx: EngineContext) -> None:
-#         table = pq.read_table(ctx.input_path)
-#
-#         if table.num_rows == 0:
-#             logs.warning("[MinuteTradeAgg] empty input")
-#             pq.write_table(table, ctx.output_path)
-#             return
-#
-#         # --------------------------------------------------
-#         # 1. minute bucket (int64)
-#         # --------------------------------------------------
-#         minute_id = pc.cast(
-#             pc.divide(table["ts"], pa.scalar(US_PER_MINUTE)),
-#             pa.int64()
-#         )
-#
-#         table = table.append_column("minute_id", minute_id)
-#
-#         # --------------------------------------------------
-#         # ★ 1.5 修正 signed_volume 的 NULL
-#         # --------------------------------------------------
-#         signed_volume = pc.fill_null(
-#             table["signed_volume"],
-#             pa.scalar(0, pa.int64()),
-#         )
-#         table = table.set_column(
-#             table.schema.get_field_index("signed_volume"),
-#             "signed_volume",
-#             signed_volume,
-#         )
-#
-#         # --------------------------------------------------
-#         # 2. group by minute_id
-#         # --------------------------------------------------
-#         grouped = (
-#             table
-#             .group_by("minute_id", use_threads=False)  # ← 关键！必须写
-#             .aggregate(
-#                 [
-#                     ("price", "first"),  # open
-#                     ("price", "max"),  # high
-#                     ("price", "min"),  # low
-#                     ("price", "last"),  # close
-#                     ("volume", "sum"),
-#                     ("signed_volume", "sum"),
-#                     ("notional", "sum"),
-#                     ("price", "count"),  # trade_count
-#                 ]
-#             )
-#         )
-#
-#         # --------------------------------------------------
-#         # 4. minute_id -> timestamp[ns]
-#         # --------------------------------------------------
-#         minute_ts = pc.multiply(
-#             grouped["minute_id"],
-#             pa.scalar(US_PER_MINUTE),
-#         )
-#         minute_ts = pc.cast(minute_ts, pa.timestamp("us"))
-#
-#         grouped = (
-#             grouped
-#             .append_column("minute", minute_ts)
-#             .drop(["minute_id"])
-#         )
-#
-#         # --------------------------------------------------
-#         # --------------------------------------------------
-#         # 4. column normalization (关键一步)
-#         # --------------------------------------------------
-#         cols = {
-#             "minute": minute_ts,
-#             "open": grouped["price_first"],
-#             "high": grouped["price_max"],
-#             "low": grouped["price_min"],
-#             "close": grouped["price_last"],
-#             "volume": grouped["volume_sum"],
-#             "signed_volume": grouped["signed_volume_sum"],
-#             "notional": grouped["notional_sum"],
-#         }
-#
-#         if self.cfg.include_trade_count:
-#             cols["trade_count"] = grouped["price_count"]
-#
-#         result = pa.table(cols)
-#
-#         pq.write_table(result, ctx.output_path)
-#         # pq.write_table(grouped, ctx.output_path)
-#         # logs.info(f"[MinuteTradeAgg] written → {ctx.output_path}")
+    def _assert_sorted_ts(self, ts: pa.Array) -> None:
+        if ts.length() <= 1:
+            return
+        if pc.any(pc.less(ts.slice(1), ts.slice(0, ts.length() - 1))).as_py():
+            raise ValueError("MinuteTradeAggEngine requires input sorted by ts")

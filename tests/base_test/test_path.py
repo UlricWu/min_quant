@@ -87,7 +87,7 @@ def test_symbol_and_parquet_dirs(tmp_path):
     assert PathManager.raw_dir() == tmp_path / "data" / "raw"
     assert PathManager.parquet_dir() == tmp_path / "data" / "parquet"
 
-    assert PathManager.fact_dir("600000") == tmp_path / "data" / "symbol" / "600000"
+    assert PathManager.fact_dir("600000") == tmp_path / "data" / "fact" / "600000"
 
 
 

@@ -12,7 +12,7 @@ import pytest
 import pyarrow as pa
 import pyarrow.parquet as pq
 
-
+# todo property-based contract（Hypothesis）
 @pytest.fixture(scope="session")
 def date() -> str:
     return "2025-12-01"
@@ -221,3 +221,20 @@ import pytest
 @pytest.fixture(scope="session", autouse=True)
 def _set_start_method():
     multiprocessing.set_start_method("spawn", force=True)
+
+import pytest
+from pathlib import Path
+
+
+@pytest.fixture
+def dummy_file(tmp_path: Path) -> Path:
+    p = tmp_path / "input.txt"
+    p.write_text("hello world", encoding="utf-8")
+    return p
+
+
+@pytest.fixture
+def dummy_output(tmp_path: Path) -> Path:
+    p = tmp_path / "output.txt"
+    p.write_text("output data", encoding="utf-8")
+    return p
