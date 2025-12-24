@@ -11,7 +11,7 @@ from typing import Iterable, Optional, Tuple
 
 from src import logs
 from src.pipeline.context import PipelineContext, EngineContext
-from src.pipeline.step import BasePipelineStep
+from src.pipeline.step import PipelineStep
 from src.engines.orderbook_rebuild_engine import OrderBookRebuildEngine
 
 
@@ -110,7 +110,7 @@ def _rebuild_one(job: _Job) -> _JobResult:
 # ============================================================
 # Step
 # ============================================================
-class OrderBookRebuildStep(BasePipelineStep):
+class OrderBookRebuildStep(PipelineStep):
     """
     OrderBookRebuildStep（并行版，offline）
 

@@ -5,13 +5,13 @@ import json
 
 from src import logs
 from src.pipeline.context import PipelineContext
-from src.pipeline.step import BasePipelineStep
+from src.pipeline.step import PipelineStep
 from src.engines.normalize_engine import NormalizeEngine
 
 from src.meta.meta import BaseMeta
 
 
-class NormalizeStep(BasePipelineStep):
+class NormalizeStep(PipelineStep):
     def __init__(self, engine: NormalizeEngine, inst=None):
         super().__init__(inst)
         self.engine = engine

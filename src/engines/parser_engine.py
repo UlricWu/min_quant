@@ -234,13 +234,26 @@ def parse_events_arrow(
         definition = EXCHANGE_REGISTRY[exchange][kind]
     except KeyError:
         raise KeyError(f"No registry for exchange={exchange}, kind={kind}")
-    # # ---------------------------------------------------------------------
-    #     # ts
-    #     # ---------------------------------------------------------------------
-    # # print(table["TradeTime"][0])
-    base_us = trade_time_to_base_us(table[definition.time_field][0].as_py())
-    offset_us = tick_to_offset_us(table[definition.time_field])  # Array
-    ts = pc.add(offset_us, pa.scalar(base_us, pa.int64()))  # Array
+    # --------------------------------------------------
+    # 1. base date 来自 TradeTime（包含日期）
+    # --------------------------------------------------
+    if "TradeTime" not in table.column_names:
+        raise ValueError(
+            "parse_events_arrow requires TradeTime column for base date"
+        )
+
+    base_us = trade_time_to_base_us(
+        table["TradeTime"][0].as_py()
+    )
+
+    # --------------------------------------------------
+    # 2. 日内 offset 来自 definition.time_field
+    # --------------------------------------------------
+    offset_us = tick_to_offset_us(
+        table[definition.time_field]
+    )
+
+    ts = pc.add(offset_us, pa.scalar(base_us, pa.int64()))
 
     # ---------------------------------------------------------------------
     # event

@@ -5,7 +5,7 @@ import os
 from pathlib import Path
 from typing import Dict
 
-from src.pipeline.step import BasePipelineStep
+from src.pipeline.step import PipelineStep
 from src.pipeline.pipeline import PipelineContext
 from src.utils.logger import logs
 
@@ -17,7 +17,7 @@ from src.engines.convert_engine import ConvertEngine
 from src.meta.meta import BaseMeta, MetaResult
 
 
-class CsvConvertStep(BasePipelineStep):
+class CsvConvertStep(PipelineStep):
     """
     CsvConvertStep（ProcessPoolExecutor 版 · 冻结）
 
