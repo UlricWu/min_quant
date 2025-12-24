@@ -62,7 +62,6 @@ def build_offline_l2_pipeline() -> DataPipeline:
     )
 
     normalize_steps = NormalizeStep(
-        engine=NormalizeEngine(),
         inst=inst,
     )
 

@@ -61,8 +61,13 @@ class TradeEnrichStep:
         stage = "enriched"
         meta = BaseMeta(meta_dir, stage=stage)
 
-        for input_file in list(input_dir.glob(f"*trade.parquet")):
-            name = input_file.stem  # sh_trade / sz_trade
+        outputs = getattr(ctx, "normalize_outputs", [])
+        if not outputs:
+            logs.info("[TradeEnrichStep] no normalized inputs")
+            return ctx
+
+        for name in outputs:
+            input_file = input_dir / f"{name}.parquet"
 
             if not meta.upstream_changed(input_file):
                 logs.warning(f"[TradeEnrichStep] {name} unchanged -> skip")

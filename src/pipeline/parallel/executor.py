@@ -67,7 +67,7 @@ class ParallelExecutor:
             items: list[str],
             handler: Callable[[str], Any],
             workers: int,
-    ) -> None:
+    ) -> list:
         logs.info(
             f"[ParallelExecutor] run parallel | workers={workers}"
         )
@@ -79,6 +79,7 @@ class ParallelExecutor:
             }
             results = []
             for fut in as_completed(futures):
-                fut.result()  # 失败直接抛
-                results.append(fut.result())
-            return
+                result = fut.result()  # 只取一次
+                results.append(result)
+
+        return results  # ← 这是根因
