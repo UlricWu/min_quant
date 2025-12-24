@@ -8,7 +8,7 @@ from typing import Optional
 
 from src.utils.filesystem import FileSystem
 from src.utils.retry import Retry
-from src.pipeline.step import BasePipelineStep
+from src.pipeline.step import PipelineStep
 from src.pipeline.context import PipelineContext
 from src.engines.ftp_download_engine import FtpDownloadEngine
 from src.utils.logger import logs
@@ -19,7 +19,7 @@ from src.pipeline.pipeline import PipelineAbort
 from src.meta.meta import BaseMeta
 
 
-class DownloadStep(BasePipelineStep):
+class DownloadStep(PipelineStep):
     """
     DownloadStep（I/O 层，工程冻结版）
 
