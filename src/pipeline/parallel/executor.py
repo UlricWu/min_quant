@@ -26,7 +26,7 @@ class ParallelExecutor:
             items: Iterable[str],
             handler: Callable[[str], Any],
             max_workers: int | None = None,
-    ) -> None:
+    ) -> list[Any] | None:
         items = list(items)
         if not items:
             logs.info("[ParallelExecutor] no items to process")
@@ -40,9 +40,9 @@ class ParallelExecutor:
         workers = ParallelExecutor._resolve_workers(items, max_workers)
 
         if workers == 1:
-            ParallelExecutor._run_sequential(items, handler)
+            return ParallelExecutor._run_sequential(items, handler)
         else:
-            ParallelExecutor._run_parallel(items, handler, workers)
+            return ParallelExecutor._run_parallel(items, handler, workers)
 
     # ---------------- internal ----------------
 
@@ -60,8 +60,7 @@ class ParallelExecutor:
     ) -> None:
         # logs.info("[ParallelExecutor] run sequential")
 
-        for item in items:
-            handler(item)
+        return [handler(item) for item in items]
 
     @staticmethod
     def _run_parallel(
@@ -78,6 +77,8 @@ class ParallelExecutor:
                 pool.submit(handler, item): item
                 for item in items
             }
-
+            results = []
             for fut in as_completed(futures):
                 fut.result()  # 失败直接抛
+                results.append(fut.result())
+            return

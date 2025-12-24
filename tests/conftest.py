@@ -11,6 +11,12 @@ import pandas as pd
 import pytest
 import pyarrow as pa
 import pyarrow.parquet as pq
+from loguru import logger
+@pytest.fixture(autouse=True)
+def disable_file_logger():
+    logger.remove()
+    logger.add(lambda msg: None)  # or sys.stderr
+    yield
 
 # todo property-based contract（Hypothesis）
 @pytest.fixture(scope="session")
