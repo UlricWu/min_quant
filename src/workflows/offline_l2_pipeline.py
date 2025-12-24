@@ -77,7 +77,7 @@ def build_offline_l2_pipeline() -> DataPipeline:
 
 
     steps = [
-        # download_step,
+        download_step,
         extractor_steps,
         normalize_steps,
         trade_step,

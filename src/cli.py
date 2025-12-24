@@ -25,40 +25,39 @@ def run(date: str):
     pipeline.run(date)
 
 
+@app.command()
+def range(start: str, end: str):
+    """
+    连续运行多个日期（YYYY-MM-DD）
+    """
+    import pandas as pd
+
+    pipeline = build_offline_l2_pipeline()
+    dates = pd.date_range(start, end)
+
+    print(f"[blue]Running L2 Pipeline for range {start} -> {end}[/blue]")
+
+    for d in dates:
+        d = d.strftime("%Y-%m-%d")
+        pipeline.run(d)
+
+
+@app.command()
+def today():
+    """
+    运行当天的数据管线
+    """
+    from datetime import datetime
+
+    date = datetime.now().strftime("%Y-%m-%d")
+    pipeline = build_offline_l2_pipeline()
+
+    print(f"[yellow]Running L2 Pipeline for today: {date}[/yellow]")
+    pipeline.run(date)
+
+
 if __name__ == "__main__":
     app()
-
-#
-# @app.command()
-# def range(start: str, end: str):
-#     """
-#     连续运行多个日期（YYYY-MM-DD）
-#     """
-#     import pandas as pd
-#
-#     pipeline = build_offline_l2_pipeline()
-#     dates = pd.date_range(start, end)
-#
-#     print(f"[blue]Running L2 Pipeline for range {start} -> {end}[/blue]")
-#
-#     for d in dates:
-#         d = d.strftime("%Y-%m-%d")
-#         pipeline.run(d)
-#
-#
-# @app.command()
-# def today():
-#     """
-#     运行当天的数据管线
-#     """
-#     from datetime import datetime
-#
-#     date = datetime.now().strftime("%Y-%m-%d")
-#     pipeline = build_offline_l2_pipeline()
-#
-#     print(f"[yellow]Running L2 Pipeline for today: {date}[/yellow]")
-#     pipeline.run(date)
-
 
 #  ftp->7z->csv->parquet->sh_order_trade split->symbol_date ->trade_enrich -> orderbook
 
