@@ -6,7 +6,9 @@ from time import perf_counter
 from datetime import datetime
 from loguru import logger
 from typing import Any, Callable, Optional
-
+_LOGGER_CONFIGURED = False
+# Logger 初始化“只执行一次”
+# 🔧 Step 1：加一个模块级 Guard（最关键）
 
 class Logging:
     """
@@ -54,6 +56,7 @@ class Logging:
         )
 
         logger.info("\n-----------Logger initialized successfully.-----------")
+        _LOGGER_CONFIGURED = True
 
     # ---------- 基础接口封装 ----------
     # ----------- 日志方法 -----------
