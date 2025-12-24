@@ -9,6 +9,7 @@ import pyarrow.parquet as pq
 
 from src.engines.normalize_engine import NormalizeEngine
 from src.engines.parser_engine import INTERNAL_SCHEMA
+import pyarrow.compute as pc
 @pytest.fixture
 def sh_trade_parquet(tmp_path: Path) -> Path:
     """
@@ -193,3 +194,41 @@ def test_normalize_invalid_filename_raises(tmp_path: Path):
 
     with pytest.raises(KeyError):
         engine.execute(bad_path, out_dir)
+def build_index_python(table: pa.Table) -> Dict[str, Tuple[int, int]]:
+    symbols = table["symbol"].to_pylist()
+    index = {}
+    start = 0
+    cur = symbols[0]
+    for i in range(1, len(symbols)):
+        if symbols[i] != cur:
+            index[cur] = (start, i - start)
+            cur = symbols[i]
+            start = i
+    index[cur] = (start, len(symbols) - start)
+    return index
+
+
+def test_build_symbol_slice_index_matches_python():
+    table = pa.table({
+        "symbol": ["000001","000001","000002","000002","000002","000003"],
+        "ts":     [1,2,1,2,3,1],
+    })
+
+    index_arrow = NormalizeEngine.build_symbol_slice_index(table)
+    index_py = build_index_python(table)
+
+    assert index_arrow == index_py
+
+
+def test_build_symbol_slice_index_semantics():
+    table = pa.table({
+        "symbol": ["000001","000001","000002","000002","000003"],
+        "ts":     [1,2,1,2,1],
+    })
+
+    index = NormalizeEngine.build_symbol_slice_index(table)
+
+    for sym, (start, length) in index.items():
+        slice_sym = table["symbol"].slice(start, length)
+        assert pc.all(pc.equal(slice_sym, sym)).as_py()
+
