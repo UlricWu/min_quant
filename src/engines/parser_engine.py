@@ -238,7 +238,7 @@ def parse_events_arrow(
     #     # ts
     #     # ---------------------------------------------------------------------
     # # print(table["TradeTime"][0])
-    base_us = trade_time_to_base_us(table["TradeTime"][0].as_py())
+    base_us = trade_time_to_base_us(table[definition.time_field][0].as_py())
     offset_us = tick_to_offset_us(table[definition.time_field])  # Array
     ts = pc.add(offset_us, pa.scalar(base_us, pa.int64()))  # Array
 

@@ -116,7 +116,7 @@ class BaseMeta:
             payload["outputs"]["index"] = answer
 
         data = json.dumps(payload, indent=2, sort_keys=True).encode("utf-8")
-        FileSystem.safe_write(self.manifest_path(result.output_file.stem), data)
+        FileSystem.safe_write(self.manifest_path(result.input_file.stem), data)
 
     # --------------------------------------------------
     # Change detection

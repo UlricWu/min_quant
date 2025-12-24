@@ -60,6 +60,7 @@ class NormalizeEngine:
             empty = pa.table({})
             pq.write_table(empty, output_file)
             return MetaResult(
+                input_file=input_file,
                 output_file=output_file,
                 rows=0,
                 index={},

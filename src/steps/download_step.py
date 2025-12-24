@@ -16,6 +16,7 @@ from src.config.secret_config import SecretConfig
 from src.config.pipeline_config import DownloadBackend
 
 from src.pipeline.pipeline import PipelineAbort
+from src.meta.meta import BaseMeta
 
 
 class DownloadStep(BasePipelineStep):
@@ -54,15 +55,18 @@ class DownloadStep(BasePipelineStep):
     # ======================================================
     def run(self, ctx: PipelineContext) -> PipelineContext:
         local_dir = ctx.raw_dir
-        FileSystem.ensure_dir(local_dir)
 
-        # 已有 7z → 跳过
-        if list(local_dir.glob("*.7z")):
-            logs.warning("[DownloadStep] raw/*.7z 已存在 → skip")
-            return ctx
-
+        # # 已有 7z → 跳过
+        # if list(local_dir.glob("*.7z")):
+        #     logs.warning("[DownloadStep] raw/*.7z 已存在 → skip")
+        #     return ctx
+        #
         date_str = self.engine.resolve_date(ctx.date)
-        logs.info(f"[DownloadStep] date = {date_str}")
+
+        # --------------------------------------------------
+        # Download Meta（每个文件一个 manifest）
+        # --------------------------------------------------
+        meta = BaseMeta(ctx.meta_dir, stage="download")
 
         ftp: Optional[ftplib.FTP] = None
 
@@ -87,11 +91,17 @@ class DownloadStep(BasePipelineStep):
             # 2. 执行下载
             # --------------------------------------------------
             for plan in plans:
-                local_path = local_dir / plan["filename"]
-                if local_path.exists():
+                filename_ = plan["filename"]
+                local_path = local_dir / filename_
+
+                # ---------- Meta 命中：已完成 ----------
+                if local_path.exists() and not meta.upstream_changed(local_path):
+                    logs.info(
+                        f"[DownloadStep] meta hit → skip {filename_}"
+                    )
                     continue
 
-                with self.inst.timer(f'downloading_{plan["filename"]}'):
+                with self.inst.timer(f'downloading_{filename_}'):
 
                     self._download_one(
                         ftp=ftp,

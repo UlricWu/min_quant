@@ -1,188 +1,143 @@
-from __future__ import annotations
-
 import pyarrow as pa
-import pyarrow.parquet as pq
+import pytest
 
 from src.engines.trade_enrich_engine import TradeEnrichEngine
-from src.pipeline.context import EngineContext
 
-
-# ------------------------------------------------------------
-# helper: 写原始 trade parquet
-# ------------------------------------------------------------
-def write_raw_trades(path, rows):
-    schema = pa.schema(
-        [
-            ("ts", pa.int64()),
-            ("price", pa.float64()),
-            ("volume", pa.int64()),
-            ("side", pa.string()),   # B / S
-        ]
-    )
-    table = pa.Table.from_pylist(rows, schema=schema)
-    pq.write_table(table, path)
-
-
-# ============================================================
-# 1. 单笔买成交
-# ============================================================
-def test_trade_enrich_buy(tmp_path):
-    in_path = tmp_path / "trade.parquet"
-    out_path = tmp_path / "trade_enriched.parquet"
-
-    rows = [
+def test_trade_enrich_basic():
+    table = pa.table(
         {
-            "ts": 1,
-            "price": 10.0,
-            "volume": 100,
-            "side": "B",
+            "price": [10.0, 10.5, 10.5, 10.2],
+            "volume": [100, 50, 20, 10],
         }
-    ]
-
-    write_raw_trades(in_path, rows)
-
-    engine = TradeEnrichEngine()
-    engine.execute(
-        EngineContext(
-            mode="offline",
-            input_path=in_path,
-            output_path=out_path,
-        )
     )
 
-    df = pq.read_table(out_path).to_pandas()
-    assert len(df) == 1
-
-    r = df.iloc[0]
-
-    assert r["volume"] == 100
-    assert r["signed_volume"] == 100
-    assert r["notional"] == 1000.0
-    assert r["side"] == "B"
-
-
-# ============================================================
-# 2. 单笔卖成交
-# ============================================================
-def test_trade_enrich_sell(tmp_path):
-    in_path = tmp_path / "trade.parquet"
-    out_path = tmp_path / "trade_enriched.parquet"
-
-    rows = [
-        {
-            "ts": 1,
-            "price": 20.0,
-            "volume": 50,
-            "side": "S",
-        }
-    ]
-
-    write_raw_trades(in_path, rows)
-
     engine = TradeEnrichEngine()
-    engine.execute(
-        EngineContext(
-            mode="offline",
-            input_path=in_path,
-            output_path=out_path,
-        )
-    )
+    out = engine.execute(table)
 
-    r = pq.read_table(out_path).to_pandas().iloc[0]
+    # 行数不变
+    assert out.num_rows == 4
 
-    assert r["signed_volume"] == -50
-    assert r["notional"] == 1000.0
-
-
-# ============================================================
-# 3. 买卖混合（行数不变）
-# ============================================================
-def test_trade_enrich_mixed(tmp_path):
-    in_path = tmp_path / "trade.parquet"
-    out_path = tmp_path / "trade_enriched.parquet"
-
-    rows = [
-        {"ts": 1, "price": 10.0, "volume": 100, "side": "B"},
-        {"ts": 2, "price": 11.0, "volume": 200, "side": "S"},
-        {"ts": 3, "price": 12.0, "volume": 300, "side": "B"},
-    ]
-
-    write_raw_trades(in_path, rows)
-
-    engine = TradeEnrichEngine()
-    engine.execute(
-        EngineContext(
-            mode="offline",
-            input_path=in_path,
-            output_path=out_path,
-        )
-    )
-
-    df = pq.read_table(out_path).to_pandas()
-
-    assert len(df) == 3
-
-    assert df.iloc[0]["signed_volume"] == 100
-    assert df.iloc[1]["signed_volume"] == -200
-    assert df.iloc[2]["signed_volume"] == 300
-
-    assert df["notional"].tolist() == [
+    # notional
+    assert out["notional"].to_pylist() == [
         1000.0,
-        2200.0,
-        3600.0,
+        525.0,
+        210.0,
+        102.0,
     ]
 
+    # trade_side (tick rule)
+    # 第 0 行 → 0
+    # 10.5 > 10.0 → +1
+    # 10.5 == 10.5 → 0
+    # 10.2 < 10.5 → -1
+    assert out["trade_side"].to_pylist() == [0, 1, 0, -1]
 
-# ============================================================
-# 4. 不允许 NULL（分钟聚合前提）
-# ============================================================
-def test_trade_enrich_no_nulls(tmp_path):
-    in_path = tmp_path / "trade.parquet"
-    out_path = tmp_path / "trade_enriched.parquet"
-
-    rows = [
-        {"ts": 1, "price": 10.0, "volume": 100, "side": "B"},
-    ]
-
-    write_raw_trades(in_path, rows)
-
-    engine = TradeEnrichEngine()
-    engine.execute(
-        EngineContext(
-            mode="offline",
-            input_path=in_path,
-            output_path=out_path,
-        )
+def test_trade_enrich_first_row_side_is_zero():
+    table = pa.table(
+        {
+            "price": [10.0, 10.1],
+            "volume": [100, 50],
+        }
     )
 
-    table = pq.read_table(out_path)
+    out = TradeEnrichEngine().execute(table)
 
-    for col in ["signed_volume", "notional"]:
-        assert table.column(col).null_count == 0
+    assert out["trade_side"].to_pylist()[0] == 0
 
 
-# ============================================================
-# 5. 输出 schema 固定（防回归）
-# ============================================================
-def test_trade_enrich_schema(tmp_path):
-    in_path = tmp_path / "trade.parquet"
-    out_path = tmp_path / "trade_enriched.parquet"
-
-    rows = [
-        {"ts": 1, "price": 1.0, "volume": 1, "side": "B"},
-    ]
-
-    write_raw_trades(in_path, rows)
-
-    engine = TradeEnrichEngine()
-    engine.execute(
-        EngineContext(
-            mode="offline",
-            input_path=in_path,
-            output_path=out_path,
-        )
+def test_trade_enrich_empty_table():
+    table = pa.table(
+        {
+            "price": pa.array([], pa.float64()),
+            "volume": pa.array([], pa.int64()),
+        }
     )
 
-    table = pq.read_table(out_path)
+    engine = TradeEnrichEngine()
+    out = engine.execute(table)
 
-    assert table.schema.names == ['ts', 'price', 'volume', 'side', 'notional', 'signed_volume']
+    assert out.num_rows == 0
+    assert out.schema == table.schema
+def test_trade_enrich_missing_columns():
+    table = pa.table(
+        {
+            "price": [10.0, 10.1],
+        }
+    )
+
+    engine = TradeEnrichEngine()
+
+    with pytest.raises(ValueError) as exc:
+        engine.execute(table)
+
+    assert "missing required columns" in str(exc.value)
+def test_trade_enrich_chunked_array():
+    price = pa.chunked_array(
+        [[10.0, 10.5], [10.3]],
+        type=pa.float64(),
+    )
+    volume = pa.chunked_array(
+        [[100, 50], [20]],
+        type=pa.int64(),
+    )
+
+    table = pa.table(
+        {
+            "price": price,
+            "volume": volume,
+        }
+    )
+
+    engine = TradeEnrichEngine()
+    out = engine.execute(table)
+
+    assert out["notional"].to_pylist() == [1000.0, 525.0, 206.0]
+    assert out["trade_side"].to_pylist() == [0, 1, -1]
+def test_trade_enrich_idempotent():
+    table = pa.table(
+        {
+            "price": [10.0, 10.1],
+            "volume": [100, 50],
+        }
+    )
+
+    engine = TradeEnrichEngine()
+
+    out1 = engine.execute(table)
+    out2 = engine.execute(out1)
+
+    # 列名不应重复
+    assert out2.column_names.count("notional") == 1
+    assert out2.column_names.count("trade_side") == 1
+
+    # 数值保持一致
+    assert out2["notional"].to_pylist() == [1000.0, 505.0]
+    assert out2["trade_side"].to_pylist() == [0, 1]
+def test_trade_enrich_custom_column_names():
+    table = pa.table(
+        {
+            "p": [10.0, 9.8],
+            "v": [100, 50],
+        }
+    )
+
+    engine = TradeEnrichEngine(
+        price_col="p",
+        volume_col="v",
+        notional_col="amt",
+        side_col="side",
+    )
+
+    out = engine.execute(table)
+
+    assert "amt" in out.column_names
+    assert "side" in out.column_names
+
+    import pytest
+
+    assert out["amt"].to_pylist() == pytest.approx(
+        [1000.0, 490.0],
+        rel=1e-12,
+    )
+
+    assert out["side"].to_pylist() == [0, -1]

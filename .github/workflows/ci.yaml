@@ -95,6 +95,12 @@ jobs:
           echo "🔥 pytest running..."
           pytest -q --disable-warnings --maxfail=1
 
+      - name: Run contract
+        run: |
+          echo "🔥 pytest contract running..."
+          pytest -m contract         
+    
+
       # Optional: Upload coverage results in future
       # - name: Upload coverage reports
       #   uses: actions/upload-artifact@v4

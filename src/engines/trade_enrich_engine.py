@@ -22,12 +22,12 @@ class TradeEnrichEngine:
     """
 
     def __init__(
-        self,
-        *,
-        price_col: str = "price",
-        volume_col: str = "volume",
-        notional_col: str = "notional",
-        side_col: str = "trade_side",
+            self,
+            *,
+            price_col: str = "price",
+            volume_col: str = "volume",
+            notional_col: str = "notional",
+            side_col: str = "trade_side",
     ) -> None:
         self.price_col = price_col
         self.volume_col = volume_col
@@ -54,6 +54,17 @@ class TradeEnrichEngine:
 
         # trade_side via tick rule on price
         trade_side = self._infer_trade_side(price)
+
+        # event = table["event"]
+        # trade_side = self._infer_trade_side(price)
+        #
+        # # 非 TRADE 行强制为 0
+        # is_trade = pc.equal(event, pa.scalar("TRADE"))
+        # trade_side = pc.if_else(
+        #     is_trade,
+        #     trade_side,
+        #     pa.scalar(0, pa.int8()),
+        # )
 
         # Append columns (schema-safe)
         out = table
@@ -114,6 +125,8 @@ class TradeEnrichEngine:
                 pa.scalar(0, pa.int8()),
             ),
         )
+        # ✅ 新增：把 null 明确转成 0（契约要求）
+        side = pc.fill_null(side, pa.scalar(0, pa.int8()))
 
         # 确保最终是 int8 array（if_else 通常已推断，但这里更稳）
         return pc.cast(side, pa.int8())
