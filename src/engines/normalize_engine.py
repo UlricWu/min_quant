@@ -9,8 +9,6 @@ import pyarrow.parquet as pq
 from src.engines.parser_engine import parse_events_arrow
 from src.meta.meta import MetaResult
 
-
-
 from pathlib import Path
 from functools import reduce
 from typing import Dict, Tuple
@@ -130,3 +128,46 @@ class NormalizeEngine:
         mask = reduce(pc.or_, masks)
 
         return table.filter(mask)
+
+    @staticmethod
+    def build_symbol_slice_index(sorted_table: pa.Table) -> Dict[str, Tuple[int, int]]:
+        """
+        Build symbol -> (start, length) without symbol_col.to_pylist().
+
+        Preconditions:
+          - sorted_table is globally sorted by ('symbol', 'ts') ascending
+          - 'symbol' column exists and is not empty
+
+        Complexity:
+          - Arrow C++ O(N) for run-end encoding
+          - Python loop over #symbols (typically a few thousand)
+        """
+        if sorted_table.num_rows == 0:
+            return {}
+
+        sym = sorted_table["symbol"]
+
+        # Ensure symbol is a simple type (string or dictionary<string>)
+        # RLE works well on dictionary too; but casting to string is OK if needed.
+        if not pa.types.is_string(sym.type) and not pa.types.is_dictionary(sym.type):
+            sym = pc.cast(sym, pa.string())
+
+        # run_end_encode returns a StructArray with fields: 'values' and 'run_ends'
+        # run_ends are 1-based end positions (exclusive end indices).
+        ree = pc.run_end_encode(sym)
+
+        values = ree.field("values")
+        run_ends = ree.field("run_ends")  # int32/int64 array
+
+        # Convert ONLY per-symbol arrays to python lists (few thousand items)
+        vals_py = values.to_pylist()
+        ends_py = run_ends.to_pylist()
+
+        index: Dict[str, Tuple[int, int]] = {}
+        start = 0
+        for v, end_exclusive in zip(vals_py, ends_py):
+            length = int(end_exclusive) - start
+            index[str(v)] = (start, length)
+            start = int(end_exclusive)
+
+        return index

@@ -26,7 +26,8 @@ def sh_trade_table():
     return pa.table(
         {
             "SecurityID": ["600000", "600000"],
-            "TickTime": [2025010193001000, 2025010193002000],   # ✅ time_field
+            "TradeTime": [2025010193001000, 2025010193002000],   # ✅ time_field
+            "TickTime": [93001000, 93002000],  # ✅ time_field
             "TickType": ["T", "T"],             # ✅ event_field
             "Price": [10.0, 10.1],
             "Volume": [100, 200],
@@ -88,7 +89,8 @@ def sz_trade_table():
     return pa.table(
         {
             "SecurityID": ["000001"],
-            "TickTime": [2025010193001000],
+            "TickTime": [93001000],
+            "TradeTime": [2025010193001000],
             "ExecType": ["1"],  # TRADE
             "TradePrice": [12.5],
             "TradeVolume": [300],
