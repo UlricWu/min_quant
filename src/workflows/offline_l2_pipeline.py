@@ -29,7 +29,6 @@ from src.engines.ftp_download_engine import FtpDownloadEngine
 from src.steps.download_step import DownloadStep
 from src.engines.trade_enrich_engine import TradeEnrichEngine
 
-
 def build_offline_l2_pipeline() -> DataPipeline:
     """
     Offline Level-2 Pipeline (FINAL / FROZEN)
