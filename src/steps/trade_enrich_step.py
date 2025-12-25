@@ -83,8 +83,8 @@ class TradeEnrichStep:
                     table = accessor.get(symbol)
                     if table.num_rows == 0:
                         continue
-            enriched = self.engine.execute(table)
-            tables.append(enriched)
+                enriched = self.engine.execute(table)
+                tables.append(enriched)
 
             if not tables:
                 logs.warning(f"[TradeEnrich] {name} no data")
