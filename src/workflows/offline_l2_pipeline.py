@@ -29,6 +29,7 @@ from src.engines.ftp_download_engine import FtpDownloadEngine
 from src.steps.download_step import DownloadStep
 from src.engines.trade_enrich_engine import TradeEnrichEngine
 
+
 def build_offline_l2_pipeline() -> DataPipeline:
     """
     Offline Level-2 Pipeline (FINAL / FROZEN)
@@ -75,9 +76,8 @@ def build_offline_l2_pipeline() -> DataPipeline:
     # min_order_step = MinuteOrderAggStep(inst=inst)
     #
 
-
     steps = [
-        download_step,
+        # download_step,
         extractor_steps,
         normalize_steps,
         trade_step,
