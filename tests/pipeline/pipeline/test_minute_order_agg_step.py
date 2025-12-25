@@ -23,7 +23,8 @@ def test_step_skips_missing_input(tmp_path):
         raw_dir='',
         parquet_dir='',
         canonical_dir='',
-        meta_dir=''
+        meta_dir='',
+        feature_l0_dir=''
 
     )
 
@@ -73,7 +74,8 @@ def test_step_runs_successfully(tmp_path, write_parquet):
         raw_dir='',
         parquet_dir='',
         canonical_dir='',
-        meta_dir=''
+        meta_dir='',
+        feature_l0_dir=''
     )
 
     step = MinuteOrderAggStep(MinuteOrderAggEngine(),inst=DummyInst())

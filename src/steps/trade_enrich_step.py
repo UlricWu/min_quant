@@ -18,6 +18,7 @@ from src.meta.meta import BaseMeta
 from src.pipeline.context import PipelineContext
 from src.meta.meta import MetaResult
 
+
 class TradeEnrichStep:
     """
     TradeEnrichStep（冻结 MVP 版）
