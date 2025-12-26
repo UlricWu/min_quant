@@ -1,3 +1,11 @@
+## [0.8.1](https://github.com/UlricWu/min_quant/compare/v0.8.0...v0.8.1) (2025-12-26)
+
+
+### Bug Fixes
+
+* download speed ([e1d7bda](https://github.com/UlricWu/min_quant/commit/e1d7bdad69e3398b309e50d60b8542caee1b623c))
+* minute local time ([b66cb3a](https://github.com/UlricWu/min_quant/commit/b66cb3a93c4e5e87952e55c155a94bd9aeb53600))
+
 # [0.8.0](https://github.com/UlricWu/min_quant/compare/v0.7.0...v0.8.0) (2025-12-24)
 
 
