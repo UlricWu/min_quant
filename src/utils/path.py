@@ -99,12 +99,10 @@ class PathManager:
         return p / str(date) if date else p
 
     @classmethod
-    def fact_dir(cls, date:str) -> Path:
+    def fact_dir(cls, date: str) -> Path:
         if date:
             return cls.data_dir() / "fact" / date
         return cls.data_dir() / "fact"
-
-
 
     # @classmethod
     # def symbol_dir(cls, symbol: str, date: str | None = None) -> Path:
@@ -184,3 +182,9 @@ class PathManager:
         if date:
             return cls.data_dir() / "meta" / date
         return cls.data_dir() / "meta"
+
+    @classmethod
+    def feature_l0_dir(cls, date: str = '') -> Path:
+        if date:
+            return cls.data_dir() / "feature_l0_dir" / date
+        return cls.data_dir() / "feature_l0_dir"
