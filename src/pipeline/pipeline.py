@@ -7,11 +7,15 @@ from src.utils.path import PathManager
 from src.utils.filesystem import FileSystem
 from src import logs
 from src.observability.instrumentation import Instrumentation
+
+
 class PipelineAbort(Exception):
     """
     用于 Step 主动中断 Pipeline 的信号异常
     """
     pass
+
+
 class DataPipeline:
     """
     DataPipeline = 调度器（Scheduler）
@@ -40,12 +44,14 @@ class DataPipeline:
         fact_dir = self.pm.fact_dir(date)
         normalize_dir = self.pm.canonical_dir(date)
         meta_dir = self.pm.meta_dir(date)
+        feature_l0_dir = self.pm.feature_l0_dir(date)
 
         FileSystem.ensure_dir(raw_dir)
         FileSystem.ensure_dir(parquet_dir)
         FileSystem.ensure_dir(fact_dir)
         FileSystem.ensure_dir(normalize_dir)
         FileSystem.ensure_dir(meta_dir)
+        FileSystem.ensure_dir(feature_l0_dir)
 
         ctx = PipelineContext(
             date=date,
@@ -54,6 +60,7 @@ class DataPipeline:
             canonical_dir=normalize_dir,
             fact_dir=fact_dir,
             meta_dir=meta_dir,
+            feature_l0_dir=feature_l0_dir
         )
 
         # --------------------------------------------------
