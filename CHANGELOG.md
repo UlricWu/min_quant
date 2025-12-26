@@ -1,3 +1,10 @@
+# [0.10.0](https://github.com/UlricWu/min_quant/compare/v0.9.0...v0.10.0) (2025-12-26)
+
+
+### Features
+
+* new stage ([b8daff5](https://github.com/UlricWu/min_quant/commit/b8daff5b07665b6594ff3dd005c3276bfe9b7bc3))
+
 # [0.9.0](https://github.com/UlricWu/min_quant/compare/v0.8.0...v0.9.0) (2025-12-26)
 
 
