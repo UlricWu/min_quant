@@ -59,6 +59,4 @@ def today():
 if __name__ == "__main__":
     app()
 
-#  ftp->7z->csv->parquet->sh_order_trade split->symbol_date ->trade_enrich -> orderbook
-
 # python -m src.cli run 2025-11-04
