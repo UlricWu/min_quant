@@ -2,7 +2,6 @@
 import pandas as pd
 import typer
 from rich import print
-from typing import Optional
 
 from src.workflows.offline_l2_pipeline import build_offline_l2_pipeline
 
