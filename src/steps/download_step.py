@@ -16,19 +16,23 @@ from src.config.secret_config import SecretConfig
 from src.config.pipeline_config import DownloadBackend
 
 from src.pipeline.pipeline import PipelineAbort
-from src.meta.meta import BaseMeta
+from src.meta.meta import BaseMeta, MetaResult
 
 
 class DownloadStep(PipelineStep):
     """
     DownloadStep（I/O 层，工程冻结版）
 
-    职责：
-      - FTP 连接 / curl 下载
-      - 重试 / 超时 / 本地落盘
-      - 下载规则全部委托给 FtpDownloadEngine
-       - 非程序错误（交易时间 / 无数据 / 业务限制） → 跳过 pipeline
-        - 程序错误（curl 崩 / 网络异常 / 代码 bug） → 原样抛异常
+DownloadStep（Source Step / 冻结版）
+
+    语义：
+      - upstream：远端 FTP 文件（虚拟 Path，仅用于 Meta）
+      - output  ：本地 raw/*.7z 文件
+      - rows    ：0（Source Step，无表结构）
+
+    行为约定：
+      - 非程序错误（无交易 / 无数据 / 权限） → PipelineAbort（跳过）
+      - 程序错误（网络 / curl / bug）      → 原样抛异常
     """
 
     def __init__(
@@ -91,17 +95,19 @@ class DownloadStep(PipelineStep):
             # 2. 执行下载
             # --------------------------------------------------
             for plan in plans:
-                filename_ = plan["filename"]
-                local_path = local_dir / filename_
+                filename = plan["filename"]
+                local_path = local_dir / filename
+
+                upstream = self._remote_upstream_path(date_str, filename)
 
                 # ---------- Meta 命中：已完成 ----------
-                if local_path.exists() and not meta.upstream_changed(local_path):
+                if local_path.exists() and not meta.upstream_changed(upstream):
                     logs.info(
-                        f"[DownloadStep] meta hit → skip {filename_}"
+                        f"[DownloadStep] meta hit → skip {filename}"
                     )
                     continue
 
-                with self.inst.timer(f'downloading_{filename_}'):
+                with self.inst.timer(f'downloading_{filename}'):
 
                     self._download_one(
                         ftp=ftp,
@@ -109,6 +115,14 @@ class DownloadStep(PipelineStep):
                         plan=plan,
                         local_path=local_path,
                     )
+
+                # ---------- Meta Commit（仅成功后） ----------
+                result = MetaResult(
+                    input_file=upstream,
+                    output_file=local_path,
+                    rows=0,
+                )
+                meta.commit(result)
         except Exception as e:
             msg = str(e)
             if self._is_non_fatal_error(msg):
@@ -128,6 +142,19 @@ class DownloadStep(PipelineStep):
                     pass
 
         return ctx
+
+    # ======================================================
+    # Virtual upstream (Source Step)
+    # ======================================================
+    def _remote_upstream_path(self, date: str, filename: str) -> Path:
+        """
+        虚拟 upstream，仅用于 Meta：
+        ftp://host:port/root/date/filename
+        """
+        return Path(
+            f"ftp://{self.host}:{self.port}"
+            f"/{self.remote_root}/{date}/{filename}"
+        )
 
     @staticmethod
     def _is_non_fatal_error(msg: str) -> bool:
@@ -215,7 +242,12 @@ class DownloadStep(PipelineStep):
             "--show-error",
             "--stderr", "-",  # ★ 强制 stderr 输出
             "--write-out",
-            "speed=%{speed_download*8/1000000} size=%{size_download}\n",  # curl 的下载进度 / 速度信息
+            (
+                "{"
+                "\"speed_bps\": %{speed_download}, "
+                "\"size_bytes\": %{size_download}"
+                "}\n"
+            ),  # curl 的下载进度 / 速度信息
             "-o", str(local_path),
             url,
         ]
@@ -227,7 +259,22 @@ class DownloadStep(PipelineStep):
             text=True,
             timeout=600,
         )
+        # if result.stdout.strip():
+        #     logs.info(
+        #         f"[DownloadStats] {remote_file} | {result.stdout.strip()}"
+        #     )
+
+        if result.stdout.strip():
+            stats = json.loads(result.stdout)
+            speed_mbps = stats["speed_bps"] * 8 / 1_000_000
+            size_gb = stats["size_bytes"] / 1_000_000_000
+
+            logs.info(
+                f"[DownloadStats] {remote_file} | "
+                f"speed={speed_mbps:.2f} Mbps "
+                f"size={size_gb:.2f} GB"
+            )
+
         logs.info(
-            f"[Download] {remote_file} → {local_path} | "
-            f"download finished "
+            f"[Download] finished {remote_file} → {local_path}"
         )

@@ -18,6 +18,7 @@ from src.meta.meta import BaseMeta
 from src.pipeline.context import PipelineContext
 from src.meta.meta import MetaResult
 
+
 class TradeEnrichStep:
     """
     TradeEnrichStep（冻结 MVP 版）
@@ -61,8 +62,13 @@ class TradeEnrichStep:
         stage = "enriched"
         meta = BaseMeta(meta_dir, stage=stage)
 
-        for input_file in list(input_dir.glob(f"*trade.parquet")):
-            name = input_file.stem  # sh_trade / sz_trade
+        outputs = getattr(ctx, "normalize_outputs", [])
+        if not outputs:
+            logs.info("[TradeEnrichStep] no normalized inputs")
+            return ctx
+
+        for name in outputs:
+            input_file = input_dir / f"{name}.parquet"
 
             if not meta.upstream_changed(input_file):
                 logs.warning(f"[TradeEnrichStep] {name} unchanged -> skip")
@@ -78,8 +84,8 @@ class TradeEnrichStep:
                     table = accessor.get(symbol)
                     if table.num_rows == 0:
                         continue
-            enriched = self.engine.execute(table)
-            tables.append(enriched)
+                enriched = self.engine.execute(table)
+                tables.append(enriched)
 
             if not tables:
                 logs.warning(f"[TradeEnrich] {name} no data")
