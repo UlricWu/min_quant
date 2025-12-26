@@ -1,3 +1,16 @@
+# [0.9.0](https://github.com/UlricWu/min_quant/compare/v0.8.0...v0.9.0) (2025-12-26)
+
+
+### Bug Fixes
+
+* download speed ([c55080e](https://github.com/UlricWu/min_quant/commit/c55080e971ce3529c0232230d67923329bc6c13b))
+* minute local time ([0a19897](https://github.com/UlricWu/min_quant/commit/0a1989748f6aaa377051e079882f7a30bd719895))
+
+
+### Features
+
+* reset release cycle after history rewrite ([4e630b1](https://github.com/UlricWu/min_quant/commit/4e630b1898d3acee327ec4e77c661ca86883851b))
+
 ## [0.8.1](https://github.com/UlricWu/min_quant/compare/v0.8.0...v0.8.1) (2025-12-26)
 
 
