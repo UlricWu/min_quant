@@ -5,7 +5,7 @@ from abc import ABC, abstractmethod
 from src import logs
 from src.pipeline.context import PipelineContext
 from src.meta.meta import BaseMeta
-
+from contextlib import nullcontext
 
 class BasePipelineStep(ABC):
     """

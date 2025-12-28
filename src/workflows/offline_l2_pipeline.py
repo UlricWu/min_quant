@@ -32,7 +32,8 @@ from src.engines.trade_enrich_engine import TradeEnrichEngine
 from src.engines.feature_l0_engine import FeatureL0Engine
 from src.steps.feature_l0_step import FeatureL0Step
 
-
+from src.engines.feature_l1_engine import FeatureL1Engine
+from src.steps.feature_l1_step import FeatureL1Step
 def build_offline_l2_pipeline() -> DataPipeline:
     """
     Offline Level-2 Pipeline (FINAL / FROZEN)
@@ -79,6 +80,7 @@ def build_offline_l2_pipeline() -> DataPipeline:
     # min_order_step = MinuteOrderAggStep(inst=inst)
     #
     l0_step = FeatureL0Step(inst=inst, engine=FeatureL0Engine())
+    l1_step = FeatureL1Step(inst=inst, engine=FeatureL1Engine())
 
     steps = [
         # download_step,
@@ -87,7 +89,8 @@ def build_offline_l2_pipeline() -> DataPipeline:
         trade_step,
         min_trade_step,
         # min_order_step,
-        l0_step
+        l0_step,
+        l1_step
     ]
 
     return DataPipeline(

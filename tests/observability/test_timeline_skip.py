@@ -55,8 +55,8 @@ class DummyPathManager:
     def meta_dir(self, date) -> Path:
         return Path("/tmp/meta")
 
-    def feature_l0_dir(self, date) -> Path:
-        return Path("/tmp/feature_l0")
+    def feature_dir(self, date) -> Path:
+        return Path("/tmp/feature")
 
 
 class DummyFileSystem:
@@ -89,7 +89,7 @@ def ctx(tmp_path: Path) -> PipelineContext:
         fact_dir=tmp_path / "symbol",
         canonical_dir=tmp_path / "canonical",
         meta_dir=tmp_path/'meta',
-        feature_l0_dir=tmp_path/'feature_l0',
+        feature_dir=tmp_path / 'feature',
     )
 
 

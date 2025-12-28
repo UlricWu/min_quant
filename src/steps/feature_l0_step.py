@@ -21,13 +21,13 @@ class FeatureL0Step(PipelineStep):
     """
 
     def __init__(self, engine: FeatureL0Engine, inst=None) -> None:
+        super().__init__(inst)  # ⭐ 关键一行
         self.engine = engine
-        self.inst = inst
 
     # --------------------------------------------------
     def run(self, ctx: PipelineContext) -> PipelineContext:
         fact_dir: Path = ctx.fact_dir
-        feature_dir: Path = ctx.feature_l0_dir
+        feature_dir: Path = ctx.feature_dir
         meta_dir: Path = ctx.meta_dir
 
         stage = "l0"

@@ -44,7 +44,7 @@ class DataPipeline:
         fact_dir = self.pm.fact_dir(date)
         normalize_dir = self.pm.canonical_dir(date)
         meta_dir = self.pm.meta_dir(date)
-        feature_l0_dir = self.pm.feature_l0_dir(date)
+        feature_l0_dir = self.pm.feature_dir(date)
 
         FileSystem.ensure_dir(raw_dir)
         FileSystem.ensure_dir(parquet_dir)
@@ -60,7 +60,7 @@ class DataPipeline:
             canonical_dir=normalize_dir,
             fact_dir=fact_dir,
             meta_dir=meta_dir,
-            feature_l0_dir=feature_l0_dir
+            feature_dir=feature_l0_dir
         )
 
         # --------------------------------------------------

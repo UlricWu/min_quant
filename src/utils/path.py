@@ -184,7 +184,7 @@ class PathManager:
         return cls.data_dir() / "meta"
 
     @classmethod
-    def feature_l0_dir(cls, date: str = '') -> Path:
+    def feature_dir(cls, date: str = '') -> Path:
         if date:
-            return cls.data_dir() / "feature_l0_dir" / date
-        return cls.data_dir() / "feature_l0_dir"
+            return cls.data_dir() / "feature" / date
+        return cls.data_dir() / "feature"
