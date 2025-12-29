@@ -49,8 +49,8 @@ class DummyPathManager:
     def fact_dir(self, date) -> Path:
         return Path("/tmp/fact")
 
-    def canonical_dir(self, date) -> Path:
-        return Path("/tmp/canonical")
+    def event_dir(self, date) -> Path:
+        return Path("/tmp/event")
 
     def meta_dir(self, date) -> Path:
         return Path("/tmp/meta")
@@ -87,7 +87,7 @@ def ctx(tmp_path: Path) -> PipelineContext:
         raw_dir=tmp_path / "raw",
         parquet_dir=tmp_path / "parquet",
         fact_dir=tmp_path / "symbol",
-        canonical_dir=tmp_path / "canonical",
+        event_dir=tmp_path / "event",
         meta_dir=tmp_path/'meta',
         feature_dir=tmp_path / 'feature',
     )

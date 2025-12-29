@@ -10,16 +10,16 @@ import pyarrow.parquet as pq
 
 class SymbolAccessor:
     """
-    SymbolAccessor（冻结版 / Normalize Meta 驱动）
+    SymbolAccessor（冻结版 / Slice-Index 驱动）
 
     单一职责：
-      - 从 Normalize manifest 读取 canonical parquet + symbol slice index
+      - 从任意 manifest 读取 canonical parquet + symbol slice index
       - 提供 0-copy 的 symbol 级访问接口
 
-    设计铁律：
-      1. 唯一数据来源：Normalize Meta（manifest）
-      2. 不关心 pipeline / step / engine
-      3. 不做任何业务逻辑
+    设计铁律（冻结）：
+      1. 唯一数据来源：manifest（不关心 stage）
+      2. 是否可 slice 只由 outputs.index 决定
+      3. 不关心 pipeline / step / engine
       4. 所有 slice 均为 O(1) + 0-copy
     """
 
@@ -27,12 +27,12 @@ class SymbolAccessor:
     # Construction
     # ------------------------------------------------------------------
     def __init__(
-        self,
-        *,
-        table: pa.Table,
-        index: Dict[str, Tuple[int, int]],
-        manifest: dict,
-        manifest_path: Path,
+            self,
+            *,
+            table: pa.Table,
+            index: Dict[str, Tuple[int, int]],
+            manifest: dict,
+            manifest_path: Path,
     ):
         self._table = table
         self._index = index
@@ -62,10 +62,10 @@ class SymbolAccessor:
         # -----------------------------
         # 校验基本结构（防止脏数据）
         # -----------------------------
-        if manifest.get("stage") != "normalize":
-            raise ValueError(
-                f"Manifest stage must be 'normalize', got {manifest.get('stage')}"
-            )
+        # if manifest.get("stage") != "normalize":
+        #     raise ValueError(
+        #         f"Manifest stage must be 'normalize', got {manifest.get('stage')}"
+        #     )
 
         outputs = manifest.get("outputs")
         if not outputs or "file" not in outputs:
@@ -183,3 +183,52 @@ class SymbolAccessor:
         """调试用：返回某个 symbol 的前 n 行"""
         table = self.get(symbol)
         return table.slice(0, min(n, table.num_rows))
+
+    def bind(self, table: pa.Table) -> "SymbolTableView":
+        """
+        将 normalize 的 symbol slice index
+        绑定到一张 row-wise 对齐的外部 table。
+
+        Contract（冻结）：
+          - table.num_rows == canonical.num_rows
+          - row order 完全一致
+        """
+        if table.num_rows != self._table.num_rows:
+            raise ValueError(
+                "Cannot bind table with different row count "
+                f"(canonical={self._table.num_rows}, given={table.num_rows})"
+            )
+
+        return SymbolTableView(
+            table=table,
+            index=self._index,
+        )
+
+
+class SymbolTableView:
+    """
+    SymbolTableView（冻结版）
+
+    语义：
+      - 使用 SymbolAccessor 提供的 slice index
+      - 但数据来源是外部 table（row-aligned）
+    """
+
+    def __init__(
+            self,
+            *,
+            table: pa.Table,
+            index: Dict[str, Tuple[int, int]],
+    ):
+        self._table = table
+        self._index = index
+
+    def symbols(self) -> Iterable[str]:
+        return self._index.keys()
+
+    def get(self, symbol: str) -> pa.Table:
+        if symbol not in self._index:
+            return self._table.slice(0, 0)
+
+        start, length = self._index[symbol]
+        return self._table.slice(start, length)

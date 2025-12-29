@@ -42,25 +42,25 @@ class DataPipeline:
         raw_dir = self.pm.raw_dir(date)
         parquet_dir = self.pm.parquet_dir(date)
         fact_dir = self.pm.fact_dir(date)
-        normalize_dir = self.pm.canonical_dir(date)
         meta_dir = self.pm.meta_dir(date)
         feature_l0_dir = self.pm.feature_dir(date)
+        event_dir = self.pm.event_dir(date)
 
         FileSystem.ensure_dir(raw_dir)
         FileSystem.ensure_dir(parquet_dir)
         FileSystem.ensure_dir(fact_dir)
-        FileSystem.ensure_dir(normalize_dir)
         FileSystem.ensure_dir(meta_dir)
         FileSystem.ensure_dir(feature_l0_dir)
+        FileSystem.ensure_dir(event_dir)
 
         ctx = PipelineContext(
             date=date,
             raw_dir=raw_dir,
             parquet_dir=parquet_dir,
-            canonical_dir=normalize_dir,
             fact_dir=fact_dir,
             meta_dir=meta_dir,
-            feature_dir=feature_l0_dir
+            feature_dir=feature_l0_dir,
+            event_dir=event_dir,
         )
 
         # --------------------------------------------------

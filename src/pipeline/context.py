@@ -27,9 +27,9 @@ class PipelineContext:
     # -------------------------
     raw_dir: Path
     parquet_dir: Path
-    canonical_dir: Path
     fact_dir: Path
     meta_dir: Path
+    event_dir: Path
 
     feature_dir: Path
     # -------- PipelineRuntime flags --------

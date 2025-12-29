@@ -6,7 +6,6 @@ from pathlib import Path
 import sys
 import shutil
 
-
 DATA_ROOT = Path.home() / "data"
 
 
@@ -44,7 +43,7 @@ def main() -> None:
     # ------------------------------------------------------------------
     # canonical / parquet
     # ------------------------------------------------------------------
-    for top in ("canonical", "parquet", 'meta'):
+    for top in ("fact", "parquet", 'meta', "feature"):
         date_dir = DATA_ROOT / top / args.date
         if not date_dir.exists():
             continue
@@ -55,24 +54,6 @@ def main() -> None:
         else:
             # 整天删除（包括 <date> 目录）
             targets.append(date_dir)
-
-    # ------------------------------------------------------------------
-    # symbol/*/<date>
-    # ------------------------------------------------------------------
-    # ------------------------------------------------------------------
-    # symbol/<date>/<symbol>
-    # ------------------------------------------------------------------
-    symbol_date_dir = DATA_ROOT / "symbol" / args.date
-    if symbol_date_dir.exists():
-        if args.files:
-            # 只删指定文件（保留 <date> 目录）
-            for sym_dir in symbol_date_dir.iterdir():
-                if not sym_dir.is_dir():
-                    continue
-                targets.extend(sym_dir / f for f in args.files)
-        else:
-            # 未指定 files：整天删除（包括 <date>）
-            targets.append(symbol_date_dir)
 
     # ------------------------------------------------------------------
     # 执行删除
@@ -103,6 +84,5 @@ def main() -> None:
 
 if __name__ == "__main__":
     main()
-
 
 # python scripts/clean_by_date.py  --date 2015-01-01 --files Trade_Enriched.parquet Order.parquet Snapshot.parquet

@@ -55,23 +55,17 @@ class TradeEnrichStep:
           - Normalize 已完成
           - Normalize Meta 存在
         """
-        input_dir: Path = ctx.canonical_dir
+        input_dir: Path = ctx.fact_dir
         output_dir: Path = ctx.fact_dir
 
         meta_dir: Path = ctx.meta_dir
         stage = "enriched"
         meta = BaseMeta(meta_dir, stage=stage)
 
-        outputs = getattr(ctx, "normalize_outputs", [])
-        if not outputs:
-            logs.info("[TradeEnrichStep] no normalized inputs")
-            return ctx
-
-        for name in outputs:
-            input_file = input_dir / f"{name}.parquet"
+        for input_file in input_dir.glob("*trade.normalize.parquet"):
 
             if not meta.upstream_changed(input_file):
-                logs.warning(f"[TradeEnrichStep] {name} unchanged -> skip")
+                logs.warning(f"[TradeEnrichStep] {input_file.name} unchanged -> skip")
                 continue
             manifest_path = meta.manifest_path(input_file, 'normalize')
 
@@ -79,13 +73,14 @@ class TradeEnrichStep:
 
             tables = []
 
+            name = input_file.stem.split('.')[0]
             with self.inst.timer(f"TradeEnrich_{name}"):
                 for symbol in accessor.symbols():
                     table = accessor.get(symbol)
                     if table.num_rows == 0:
                         continue
-                enriched = self.engine.execute(table)
-                tables.append(enriched)
+                    enriched = self.engine.execute(table)
+                    tables.append(enriched)
 
             if not tables:
                 logs.warning(f"[TradeEnrich] {name} no data")
@@ -95,7 +90,7 @@ class TradeEnrichStep:
             # --------------------------------------------------
             result_table = pa.concat_tables(tables)
 
-            output_file = output_dir / f"{name}_{stage}.parquet"
+            output_file = output_dir / f"{name}.{stage}.parquet"
             pq.write_table(result_table, output_file)
 
             # --------------------------------------------------
@@ -111,6 +106,7 @@ class TradeEnrichStep:
 
             logs.info(
                 f"[TradeEnrich] written {output_file.name} "
+                f"symbols={len(tables)}"
                 f"(rows={result_table.num_rows})"
             )
 

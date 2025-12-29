@@ -172,10 +172,10 @@ class PathManager:
         return cls.data_dir() / "bar" / "1m"
 
     @classmethod
-    def canonical_dir(cls, date: str = '') -> Path:
+    def event_dir(cls, date: str = '') -> Path:
         if date:
-            return cls.data_dir() / "canonical" / date
-        return cls.data_dir() / "canonical"
+            return cls.data_dir() / "event" / date
+        return cls.data_dir() / "event"
 
     @classmethod
     def meta_dir(cls, date: str = '') -> Path:
