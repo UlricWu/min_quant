@@ -40,14 +40,13 @@ class MinuteTradeAggStep(PipelineStep):
             # 1. upstream check
             # --------------------------------------------------
             if not meta.upstream_changed(input_file):
-                logs.info(f"[MinuteTradeAgg] {name} unchanged -> skip")
+                logs.warning(f"[MinuteTradeAgg] {name} unchanged -> skip")
                 continue
 
             # --------------------------------------------------
             # 2. 从 normalize manifest 构造 symbol accessor
             # --------------------------------------------------
-            # manifest_path = meta.manifest_path(input_file, stage="normalize")
-            # accessor = SymbolAccessor.from_manifest(manifest_path)
+
             #
             minute_tables = []
 

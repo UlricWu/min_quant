@@ -179,7 +179,7 @@ class FeatureBuildStep(PipelineStep):
             # Upstream check (Meta v1) - sufficient for now
             # --------------------------------------------------------------
             if not meta_feature.upstream_changed(input_file):
-                logs.info(f"[Feature] {exchange} unchanged -> skip")
+                logs.warning(f"[Feature] {exchange} unchanged -> skip")
                 continue
 
             # --------------------------------------------------------------

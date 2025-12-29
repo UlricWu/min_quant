@@ -118,12 +118,12 @@ class NormalizeStep(PipelineStep):
         inputs: list[Path] = []
         for input_file in input_dir.glob("*.parquet"):
             if not meta.upstream_changed(input_file):
-                logs.info(f"[NormalizeStep] {input_file.name} unchanged -> skip")
+                logs.warning(f"[NormalizeStep] {input_file.name} unchanged -> skip")
                 continue
             inputs.append(input_file)
 
         if not inputs:
-            logs.info("[NormalizeStep] no files to normalize")
+            logs.warning("[NormalizeStep] no files to normalize")
             return ctx
 
         # ② master：准备并行参数（纯数据）
