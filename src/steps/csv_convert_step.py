@@ -56,7 +56,7 @@ class CsvConvertStep(PipelineStep):
             # Meta 判断：是否需要重新转换
             # --------------------------------------------------
             if not meta.upstream_changed(zfile):
-                logs.info(
+                logs.warning(
                     f"[CsvConvertStep] meta hit → skip {zfile.name}"
                 )
                 continue
@@ -71,7 +71,7 @@ class CsvConvertStep(PipelineStep):
                 items.append((str(zfile), str(parquet_dir)))
 
         if not items:
-            logs.info("[CsvConvertStep] nothing to convert")
+            logs.warning("[CsvConvertStep] nothing to convert")
             return ctx
 
         with self.inst.timer('CsvConvertStep'):

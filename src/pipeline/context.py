@@ -27,11 +27,11 @@ class PipelineContext:
     # -------------------------
     raw_dir: Path
     parquet_dir: Path
-    canonical_dir: Path
     fact_dir: Path
     meta_dir: Path
+    event_dir: Path
 
-    feature_l0_dir: Path
+    feature_dir: Path
     # -------- PipelineRuntime flags --------
     abort_pipeline: bool = False
     abort_reason: Optional[str] = None

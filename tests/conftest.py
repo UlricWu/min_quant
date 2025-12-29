@@ -12,11 +12,15 @@ import pytest
 import pyarrow as pa
 import pyarrow.parquet as pq
 from loguru import logger
+from src.pipeline.context import PipelineContext
+
+
 @pytest.fixture(autouse=True)
 def disable_file_logger():
     logger.remove()
     logger.add(lambda msg: None)  # or sys.stderr
     yield
+
 
 # todo property-based contract（Hypothesis）
 @pytest.fixture(scope="session")
@@ -219,6 +223,7 @@ def write_parquet(tmp_path):
 
     return _write
 
+
 # tests/conftest.py
 import multiprocessing
 import pytest
@@ -227,6 +232,7 @@ import pytest
 @pytest.fixture(scope="session", autouse=True)
 def _set_start_method():
     multiprocessing.set_start_method("spawn", force=True)
+
 
 import pytest
 from pathlib import Path
@@ -244,3 +250,49 @@ def dummy_output(tmp_path: Path) -> Path:
     p = tmp_path / "output.txt"
     p.write_text("output data", encoding="utf-8")
     return p
+
+
+@pytest.fixture
+def make_test_pipeline_context(tmp_path: Path):
+    """
+    Factory fixture for PipelineContext (testing only).
+
+    Usage:
+        ctx = make_test_pipeline_context()
+        ctx = make_test_pipeline_context(date="2025-01-02")
+
+    Design principles:
+    - PipelineContext remains a strong, non-optional contract
+    - Tests get a minimal but complete context
+    - All directory paths are real and isolated under tmp_path
+    """
+
+    def _make(date: str = "2025-01-01") -> PipelineContext:
+        raw_dir = tmp_path / "raw"
+        parquet_dir = tmp_path / "parquet"
+        fact_dir = tmp_path / "fact"
+        feature_dir = tmp_path / "feature"
+        meta_dir = tmp_path / "meta"
+        event_dir = tmp_path / "event_dir"
+
+        for d in (
+                raw_dir,
+                parquet_dir,
+                event_dir,
+                fact_dir,
+                feature_dir,
+                meta_dir,
+        ):
+            d.mkdir(parents=True, exist_ok=True)
+
+        return PipelineContext(
+            date=date,
+            raw_dir=raw_dir,
+            parquet_dir=parquet_dir,
+            fact_dir=fact_dir,
+            feature_dir=feature_dir,
+            meta_dir=meta_dir,
+            event_dir=event_dir
+        )
+
+    return _make
