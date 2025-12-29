@@ -5,15 +5,33 @@ from abc import ABC, abstractmethod
 from src import logs
 from src.pipeline.context import PipelineContext
 from src.meta.meta import BaseMeta
-
+from contextlib import nullcontext
 
 class BasePipelineStep(ABC):
     """
-    BasePipelineStep（冻结）
+    SerialFileStep（冻结）
 
-    Template Method Pattern：
-      - run() 固定
-      - 子类只实现 hook
+    定位：
+      - 串行执行
+      - 输入粒度 = 文件
+      - 一对一映射（upstream output → downstream output）
+      - 无 fan-out / fan-in
+      - 无并行
+
+    适用场景：
+      - Convert / Copy / Validate
+      - Schema check
+      - 简单文件级 transform
+
+    不适用：
+      - Normalize（batch + index）
+      - MinuteAgg（symbol fan-out）
+      - FeatureStep（未来 window / rolling）
+      - 任何需要并行的 Step
+
+    设计模式：
+      - Template Method
+      - 强约束，弱扩展
     """
 
     stage: str                # e.g. "normalize"

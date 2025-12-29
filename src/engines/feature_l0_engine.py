@@ -79,7 +79,14 @@ class FeatureL0Engine:
             pc.cast(table["volume"], pa.float64()),
             pc.cast(table["trade_count"], pa.float64()),
         )
-        avg_size = pc.fill_null(avg_size, 0.0)
+
+        avg_size = pc.if_else(
+            pc.greater(pc.cast(table["trade_count"], pa.float64()), 0),
+            avg_size,
+            0.0,
+        )
+        # 0.0 / 0.0  →  NaN   （不是 null）->补0
+
         return _append_or_replace(table, "l0_avg_trade_size", avg_size)
 
     @staticmethod
@@ -92,11 +99,17 @@ class FeatureL0Engine:
         sell = pc.cast(table["sell_volume"], pa.float64())
         total = pc.add(buy, sell)
 
-        buy_ratio = pc.divide(buy, total)
-        buy_ratio = pc.fill_null(buy_ratio, 0.0)
+        buy_ratio = pc.if_else(
+            pc.greater(total, 0),
+            pc.divide(buy, total),
+            0.0,
+        )
 
-        imbalance = pc.divide(pc.subtract(buy, sell), total)
-        imbalance = pc.fill_null(imbalance, 0.0)
+        imbalance = pc.if_else(
+            pc.greater(total, 0),
+            pc.divide(pc.subtract(buy, sell), total),
+            0.0,
+        )
 
         table = _append_or_replace(table, "l0_buy_ratio", buy_ratio)
         table = _append_or_replace(table, "l0_imbalance", imbalance)

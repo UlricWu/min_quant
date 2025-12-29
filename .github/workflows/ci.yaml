@@ -6,7 +6,7 @@ on:
       - main
       - master
       - develop
-#      - "feature/**"
+  #      - "feature/**"
   pull_request:
     branches:
       - main
@@ -18,7 +18,7 @@ on:
         required: false
         type: string
         default: "3.13"
-    secrets: {}                # ⭐合法写法，不要写 inherit
+    secrets: { }                # ⭐合法写法，不要写 inherit
 
 
 # 强制 GitHub Actions 在正确的目录运行（关键！）
@@ -32,18 +32,23 @@ jobs:
 
     strategy:
       matrix:
-        python-version: ["3.13"]
+        python-version: [ "3.13" ]
 
     steps:
       # Checkout code
       - name: Checkout repository
         uses: actions/checkout@v4
 
+
       # Setup Python
       - name: Set up Python ${{ matrix.python-version }}
         uses: actions/setup-python@v5
         with:
           python-version: ${{ matrix.python-version }}
+          cache: pip
+          cache-dependency-path: |
+            requirements.txt
+
 
       # Install pip latest
       - name: Upgrade pip
@@ -53,26 +58,27 @@ jobs:
       - name: Install dependencies
         run: |
           if [ -f requirements.txt ]; then pip install -r requirements.txt; fi
-          pip install pytest pytest-cov black ruff flake8
+          pip install pytest 
+      #          pip install pytest pytest-cov black ruff flake8
 
       ## help: Remove unused import: `os`
       # Run static checks
-#      - name: Run flake8
-#        run: |
-#          echo "🔥 flake8 running..."
-#          flake8 src/ --count --select=E9,F63,F7,F82 --show-source --statistics
-#          flake8 src/ --count --exit-zero --max-complexity=10 --max-line-length=120 --statistics
+      #      - name: Run flake8
+      #        run: |
+      #          echo "🔥 flake8 running..."
+      #          flake8 src/ --count --select=E9,F63,F7,F82 --show-source --statistics
+      #          flake8 src/ --count --exit-zero --max-complexity=10 --max-line-length=120 --statistics
 
-#      - name: Run ruff
-#        run: |
-#          echo "🔥 ruff running..."
-#          ruff check src/
-#
-#      # Run Black (check only)
-#      - name: Black code style check
-#        run: |
-#          echo "🔥 black running in --check mode..."
-#          black --check --diff src/
+      #      - name: Run ruff
+      #        run: |
+      #          echo "🔥 ruff running..."
+      #          ruff check src/
+      #
+      #      # Run Black (check only)
+      #      - name: Black code style check
+      #        run: |
+      #          echo "🔥 black running in --check mode..."
+      #          black --check --diff src/
 
       # Run pytest
       - name: Print working directory
@@ -99,11 +105,5 @@ jobs:
         run: |
           echo "🔥 pytest contract running..."
           pytest -m contract         
-    
+      
 
-      # Optional: Upload coverage results in future
-      # - name: Upload coverage reports
-      #   uses: actions/upload-artifact@v4
-      #   with:
-      #     name: coverage
-      #     path: coverage.xml
