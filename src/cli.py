@@ -54,6 +54,17 @@ def today():
     print(f"[yellow]Running L2 Pipeline for today: {date}[/yellow]")
     pipeline.run(date)
 
+@app.command()
+def backtest(date: str, symbol: str):
+    """
+    Run Level-1 backtest
+    """
+    from src.workflows.backtest_l1_workflow import run_backtest_l1
+
+    equity = run_backtest_l1(date=date, symbol=symbol)
+    print(equity.tail())
+
+
 
 if __name__ == "__main__":
     app()

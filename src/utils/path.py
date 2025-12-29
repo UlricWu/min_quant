@@ -188,3 +188,19 @@ class PathManager:
         if date:
             return cls.data_dir() / "feature" / date
         return cls.data_dir() / "feature"
+
+    #
+    # @classmethod
+    # def model_dir(cls, date: str = '') -> Path:
+    #     if date: return cls.data_dir() / "model" / date
+    #     return cls.data_dir() / "model"
+
+    @classmethod
+    def label_dir(cls, date: str = '') -> Path:
+        if date: return cls.data_dir() / "label" / date
+        return cls.data_dir() / "label"
+
+    @classmethod
+    def predict_dir(cls, date: str = '') -> Path:
+        if date: return cls.data_dir() / "predict" / date
+        return cls.data_dir() / "predict"

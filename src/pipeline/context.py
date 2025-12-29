@@ -6,6 +6,7 @@ from pathlib import Path
 from typing import Literal, Optional
 from src.engines.parser_engine import NormalizedEvent
 
+
 @dataclass
 class PipelineContext:
     """
@@ -29,9 +30,9 @@ class PipelineContext:
     parquet_dir: Path
     fact_dir: Path
     meta_dir: Path
-    event_dir: Path
 
     feature_dir: Path
+    label_dir: Path
     # -------- PipelineRuntime flags --------
     abort_pipeline: bool = False
     abort_reason: Optional[str] = None
@@ -47,7 +48,7 @@ class EngineContext:
     - execute(ctx) 永远只看 ctx
     """
 
-    mode: Literal["offline", "replay", "realtime"]="offline"
+    mode: Literal["offline", "replay", "realtime"] = "offline"
 
     # 通用
     # offline

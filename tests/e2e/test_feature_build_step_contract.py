@@ -92,31 +92,10 @@ def write_min_manifest(meta_dir: Path, fact_dir: Path, table: pa.Table) -> None:
     meta.commit(
         MetaResult(
             input_file=fact_dir / "sh_trade.enriched.parquet",  # 占位即可
-            output_file=fact_dir / "sh_trade.min.parquet",       # ✅ 关键修复
+            output_file=fact_dir / "sh_trade.min.parquet",  # ✅ 关键修复
             rows=table.num_rows,
             index=index,
         )
-    )
-
-
-
-def make_ctx(tmp_path: Path) -> PipelineContext:
-    fact_dir = tmp_path / "fact"
-    feature_dir = tmp_path / "feature"
-    meta_dir = tmp_path / "meta"
-
-    fact_dir.mkdir()
-    feature_dir.mkdir()
-    meta_dir.mkdir()
-
-    return PipelineContext(
-        date="2025-01-01",
-        raw_dir=tmp_path / "raw",
-        parquet_dir=tmp_path / "parquet",
-        event_dir=tmp_path / "event",
-        fact_dir=fact_dir,
-        feature_dir=feature_dir,
-        meta_dir=meta_dir,
     )
 
 
@@ -126,13 +105,12 @@ def make_ctx(tmp_path: Path) -> PipelineContext:
 #   - 行数不变
 #   - L0 → L1 正常 append
 # =============================================================================
-def test_feature_build_symbol_local_and_row_count(tmp_path: Path):
-    ctx = make_ctx(tmp_path)
+def test_feature_build_symbol_local_and_row_count(tmp_path: Path, make_test_pipeline_context):
+    ctx = make_test_pipeline_context(tmp_path)
 
     fact_file = write_fact_min(ctx.fact_dir)
     table = pq.read_table(fact_file)
     write_min_manifest(ctx.meta_dir, ctx.fact_dir, table)
-
 
     step = FeatureBuildStep(
         l0_engine=DummyL0Engine(),
@@ -152,13 +130,12 @@ def test_feature_build_symbol_local_and_row_count(tmp_path: Path):
 # Contract-3
 #   - L1 不能在没有 L0 的情况下运行
 # =============================================================================
-def test_feature_build_l1_requires_l0(tmp_path: Path):
-    ctx = make_ctx(tmp_path)
+def test_feature_build_l1_requires_l0(tmp_path: Path, make_test_pipeline_context):
+    ctx = make_test_pipeline_context(tmp_path)
 
     fact_file = write_fact_min(ctx.fact_dir)
     table = pq.read_table(fact_file)
     write_min_manifest(ctx.meta_dir, ctx.fact_dir, table)
-
 
     step = FeatureBuildStep(
         l0_engine=None,
@@ -174,13 +151,12 @@ def test_feature_build_l1_requires_l0(tmp_path: Path):
 #   - append-only
 #   - 禁止覆盖 fact 列
 # =============================================================================
-def test_feature_build_forbids_fact_override(tmp_path: Path):
-    ctx = make_ctx(tmp_path)
+def test_feature_build_forbids_fact_override(tmp_path: Path, make_test_pipeline_context):
+    ctx = make_test_pipeline_context(tmp_path)
 
     fact_file = write_fact_min(ctx.fact_dir)
     table = pq.read_table(fact_file)
     write_min_manifest(ctx.meta_dir, ctx.fact_dir, table)
-
 
     step = FeatureBuildStep(
         l0_engine=DummyL0Engine(),
@@ -200,13 +176,12 @@ def test_feature_build_forbids_fact_override(tmp_path: Path):
 # Contract-6
 #   - atomic output（单 parquet）
 # =============================================================================
-def test_feature_build_atomic_output(tmp_path: Path):
-    ctx = make_ctx(tmp_path)
+def test_feature_build_atomic_output(tmp_path: Path, make_test_pipeline_context):
+    ctx = make_test_pipeline_context(tmp_path)
 
     fact_file = write_fact_min(ctx.fact_dir)
     table = pq.read_table(fact_file)
     write_min_manifest(ctx.meta_dir, ctx.fact_dir, table)
-
 
     step = FeatureBuildStep(
         l0_engine=DummyL0Engine(),

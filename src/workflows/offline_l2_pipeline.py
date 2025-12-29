@@ -35,6 +35,9 @@ from src.engines.feature_l1_stat_engine import FeatureL1StatEngine
 
 from src.steps.feature_build_step import FeatureBuildStep
 
+from src.steps.label_build_step import LabelBuildStep
+from src.engines.labels.forward_return_label_engine import ForwardReturnLabelEngine
+
 
 def build_offline_l2_pipeline() -> DataPipeline:
     """
@@ -95,14 +98,34 @@ def build_offline_l2_pipeline() -> DataPipeline:
         inst=inst
     )
 
+    # ❗ 注意：steps 是“行位移”，不是分钟
+    pipeline_cfg = cfg.pipeline
+
+    label_engine = ForwardReturnLabelEngine(
+        steps=pipeline_cfg.horizon,
+        price_col=pipeline_cfg.price_col,
+        use_log_return=pipeline_cfg.use_log_return,
+    )
+
+    label_step = LabelBuildStep(
+        engine=label_engine,
+        inst=inst,
+    )
+
     steps = [
         # download_step,
         extractor_steps,
         normalize_steps,
+        # 成交主线（稳定、低成本）
         trade_step,
         min_trade_step,
-        # min_order_step,
-        feature_step
+        feature_step,
+        label_step
+        # 盘口侧线（按需启用）
+        # order_step,
+        # ordertrade_step,
+        # orderbook_rebuild_step,
+        # ob_feature_step,
     ]
 
     return DataPipeline(

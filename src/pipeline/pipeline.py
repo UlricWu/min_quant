@@ -44,14 +44,14 @@ class DataPipeline:
         fact_dir = self.pm.fact_dir(date)
         meta_dir = self.pm.meta_dir(date)
         feature_l0_dir = self.pm.feature_dir(date)
-        event_dir = self.pm.event_dir(date)
+        label_dir = self.pm.label_dir(date)
 
         FileSystem.ensure_dir(raw_dir)
         FileSystem.ensure_dir(parquet_dir)
         FileSystem.ensure_dir(fact_dir)
         FileSystem.ensure_dir(meta_dir)
         FileSystem.ensure_dir(feature_l0_dir)
-        FileSystem.ensure_dir(event_dir)
+        FileSystem.ensure_dir(label_dir)
 
         ctx = PipelineContext(
             date=date,
@@ -60,7 +60,7 @@ class DataPipeline:
             fact_dir=fact_dir,
             meta_dir=meta_dir,
             feature_dir=feature_l0_dir,
-            event_dir=event_dir,
+            label_dir=label_dir
         )
 
         # --------------------------------------------------

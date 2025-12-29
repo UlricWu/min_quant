@@ -19,10 +19,10 @@ from src.meta.symbol_accessor import SymbolAccessor
 # Utility: merge append / replace columns
 # -----------------------------------------------------------------------------
 def merge_append_replace(
-    base: pa.Table,
-    delta: pa.Table,
-    *,
-    only_feature_columns: bool = False,
+        base: pa.Table,
+        delta: pa.Table,
+        *,
+        only_feature_columns: bool = False,
 ) -> pa.Table:
     """
     Merge delta columns into base table (append / replace).
@@ -46,7 +46,7 @@ def merge_append_replace(
     out = base
     for name in delta.column_names:
         if only_feature_columns and not (
-            name.startswith("l0_") or name.startswith("l1_") or name.startswith("l2_")
+                name.startswith("l0_") or name.startswith("l1_") or name.startswith("l2_")
         ):
             continue
 
@@ -103,7 +103,7 @@ def _stem_for_manifest(input_file: Path) -> str:
 
 
 def _normalize_engines(
-    engine_or_list: Optional[Union[object, Sequence[object]]]
+        engine_or_list: Optional[Union[object, Sequence[object]]]
 ) -> List[object]:
     if engine_or_list is None:
         return []
@@ -138,13 +138,13 @@ class FeatureBuildStep(PipelineStep):
     """
 
     def __init__(
-        self,
-        *,
-        l0_engine: Optional[object] = None,
-        l1_engines: Optional[Sequence[object]] = None,
-        l2_engine: Optional[object] = None,
-        only_feature_columns: bool = True,
-        inst=None,
+            self,
+            *,
+            l0_engine: Optional[object] = None,
+            l1_engines: Optional[Sequence[object]] = None,
+            l2_engine: Optional[object] = None,
+            only_feature_columns: bool = False,
+            inst=None,
     ) -> None:
         super().__init__(inst)
         self.l0 = l0_engine
@@ -194,7 +194,7 @@ class FeatureBuildStep(PipelineStep):
             # Resolve manifest -> SymbolAccessor -> bind view
             # --------------------------------------------------------------
             stem = _stem_for_manifest(input_file)
-            manifest_path = meta_up.manifest_path(stem)
+            manifest_path = meta_up.manifest_path(stem, stage=upstream_stage)
             if not manifest_path.exists():
                 raise FileNotFoundError(
                     f"[FeatureBuild] upstream manifest missing: stage={upstream_stage}, "

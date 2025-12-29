@@ -273,12 +273,12 @@ def make_test_pipeline_context(tmp_path: Path):
         fact_dir = tmp_path / "fact"
         feature_dir = tmp_path / "feature"
         meta_dir = tmp_path / "meta"
-        event_dir = tmp_path / "event_dir"
+        label_dir = tmp_path / "label"
 
         for d in (
                 raw_dir,
                 parquet_dir,
-                event_dir,
+                label_dir,
                 fact_dir,
                 feature_dir,
                 meta_dir,
@@ -292,7 +292,7 @@ def make_test_pipeline_context(tmp_path: Path):
             fact_dir=fact_dir,
             feature_dir=feature_dir,
             meta_dir=meta_dir,
-            event_dir=event_dir
+            label_dir=label_dir
         )
 
     return _make

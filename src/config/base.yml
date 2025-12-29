@@ -8,7 +8,7 @@ data:
   remote_dir: "level2"
   local_raw: "dataloader/raw/"
   parquet_root: "dataloader/parquet/"
-  symbols: ['603322','002594','300456','300475','300115','300395','001287','688195','300058','688110','688183','001400','300308']
+  symbols: [ '603322','002594','300456','300475','300115','300395','001287','688195','300058','688110','688183','001400','300308' ]
 
 
 model:
@@ -17,6 +17,13 @@ model:
   test_days: 20
   model_path: "models/"
 
+
+
 pipeline:
   ftp_backend: 'curl'
-
+  label:
+    type: forward_return
+    forward_return:
+      horizon: 5
+      price_col: close
+      use_log_return: false
