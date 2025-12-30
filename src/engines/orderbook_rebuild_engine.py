@@ -241,8 +241,8 @@ class OrderBookRebuildEngine:
             self.book = OrderBook()
 
         if ctx.mode == "offline":
-            assert ctx.input_path and ctx.output_path
-            self._run_offline(ctx.input_path, ctx.output_path)
+            assert ctx.input_file and ctx.output_file
+            self._run_offline(ctx.input_file, ctx.output_file)
             return
         # realtime
         assert ctx.event is not None

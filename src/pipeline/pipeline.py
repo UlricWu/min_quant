@@ -60,7 +60,7 @@ class DataPipeline:
             fact_dir=fact_dir,
             meta_dir=meta_dir,
             feature_dir=feature_l0_dir,
-            label_dir=label_dir
+            label_dir=label_dir,
         )
 
         # --------------------------------------------------

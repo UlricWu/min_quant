@@ -8,7 +8,7 @@ import pytest
 
 from src.steps.feature_build_step import FeatureBuildStep
 from src.pipeline.context import PipelineContext
-from src.meta.meta import BaseMeta, MetaResult
+from src.meta.base import BaseMeta, MetaOutput
 
 
 # =============================================================================
@@ -81,22 +81,40 @@ def write_min_manifest(meta_dir: Path, fact_dir: Path, table: pa.Table) -> None:
     写 min stage manifest（symbol slice index）
 
     冻结契约：
-      - manifest 记录的 output_file 必须是可 exists() 的真实路径
+      - BaseMeta 使用 (stage, output_slot) 决定 manifest 文件名：
+          <meta_dir>/<stage>.<output_slot>.manifest.json
+      - output_file 必须 exists()
+      - index 形态为 {symbol: (start, length)}
     """
     index = {
         "AAA": (0, 2),
         "BBB": (2, 2),
     }
 
-    meta = BaseMeta(meta_dir, stage="min")
+    stage = "min"
+    output_slot = "sh_trade"
+
+    output_file = fact_dir / "sh_trade.min.parquet"
+    assert output_file.exists(), "fact min parquet must exist before committing meta"
+
+    meta = BaseMeta(
+        meta_dir=meta_dir,
+        stage=stage,
+        output_slot=output_slot,
+    )
     meta.commit(
-        MetaResult(
+        MetaOutput(
             input_file=fact_dir / "sh_trade.enriched.parquet",  # 占位即可
-            output_file=fact_dir / "sh_trade.min.parquet",  # ✅ 关键修复
+            output_file=output_file,  # ✅ 必须真实存在
             rows=table.num_rows,
             index=index,
         )
     )
+
+    # 可选：把路径 contract 也在测试里锁死（强烈建议保留）
+    manifest_path = meta_dir / f"{stage}.{output_slot}.manifest.json"
+    assert manifest_path.exists()
+
 
 
 # =============================================================================

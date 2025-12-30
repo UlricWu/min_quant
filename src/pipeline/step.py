@@ -1,5 +1,9 @@
 from __future__ import annotations
 
+from debugpy.common.util import force_str
+
+from src import logs
+from src.meta.base import BaseMeta, MetaOutput
 from src.pipeline.context import PipelineContext
 from src.observability.instrumentation import (
     Instrumentation,
@@ -20,8 +24,12 @@ class PipelineStep:
       - 所有可观测性能必须发生在 Step 内部（leaf timer）
       - Instrumentation 是可选横切关注点
       - Step 行为不依赖 inst 是否存在
+
     """
 
+    stage: str = ''  # e.g. "normalize"
+    upstream_stage: str = ''  # e.g. "parquet"
+    output_slot: str
     def __init__(self, inst: Instrumentation | None = None):
         # 永远保证 inst 可用（No-op 语义）
         self.inst: Instrumentation | NoOpInstrumentation = (
@@ -52,8 +60,34 @@ class PipelineStep:
     # --------------------------------------------------
     # Contract
     # --------------------------------------------------
+
     def run(self, ctx: PipelineContext) -> PipelineContext:
         """
         子类必须实现。
         """
-        raise NotImplementedError
+        # raise NotImplementedError
+        pass
+
+    def _run(self, ctx: PipelineContext) -> PipelineContext:
+        meta = BaseMeta(meta_dir=ctx.meta_dir, stage=self.stage, output_slot=self.output_slot)
+
+        for file in ctx.last_stage:
+            exchange = file.stem
+
+            if not meta.upstream_changed(file):
+                logs.warning(f"[{self.step_name}] {exchange} unchanged -> skip")
+                continue
+
+            meta.commit(
+                MetaOutput(
+                    input_file=file,
+                    output_file=file,
+                    rows=0,  # CsvConvert 阶段不关心 rows
+                )
+            )
+
+            logs.info(
+                f"[{self.step_name}] meta committed for {file.name}"
+            )
+
+        return ctx

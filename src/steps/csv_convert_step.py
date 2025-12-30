@@ -2,11 +2,11 @@
 from __future__ import annotations
 
 import os
+from dataclasses import dataclass
 from pathlib import Path
 from typing import Dict
 
 from src.pipeline.step import PipelineStep
-from src.pipeline.pipeline import PipelineContext
 from src.utils.logger import logs
 
 from src.pipeline.parallel.executor import ParallelExecutor
@@ -14,7 +14,40 @@ from src.pipeline.parallel.types import ParallelKind
 
 from src.engines.convert_engine import ConvertEngine
 
-from src.meta.meta import BaseMeta, MetaResult
+from src.meta.base import BaseMeta, MetaOutput
+
+# from src.meta.public import should_run
+# -----------------------------------------------------------------------------
+# unit spec (worker contract)
+# -----------------------------------------------------------------------------
+from src.pipeline.context import PipelineContext
+
+from src.pipeline.context import EngineContext
+
+
+def _convert_one_unit(spec: PipelineContext) -> PipelineContext:
+    """
+    CsvConvert worker（进程安全）
+
+    约束：
+      - 不依赖 ctx
+      - 不使用 BaseMeta
+      - 不 commit meta
+      - 只做纯计算
+        CsvConvert worker（子进程入口）
+
+    ⚠️ 重要约束：
+    - 不依赖 Step / ctx
+    - 不使用全局状态
+    - 每次调用创建独立 Engine
+    """
+    assert hasattr(spec, "input_file"), spec
+    logs.info(
+        f"[CsvConvertWorker] pid={os.getpid()} file={spec.input_file.name}"
+    )
+    engine = ConvertEngine()
+    engine.convert(spec)
+    return spec
 
 
 class CsvConvertStep(PipelineStep):
@@ -31,117 +64,95 @@ class CsvConvertStep(PipelineStep):
         - worker 内创建
         - 不跨进程复用
     """
+    stage = 'CsvConvert'
 
-    def __init__(self, inst=None):
+    def __init__(self, stage: str, inst=None, max_workers: int = 2):
         super().__init__(inst)
+        self.stage = stage
+        self.max_workers = max_workers
 
     # ======================================================
     # Step 入口（始终串行）
     # ======================================================
     def run(self, ctx: PipelineContext):
-        raw_dir = ctx.raw_dir
-        parquet_dir = ctx.parquet_dir
-
-        zfiles = sorted(raw_dir.glob("*.7z"))
-        if not zfiles:
-            logs.warning("[CsvConvertStep] no .7z files found")
+        runnable_units = self._build_units(ctx)
+        if not runnable_units:
+            logs.info(f"[{self.stage}] all units up-to-date")
             return ctx
 
-        meta = BaseMeta(ctx.meta_dir, stage="convert")
+        specs = list(runnable_units.values())
 
-        items = []
-        for zfile in zfiles:
-            out_files = _build_out_files(zfile, parquet_dir)
-            # --------------------------------------------------
-            # Meta 判断：是否需要重新转换
-            # --------------------------------------------------
-            if not meta.upstream_changed(zfile):
-                logs.warning(
-                    f"[CsvConvertStep] meta hit → skip {zfile.name}"
-                )
-                continue
-
-            # 输出文件若部分缺失，也必须重跑
-            if not _all_exist(out_files):
-                items.append((str(zfile), str(parquet_dir)))
-            else:
-                logs.info(
-                    f"[CsvConvertStep] outputs exist but meta mismatch → rerun {zfile.name}"
-                )
-                items.append((str(zfile), str(parquet_dir)))
-
-        if not items:
-            logs.warning("[CsvConvertStep] nothing to convert")
-            return ctx
-
-        with self.inst.timer('CsvConvertStep'):
+        # --------------------------------------------------
+        # 1. 并行执行（worker 不触碰 meta）
+        # --------------------------------------------------
+        with self.inst.timer(f"{self.stage} parallel"):
             # Path 不能保证在所有平台 / 所有 start method / 所有 Python 版本下是 100% 可预期
-            ParallelExecutor.run(
+            done_specs = ParallelExecutor.run(
                 kind=ParallelKind.FILE,
-                items=items,
-                handler=_convert_one_file,
+                items=specs,  # ← 注意：不是 str，而是 ConvertUnitSpec
+                handler=_convert_one_unit,
+                max_workers=self.max_workers
             )
 
         # --------------------------------------------------
-        # 成功后提交 Meta（逐文件）
+        # 2. 主进程 commit meta（严格串行）
         # --------------------------------------------------
-        for zfile in zfiles:
-            if not meta.upstream_changed(zfile):
-                continue
+        for spec in done_specs:
+            meta = BaseMeta(
+                meta_dir=ctx.meta_dir,
+                stage=self.stage,
+                output_slot=spec.key,
+            )
 
-            out_files = _build_out_files(zfile, parquet_dir)
-            if not _all_exist(out_files):
-                continue
-
-            # 选一个“主输出”作为 manifest 的 outputs.file
-            main_output = next(iter(out_files.values()))
+            if not spec.output_file.exists():
+                raise RuntimeError(
+                    f"[{self.stage}] output missing after convert: {spec.output_file}"
+                )
 
             meta.commit(
-                MetaResult(
-                    input_file=zfile,
-                    output_file=main_output,
-                    rows=0,  # CsvConvert 阶段不关心 rows
+                MetaOutput(
+                    input_file=spec.input_file,
+                    output_file=spec.output_file,
+                    rows=-1,
                 )
             )
 
-            logs.info(
-                f"[CsvConvertStep] meta committed for {zfile.name}"
-            )
+            logs.info(f"[{self.stage}] meta committed → {meta.name}")
 
         return ctx
 
+    def _build_units(self, ctx: PipelineContext) -> Dict[str, EngineContext]:
+        units: Dict[str, EngineContext] = {}
+        for zfile in list(ctx.raw_dir.glob("*.7z")):
+            out_map = _build_out_files(zfile=zfile, parquet_dir=ctx.parquet_dir)
 
-def _convert_one_file(item: tuple[str, str]) -> None:
-    """
-    CsvConvert worker（子进程入口）
+            for unit, dst in out_map.items():
+                if unit in units:
+                    raise RuntimeError(f"[{self.stage}] duplicate unit detected: {unit}")
+                meta = BaseMeta(
+                    meta_dir=ctx.meta_dir,
+                    stage=self.stage,
+                    output_slot=unit,
+                )
+                if not meta.upstream_changed():
+                    logs.warning(
+                        f"[{self.stage}] meta hit → skip {zfile.name}"
+                    )
+                    continue
+                units[unit] = EngineContext(
+                    key=unit,
+                    input_file=zfile,
+                    output_file=dst,
+                    mode='full' if len(out_map) == 1 else 'split'
+                )
 
-    ⚠️ 重要约束：
-    - 不依赖 Step / ctx
-    - 不使用全局状态
-    - 每次调用创建独立 Engine
-    """
-    zfile, parquet_dir = item
-    zpath = Path(zfile)
-    parquet_dir = Path(parquet_dir)
-
-    out_files = _build_out_files(zpath, parquet_dir)
-
-    if _all_exist(out_files):
-        logs.info(f"[CsvConvertStep] {zpath.name} exists -> skip")
-        return
-
-    logs.info(
-        f"[CsvConvertWorker] pid={os.getpid()} file={Path(zfile).name}"
-    )
-
-    engine = ConvertEngine()
-    engine.convert(zpath, out_files)
+        return units
 
 
-# ======================================================
-# 纯逻辑工具函数（可复用 / 可单测）
-# ======================================================
-
+# # ======================================================
+# # 纯逻辑工具函数（可复用 / 可单测）
+# # ======================================================
+#
 def _detect_type(filename: str) -> str:
     lower = filename.lower()
 
@@ -176,5 +187,20 @@ def _build_out_files(zfile: Path, parquet_dir: Path) -> Dict[str, Path]:
     }
 
 
-def _all_exist(out_files: Dict[str, Path]) -> bool:
-    return all(p.exists() for p in out_files.values())
+def _detect_type(filename: str) -> str:
+    lower = filename.lower()
+
+    if lower.startswith("sh_stock_ordertrade"):
+        return "SH_MIXED"
+
+    if lower.startswith("sh_order"):
+        return "SH_ORDER"
+    if lower.startswith("sh_trade"):
+        return "SH_TRADE"
+
+    if lower.startswith("sz_order"):
+        return "SZ_ORDER"
+    if lower.startswith("sz_trade"):
+        return "SZ_TRADE"
+
+    raise RuntimeError(f"无法识别文件类型: {filename}")

@@ -50,12 +50,12 @@ class MinuteOrderAggEngine:
         if ctx.mode != "offline":
             raise NotImplementedError("MinuteOrderAggEngine only supports offline mode")
 
-        assert ctx.input_path and ctx.output_path
+        assert ctx.input_file and ctx.output_file
         self._run_offline(ctx)
 
     # ======================================================
     def _run_offline(self, ctx: EngineContext) -> None:
-        table = pq.read_table(ctx.input_path)
+        table = pq.read_table(ctx.input_file)
 
         if table.num_rows == 0:
             # logs.warning("[MinuteOrderAgg] empty input")
@@ -151,4 +151,4 @@ class MinuteOrderAggEngine:
 
         result = pa.table(cols)
 
-        pq.write_table(result, ctx.output_path)
+        pq.write_table(result, ctx.output_file)

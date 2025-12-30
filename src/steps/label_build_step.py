@@ -1,4 +1,4 @@
-#!filepath: src/steps/label_build_step.py
+# src/steps/label_build_step.py
 from __future__ import annotations
 
 from pathlib import Path
@@ -9,35 +9,10 @@ import pyarrow.parquet as pq
 
 from src.pipeline.step import PipelineStep
 from src.pipeline.context import PipelineContext
-from src.meta.meta import BaseMeta, MetaResult
-from src.meta.symbol_accessor import SymbolAccessor
+from src.meta.base import BaseMeta, MetaOutput
+from src.meta.slice_source import SliceSource
 from src.engines.labels.base import BaseLabelEngine
 from src.utils.logger import logs
-from src.meta.symbol_slice_source import SymbolSliceSource
-
-
-def _exchange_from_min_filename(input_file: Path) -> str:
-    """
-    与 FeatureBuildStep 保持一致：
-      sh_trade.min.parquet -> sh_trade
-      sz_trade.min.parquet -> sz_trade
-    """
-    name = input_file.name
-    if name.endswith(".parquet"):
-        name = name[: -len(".parquet")]
-    if name.endswith(".min"):
-        name = name[: -len(".min")]
-    if name.endswith(".trade_min"):
-        name = name[: -len(".trade_min")]
-    return name
-
-
-def _stem_for_manifest(input_file: Path) -> str:
-    """
-    Frozen rule:
-      upstream manifest stem == exchange key
-    """
-    return _exchange_from_min_filename(input_file)
 
 
 # -----------------------------------------------------------------------------
@@ -47,18 +22,23 @@ class LabelBuildStep(PipelineStep):
     """
     LabelBuildStep（FINAL / FROZEN）
 
-    Semantics:
-      fact/<exchange>.min.parquet
-        -> label/<exchange>.label.parquet
+    输入：
+      fact/*.min.parquet        （multi-symbol, minute-level）
 
-    Principles (frozen):
-      - Label 是派生数据资产（不反推事实）
-      - Symbol slicing 100% 复用 min-stage manifest
-      - Engine 只做 row-based 纯计算
-      - 唯一允许的循环：per-symbol
-      - 不 group、不整表 shift
+    输出：
+      label/*.label.parquet
+
+    冻结原则：
+      - orchestration only
+      - label 是派生数据资产
+      - engine 只处理单 slice
+      - slice discovery 完全由 SliceSource 驱动
+      - 不 bind、不 read table
       - 单 parquet 写入 + 单次 Meta commit
     """
+
+    stage = "label"
+    upstream_stage = "min"
 
     def __init__(
             self,
@@ -75,88 +55,80 @@ class LabelBuildStep(PipelineStep):
         label_dir: Path = ctx.label_dir
         meta_dir: Path = ctx.meta_dir
 
-        # stage for this step
-        stage = "label"
-        meta = BaseMeta(meta_dir, stage=stage)
+        label_dir.mkdir(parents=True, exist_ok=True)
 
-        # upstream stage (symbol slice index lives here)
-        upstream_stage = "min"
-        meta_up = BaseMeta(meta_dir, stage=upstream_stage)
+        for input_file in sorted(fact_dir.glob(f"*.{self.upstream_stage}.parquet")):
+            name = input_file.stem.split(".")[0]
 
-        # ------------------------------------------------------------------
-        # Iterate fact inputs (single upstream)
-        # ------------------------------------------------------------------
-        for input_file in sorted(fact_dir.glob("*.min.parquet")):
-            exchange = _exchange_from_min_filename(input_file)
-
-            # --------------------------------------------------------------
-            # Upstream change check
-            # --------------------------------------------------------------
-            if not meta.upstream_changed(input_file):
-                logs.warning(f"[Label] {exchange} unchanged -> skip")
-                continue
-
-            # --------------------------------------------------------------
-            # Load fact table
-            # --------------------------------------------------------------
-            table = pq.read_table(input_file)
-            if table.num_rows == 0:
-                logs.warning(f"[Label] {exchange} empty input -> skip")
-                continue
-
-            # --------------------------------------------------------------
-            # Resolve manifest -> SymbolAccessor
-            # --------------------------------------------------------------
-
-            source = SymbolSliceSource(
-                meta=meta_up,
-                input_file=input_file,
-                stage='min',
+            meta = BaseMeta(
+                meta_dir=meta_dir,
+                stage=self.stage,
+                output_slot=name,
             )
 
-            # --------------------------------------------------------------
-            # Per-symbol label computation
-            # --------------------------------------------------------------
+            # --------------------------------------------------
+            # 1. upstream check
+            # --------------------------------------------------
+            if not meta.upstream_changed():
+                logs.warning(f"[{self.stage}] meta hit → skip {input_file.name}")
+                continue
+
+            # --------------------------------------------------
+            # 2. SliceSource（来自 min stage）
+            # --------------------------------------------------
+            source = SliceSource(
+                meta_dir=meta_dir,
+                stage=self.upstream_stage,
+                output_slot=name,
+            )
+
             label_tables: List[pa.Table] = []
 
-            with self.inst.timer(f"LabelBuild_{exchange}"):
-                symbol_count = 0
-                for symbol, sub in source.bind(table):
+            # --------------------------------------------------
+            # 3. per-slice label computation
+            # --------------------------------------------------
+            with self.inst.timer(f"[{self.stage}] {name}"):
+                slice_count = 0
+
+                for symbol, sub in source:
                     if sub.num_rows == 0:
                         continue
 
                     out = self.engine.execute(sub)
+                    if out.num_rows == 0:
+                        continue
+
                     label_tables.append(out)
-                    symbol_count += 1
+                    slice_count += 1
 
-                if not label_tables:
-                    logs.warning(f"[Label] {exchange} no symbols produced")
-                    continue
+            if not label_tables:
+                logs.warning(f"[{self.stage}] {name} no labels produced")
+                continue
 
-                # ----------------------------------------------------------
-                # Concatenate (symbol blocks already aligned)
-                # ----------------------------------------------------------
-                result = pa.concat_tables(label_tables, promote_options="default")
+            # --------------------------------------------------
+            # 4. concat + write
+            # --------------------------------------------------
+            result = pa.concat_tables(label_tables, promote_options="default")
 
-                output_file = label_dir / f"{exchange}.{stage}.parquet"
-                pq.write_table(result, output_file)
+            output_file = label_dir / f"{name}.{self.stage}.parquet"
+            pq.write_table(result, output_file)
 
-                # ----------------------------------------------------------
-                # Commit Meta
-                # ----------------------------------------------------------
-                meta.commit(
-                    MetaResult(
-                        input_file=input_file,
-                        output_file=output_file,
-                        rows=result.num_rows,
-                        # label stage usually doesn't need index
-                    )
+            # --------------------------------------------------
+            # 5. commit meta
+            # --------------------------------------------------
+            meta.commit(
+                MetaOutput(
+                    input_file=input_file,
+                    output_file=output_file,
+                    rows=result.num_rows,
+                    # label stage 通常不声明 slice capability
                 )
+            )
 
-                logs.info(
-                    f"[Label] written {output_file.name} "
-                    f"symbols={symbol_count} "
-                    f"(rows={result.num_rows}, cols={len(result.column_names)})"
-                )
+            logs.info(
+                f"[{self.stage}] written {output_file.name} "
+                f"slices={slice_count} "
+                f"(rows={result.num_rows}, cols={len(result.column_names)})"
+            )
 
         return ctx

@@ -56,12 +56,12 @@ class ExtractorEngine:
             autogenerate_column_names=False,
             skip_rows=1,  # 🔥 跳过 header 行
             column_names=column_names,
-            block_size=1 << 26,   # 64MB
+            block_size=1 << 26,  # 64MB
             use_threads=True,
         )
 
         return csv.open_csv(
-            proc.stdout,          # binary stream
+            proc.stdout,  # binary stream
             read_options=read_opts,
             convert_options=convert_opts,
         )

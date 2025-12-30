@@ -10,11 +10,13 @@ import pyarrow.parquet as pq
 from src import logs
 from src.engines.normalize_engine import NormalizeEngine, NormalizeResult
 from src.engines.parser_engine import parse_events_arrow
-from src.meta.meta import BaseMeta
+from src.meta.base import BaseMeta
 from src.pipeline.context import PipelineContext
 from src.pipeline.parallel.executor import ParallelExecutor
 from src.pipeline.parallel.types import ParallelKind
 from src.pipeline.step import PipelineStep
+
+from src.pipeline.context import EngineContext
 
 
 # -----------------------------------------------------------------------------
@@ -96,6 +98,7 @@ class NormalizeStep(PipelineStep):
       - 主进程：meta 判定 + commit + 日志
       - 子进程：I/O(read+write) + parse + 纯计算（Engine）
     """
+    stage = 'normalize'
 
     def __init__(
             self,
@@ -109,23 +112,32 @@ class NormalizeStep(PipelineStep):
         self.max_workers = max_workers
 
     def run(self, ctx: PipelineContext) -> PipelineContext:
-        input_dir = ctx.parquet_dir
-        output_dir = ctx.fact_dir
-
-        meta = BaseMeta(ctx.meta_dir, stage="normalize")
-
-        # ① master：筛选需要处理的文件
+        # input_dir = ctx.parquet_dir
+        # output_dir = ctx.fact_dir
+        #
+        # meta = BaseMeta(meta_dir=ctx.meta_dir, stage="normalize")
+        #
+        # # ① master：筛选需要处理的文件
         inputs: list[Path] = []
-        for input_file in input_dir.glob("*.parquet"):
-            if not meta.upstream_changed(input_file):
-                logs.warning(f"[NormalizeStep] {input_file.name} unchanged -> skip")
+        for input_file in ctx.parquet_dir.glob("*.parquet"):
+            unit = input_file.stem.split(".", 1)[0].lower()
+            meta = BaseMeta(
+                meta_dir=ctx.meta_dir,
+                stage=self.stage,
+                output_slot=unit,
+            )
+            if not meta.upstream_changed():
+                logs.warning(
+                    f"[{self.stage}] meta hit → skip {input_file.name}"
+                )
                 continue
             inputs.append(input_file)
 
         if not inputs:
-            logs.warning("[NormalizeStep] no files to normalize")
+            logs.warning(f"[{self.stage}] no files to normalize")
             return ctx
 
+        #
         # ② master：准备并行参数（纯数据）
         items = [
             {
@@ -135,9 +147,9 @@ class NormalizeStep(PipelineStep):
             }
             for path in inputs
         ]
-
-        # ③ 并行执行（无闭包）
-        with self.inst.timer(f"[NormalizeStep] parallel normalize | files={len(items)}"):
+        #
+        # # ③ 并行执行（无闭包）
+        with self.inst.timer(f"[{self.stage}] parallel normalize | files={len(items)}"):
             results = ParallelExecutor.run(
                 kind=ParallelKind.FILE,
                 items=items,
@@ -146,12 +158,15 @@ class NormalizeStep(PipelineStep):
             )
 
         if results is None:
-            raise RuntimeError("[NormalizeStep] ParallelExecutor returned None")
-
+            raise RuntimeError("[{self.stage}] ParallelExecutor returned None")
         # ④ master：统一 commit meta
-        outputs: list[str] = []
         for r in results:
+            unit = Path(r['input_file']).stem.split(".", 1)[0].lower()
+            meta = BaseMeta(
+                meta_dir=ctx.meta_dir,
+                stage=self.stage,
+                output_slot=unit,
+            )
             meta.commit(r)  # r is a dict payload
-            outputs.append(Path(r["output_file"]).name)
 
         return ctx

@@ -56,8 +56,9 @@ def test_minute_order_agg_basic(tmp_path, write_parquet):
     engine = MinuteOrderAggEngine()
     ctx = EngineContext(
         mode="offline",
-        input_path=in_path,
-        output_path=out_path,
+        input_file=in_path,
+        output_file=out_path,
+        key=''
     )
 
     engine.execute(ctx)
@@ -121,8 +122,9 @@ def test_minute_order_agg_multi_minute(tmp_path, write_parquet):
     engine.execute(
         EngineContext(
             mode="offline",
-            input_path=in_path,
-            output_path=out_path,
+            input_file=in_path,
+            output_file=out_path,
+            key=''
         )
     )
 
@@ -179,8 +181,10 @@ def test_minute_order_agg_multi_minute(tmp_path):
     engine.execute(
         EngineContext(
             mode="offline",
-            input_path=in_path,
-            output_path=out_path,
+            input_file=in_path,
+            output_file=out_path,
+            key=''
+
         )
     )
 
@@ -216,8 +220,10 @@ def test_minute_order_agg_only_add(tmp_path):
     engine.execute(
         EngineContext(
             mode="offline",
-            input_path=in_path,
-            output_path=out_path,
+            input_file=in_path,
+            output_file=out_path,
+            key=''
+
         )
     )
 
@@ -257,8 +263,10 @@ def test_minute_order_agg_empty_input(tmp_path):
     engine.execute(
         EngineContext(
             mode="offline",
-            input_path=in_path,
-            output_path=out_path,
+            input_file=in_path,
+            output_file=out_path,
+            key=''
+
         )
     )
 
@@ -289,8 +297,10 @@ def test_minute_order_agg_schema(tmp_path):
     engine.execute(
         EngineContext(
             mode="offline",
-            input_path=in_path,
-            output_path=out_path,
+            input_file=in_path,
+            output_file=out_path,
+            key=''
+
         )
     )
 

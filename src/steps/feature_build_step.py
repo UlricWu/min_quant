@@ -1,20 +1,17 @@
 # src/steps/feature_build_step.py
 from __future__ import annotations
 
-from dataclasses import dataclass
 from pathlib import Path
-from typing import Iterable, List, Optional, Sequence, Union
+from typing import List, Optional, Sequence, Union
 
 import pyarrow as pa
 import pyarrow.parquet as pq
 
 from src.pipeline.step import PipelineStep
 from src.pipeline.context import PipelineContext
-from src.meta.meta import BaseMeta, MetaResult
+from src.meta.base import BaseMeta, MetaOutput
+from src.meta.slice_source import SliceSource
 from src.utils.logger import logs
-from src.meta.symbol_accessor import SymbolAccessor
-
-from src.meta.symbol_slice_source import SymbolSliceSource
 
 
 # -----------------------------------------------------------------------------
@@ -29,16 +26,9 @@ def merge_append_replace(
     """
     Merge delta columns into base table (append / replace).
 
-    Contract (frozen):
+    Frozen contract:
       - base.num_rows == delta.num_rows
-      - row order aligned (same minute sequence)
-      - delta contains columns to append / replace
-
-    Parameters
-    ----------
-    only_feature_columns:
-      - If True: only merge columns whose name starts with "l0_" / "l1_" / "l2_"
-      - This prevents accidental overwrite of fact columns (open/high/low/close/etc.)
+      - row order aligned
     """
     if base.num_rows != delta.num_rows:
         raise ValueError(
@@ -63,81 +53,28 @@ def merge_append_replace(
 
 
 # -----------------------------------------------------------------------------
-# Helpers
-# -----------------------------------------------------------------------------
-def _ensure_dir(p: Path) -> None:
-    p.mkdir(parents=True, exist_ok=True)
-
-
-def _exchange_from_min_filename(input_file: Path) -> str:
-    """
-    Convert fact min parquet file name to exchange key.
-
-    Examples:
-      sh_trade.min.parquet      -> sh_trade
-      sz_trade.min.parquet      -> sz_trade
-      sh_trade.min             -> sh_trade
-      sh_trade                 -> sh_trade
-
-    Adjust this function if your naming differs.
-    """
-    name = input_file.name
-    # remove suffixes in order
-    if name.endswith(".parquet"):
-        name = name[: -len(".parquet")]
-    if name.endswith(".min"):
-        name = name[: -len(".min")]
-    if name.endswith(".trade_min"):
-        name = name[: -len(".trade_min")]
-    return name
-
-
-def _stem_for_manifest(input_file: Path) -> str:
-    """
-    Stem used for looking up upstream manifest.
-
-    Frozen rule:
-      upstream manifest stem == exchange key (same as _exchange_from_min_filename)
-
-    Adjust if your upstream min stage commits with a different stem.
-    """
-    return _exchange_from_min_filename(input_file)
-
-
-def _normalize_engines(
-        engine_or_list: Optional[Union[object, Sequence[object]]]
-) -> List[object]:
-    if engine_or_list is None:
-        return []
-    if isinstance(engine_or_list, (list, tuple)):
-        return list(engine_or_list)
-    return [engine_or_list]
-
-
-# -----------------------------------------------------------------------------
-# FeatureBuildStep (Frozen v2)
+# FeatureBuildStep (FINAL / FROZEN)
 # -----------------------------------------------------------------------------
 class FeatureBuildStep(PipelineStep):
     """
-    FeatureBuildStep (Frozen v2)
+    FeatureBuildStep（FINAL / FROZEN）
 
-    Semantics:
-      fact/<exchange>.min.parquet
-        -> feature/<exchange>.feature.parquet
+    输入：
+      fact/*.min.parquet      （multi-symbol, minute-level）
 
-    Principles (frozen):
-      - Feature table is the final data product
-      - L0 / L1 / L2 are column-level evolution stages
-      - Per-symbol execution is the only allowed loop
-      - Symbol discovery is manifest-driven (Normalize/Min stage produces symbol index)
-      - Engines are deterministic (no side effects)
-      - Output write is atomic (single parquet write)
-      - Meta commit is single transaction per exchange
+    输出：
+      feature/*.feature.parquet
 
-    Notes:
-      - L1 is a list (L1Stat + L1Norm, possibly multiple windows)
-      - L2 reserved for future extension
+    冻结原则：
+      - orchestration only
+      - per-slice execution only
+      - slice discovery 完全由 SliceSource 驱动
+      - engine 纯函数、无副作用
+      - feature stage 通常不需要 slice index
     """
+
+    stage = "feature"
+    upstream_stage = "min"
 
     def __init__(
             self,
@@ -160,56 +97,42 @@ class FeatureBuildStep(PipelineStep):
         feature_dir: Path = ctx.feature_dir
         meta_dir: Path = ctx.meta_dir
 
-        _ensure_dir(feature_dir)
+        feature_dir.mkdir(parents=True, exist_ok=True)
 
-        # stage for this step
-        stage = "feature"
-        meta_feature = BaseMeta(meta_dir, stage=stage)
+        for input_file in sorted(fact_dir.glob(f"*.{self.upstream_stage}.parquet")):
+            name = input_file.stem.split(".")[0]
 
-        # upstream stage name (where symbol index manifest lives)
-        # In your pipeline: MinuteTradeAgg writes *.min.parquet and commits stage="min"
-        upstream_stage = "min"
-        meta_up = BaseMeta(meta_dir, stage=upstream_stage)
-
-        # ------------------------------------------------------------------
-        # Iterate fact inputs (single upstream)
-        # ------------------------------------------------------------------
-        for input_file in sorted(fact_dir.glob("*.min.parquet")):
-            exchange = _exchange_from_min_filename(input_file)
-
-            # --------------------------------------------------------------
-            # Upstream check (Meta v1) - sufficient for now
-            # --------------------------------------------------------------
-            if not meta_feature.upstream_changed(input_file):
-                logs.warning(f"[Feature] {exchange} unchanged -> skip")
-                continue
-
-            # --------------------------------------------------------------
-            # Load fact table (single file)
-            # --------------------------------------------------------------
-            table = pq.read_table(input_file)
-            if table.num_rows == 0:
-                logs.warning(f"[Feature] {exchange} empty input -> skip")
-                continue
-
-            # --------------------------------------------------------------
-            # Resolve manifest -> SymbolAccessor -> bind view
-            # --------------------------------------------------------------
-
-            source = SymbolSliceSource(
-                meta=meta_up,
-                input_file=input_file,
-                stage='min',
+            meta = BaseMeta(
+                meta_dir=meta_dir,
+                stage=self.stage,
+                output_slot=name,
             )
 
-            # --------------------------------------------------------------
-            # Build per-symbol features
-            # --------------------------------------------------------------
+            # --------------------------------------------------
+            # 1. upstream check
+            # --------------------------------------------------
+            if not meta.upstream_changed():
+                logs.warning(f"[{self.stage}] meta hit → skip {input_file.name}")
+                continue
+
+            # --------------------------------------------------
+            # 2. SliceSource（来自 min stage）
+            # --------------------------------------------------
+            source = SliceSource(
+                meta_dir=meta_dir,
+                stage=self.upstream_stage,
+                output_slot=name,
+            )
+
             feature_tables: List[pa.Table] = []
 
-            with self.inst.timer(f"FeatureBuild_{exchange}"):
-                symbol_count = 0
-                for symbol, sub in source.bind(table):
+            # --------------------------------------------------
+            # 3. per-slice feature build
+            # --------------------------------------------------
+            with self.inst.timer(f"[{self.stage}] {name}"):
+                slice_count = 0
+
+                for symbol, sub in source:
                     if sub.num_rows == 0:
                         continue
 
@@ -219,54 +142,60 @@ class FeatureBuildStep(PipelineStep):
                     if self.l0 is not None:
                         delta0 = self.l0.execute(out)
                         out = merge_append_replace(
-                            out, delta0, only_feature_columns=self.only_feature_columns
+                            out,
+                            delta0,
+                            only_feature_columns=self.only_feature_columns,
                         )
 
                     # L1 (multi-engine chain)
                     for eng in self.l1s:
                         delta1 = eng.execute(out)
                         out = merge_append_replace(
-                            out, delta1, only_feature_columns=self.only_feature_columns
+                            out,
+                            delta1,
+                            only_feature_columns=self.only_feature_columns,
                         )
 
                     # L2 (future)
                     if self.l2 is not None:
                         delta2 = self.l2.execute(out)
                         out = merge_append_replace(
-                            out, delta2, only_feature_columns=self.only_feature_columns
+                            out,
+                            delta2,
+                            only_feature_columns=self.only_feature_columns,
                         )
 
                     feature_tables.append(out)
-                    symbol_count += 1
+                    slice_count += 1
 
-                if not feature_tables:
-                    logs.warning(f"[Feature] {exchange} no symbols produced")
-                    continue
+            if not feature_tables:
+                logs.warning(f"[{self.stage}] {name} no features produced")
+                continue
 
-                # --------------------------------------------------------------
-                # Concatenate feature table (symbol blocks already aligned)
-                # --------------------------------------------------------------
-                result = pa.concat_tables(feature_tables, promote_options="default")
+            # --------------------------------------------------
+            # 4. concat + write
+            # --------------------------------------------------
+            result = pa.concat_tables(feature_tables, promote_options="default")
 
-                output_file = feature_dir / f"{exchange}.{stage}.parquet"
-                pq.write_table(result, output_file)
+            output_file = feature_dir / f"{name}.{self.stage}.parquet"
+            pq.write_table(result, output_file)
 
-                # --------------------------------------------------------------
-                # Commit Meta (correct rows & stats)
-                # --------------------------------------------------------------
-                meta_feature.commit(
-                    MetaResult(
-                        input_file=input_file,
-                        output_file=output_file,
-                        rows=result.num_rows,
-                        # index optional; feature stage usually doesn't need index
-                    )
+            # --------------------------------------------------
+            # 5. commit meta
+            # --------------------------------------------------
+            meta.commit(
+                MetaOutput(
+                    input_file=input_file,
+                    output_file=output_file,
+                    rows=result.num_rows,
+                    # feature 阶段默认不声明 slice capability
                 )
+            )
 
-                logs.info(
-                    f"[Feature] written {output_file.name} "
-                    f"symbols={symbol_count} "
-                    f"(rows={result.num_rows}, cols={len(result.column_names)})"
-                )
+            logs.info(
+                f"[{self.stage}] written {output_file.name} "
+                f"slices={slice_count} "
+                f"(rows={result.num_rows}, cols={len(result.column_names)})"
+            )
 
         return ctx

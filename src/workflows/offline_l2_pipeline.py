@@ -76,7 +76,9 @@ def build_offline_l2_pipeline() -> DataPipeline:
     )
 
     # ----------- 并行 Step（不传 engine）-----------
-    extractor_steps = CsvConvertStep(inst=inst)
+    extractor_steps = CsvConvertStep(inst=inst,
+                                     stage='convert'
+                                     )
 
     trade_step = TradeEnrichStep(inst=inst, engine=TradeEnrichEngine())
     #
@@ -113,10 +115,10 @@ def build_offline_l2_pipeline() -> DataPipeline:
     )
 
     steps = [
-        # download_step,
+        download_step,
         extractor_steps,
         normalize_steps,
-        # 成交主线（稳定、低成本）
+        # # 成交主线（稳定、低成本）
         trade_step,
         min_trade_step,
         feature_step,
