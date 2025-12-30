@@ -23,11 +23,11 @@ class SliceSource:
 
     # --------------------------------------------------
     def __init__(
-        self,
-        *,
-        meta_dir: Path,
-        stage: str,
-        output_slot: str,
+            self,
+            *,
+            meta_dir: Path,
+            stage: str,
+            output_slot: str,
     ) -> None:
         self._meta = BaseMeta(
             meta_dir=meta_dir,
@@ -66,6 +66,14 @@ class SliceSource:
 
     # --------------------------------------------------
     def get(self, symbol: str) -> pa.Table:
+        """
+            Contract:
+            - Return a 0-copy Arrow Table for exactly one symbol.
+            - Symbol must exist in the slice index.
+            - Missing symbol raises KeyError (no empty fallback).
+            - No business logic, no data mutation.
+            - Meta and slice semantics are strictly enforced.
+        """
         return self._accessor.get(symbol)
 
     # --------------------------------------------------
