@@ -7,6 +7,7 @@ from src.pipeline.context import PipelineContext
 from src.meta.meta import BaseMeta
 from contextlib import nullcontext
 
+
 class BasePipelineStep(ABC):
     """
     SerialFileStep（冻结）
@@ -34,8 +35,8 @@ class BasePipelineStep(ABC):
       - 强约束，弱扩展
     """
 
-    stage: str                # e.g. "normalize"
-    upstream_stage: str       # e.g. "parquet"
+    stage: str  # e.g. "normalize"
+    upstream_stage: str  # e.g. "parquet"
 
     def __init__(self, engine, inst=None):
         self.engine = engine
@@ -100,26 +101,3 @@ class BasePipelineStep(ABC):
 
     def logical_key(self, item, result):
         return item
-#
-# # src/pipeline/steps/trade_enrich_step.py
-# from pathlib import Path
-# import pyarrow as pa
-# import pyarrow.parquet as pq
-#
-# from src.pipeline.steps.base_step import BasePipelineStep
-#
-#
-# class TradeEnrichStep(BasePipelineStep):
-#     stage = "enriched"
-#     upstream_stage = "normalize"
-#
-#     def resolve_input(self, ctx, name: str) -> Path:
-#         return ctx.canonical_dir / f"{name}.parquet"
-#
-#     def execute(self, name, input_file: Path):
-#         return self.engine.execute(input_file)
-#
-#     def write(self, ctx, name, table: pa.Table) -> Path:
-#         output = ctx.fact_dir / f"{name}_enriched.parquet"
-#         pq.write_table(table, output)
-#         return output

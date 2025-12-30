@@ -14,6 +14,8 @@ from src.meta.meta import BaseMeta, MetaResult
 from src.utils.logger import logs
 from src.meta.symbol_accessor import SymbolAccessor
 
+from src.meta.symbol_slice_source import SymbolSliceSource
+
 
 # -----------------------------------------------------------------------------
 # Utility: merge append / replace columns
@@ -193,26 +195,21 @@ class FeatureBuildStep(PipelineStep):
             # --------------------------------------------------------------
             # Resolve manifest -> SymbolAccessor -> bind view
             # --------------------------------------------------------------
-            stem = _stem_for_manifest(input_file)
-            manifest_path = meta_up.manifest_path(stem, stage=upstream_stage)
-            if not manifest_path.exists():
-                raise FileNotFoundError(
-                    f"[FeatureBuild] upstream manifest missing: stage={upstream_stage}, "
-                    f"stem={stem}, path={manifest_path}"
-                )
 
-            accessor = SymbolAccessor.from_manifest(manifest_path)
-            view = accessor.bind(table)  # expected: provides symbols(), get(symbol)
+            source = SymbolSliceSource(
+                meta=meta_up,
+                input_file=input_file,
+                stage='min',
+            )
 
             # --------------------------------------------------------------
             # Build per-symbol features
             # --------------------------------------------------------------
             feature_tables: List[pa.Table] = []
 
-            symbols = list(view.symbols())
             with self.inst.timer(f"FeatureBuild_{exchange}"):
-                for symbol in symbols:
-                    sub = view.get(symbol)  # O(1), 0-copy slice
+                symbol_count = 0
+                for symbol, sub in source.bind(table):
                     if sub.num_rows == 0:
                         continue
 
@@ -240,6 +237,7 @@ class FeatureBuildStep(PipelineStep):
                         )
 
                     feature_tables.append(out)
+                    symbol_count += 1
 
                 if not feature_tables:
                     logs.warning(f"[Feature] {exchange} no symbols produced")
@@ -267,7 +265,7 @@ class FeatureBuildStep(PipelineStep):
 
                 logs.info(
                     f"[Feature] written {output_file.name} "
-                    f"symbols={len(symbols)} "
+                    f"symbols={symbol_count} "
                     f"(rows={result.num_rows}, cols={len(result.column_names)})"
                 )
 

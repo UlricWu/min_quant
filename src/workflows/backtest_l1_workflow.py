@@ -1,223 +1,63 @@
-# src/workflows/backtest_l1_workflow.py
+#!filepath: src/workflows/backtest_l1_workflow.py
 from __future__ import annotations
 
-from typing import Iterable, List
+from dataclasses import dataclass
 
-import pandas as pd
-
+from src.config.app_config import AppConfig
 from src.utils.path import PathManager
-from src.observability.instrumentation import Instrumentation
+from src.utils.logger import logs
 
-# backtest core
-from src.backtest.events import MarketEvent
-from src.backtest.backtest import BacktestEngine
-from src.backtest.alpha import AlphaStrategy
-from src.backtest.portfolio import Portfolio
+from src.backtest.data_handler import BarDataHandler
+from src.backtest.strategy import SimpleThresholdStrategy
 from src.backtest.execution import ExecutionEngine
+from src.backtest.portfolio import Portfolio
+from src.backtest.backtest import BacktestEngine
 
 
-# =============================================================================
-# Public API
-# =============================================================================
+@dataclass(frozen=True)
+class BacktestL1Spec:
+    date: str
+    cash: float = 1_000_000.0
+    qty: int = 100
+    feature_name: str = "l1_norm_ret"  # 你需要换成项目里真实存在的某列
+    threshold: float = 0.0
 
-def run_backtest_l1(
-    *,
-    date: str,
-    symbol: str,
-    initial_cash: float = 1_000_000.0,
-) -> pd.DataFrame:
-    """
-    Run Level-1 (Bar-driven) backtest for ONE symbol on ONE date.
 
-    Contract:
-      - Consume ONLY offline assets produced by Offline L2 Pipeline
-      - No dependency on pipeline ctx / steps
-      - Stateless, reproducible
-
-    Inputs:
-      - minute bar parquet
-      - feature parquet
-
-    Output:
-      - equity curve DataFrame
-    """
-
-    inst = Instrumentation()
+def run_backtest_l1(spec: BacktestL1Spec) -> None:
+    cfg = AppConfig.load()
     pm = PathManager()
 
-    inst.info(f"[BacktestL1] start date={date} symbol={symbol}")
+    # 选取需要的特征列（只取 strategy 用到的最小集合）
 
-    # ---------------------------------------------------------------------
-    # 1. Load offline assets
-    # ---------------------------------------------------------------------
-    bars = _load_minute_bars(pm, date, symbol)
-    feats = _load_features(pm, date, symbol)
+    data = BarDataHandler(
+        pm=pm,
+        date=spec.date,
+    )
 
-    df = _align_bar_and_feature(bars, feats)
+    strategy = SimpleThresholdStrategy(
+        feature_name=spec.feature_name,
+        threshold=spec.threshold,
+    )
 
-    if df.empty:
-        inst.warn(f"[BacktestL1] empty data: {date} {symbol}")
-        return pd.DataFrame()
+    execution = ExecutionEngine()
+    portfolio = Portfolio(cash=spec.cash)
 
-    # ---------------------------------------------------------------------
-    # 2. Build MarketEvent stream (Level-1)
-    # ---------------------------------------------------------------------
-    market_events = _build_market_events(df)
-
-    # ---------------------------------------------------------------------
-    # 3. Initialize backtest components
-    # ---------------------------------------------------------------------
-    alpha = AlphaStrategy(feature_df=df)
-    portfolio = Portfolio(cash=initial_cash)
-    execution = ExecutionEngine(commission_per_trade=1.0)
-
-    engine = BacktestEngine(
-        market_events=market_events,
-        alpha=alpha,
-        portfolio=portfolio,
+    bt = BacktestEngine(
+        data_handler=data,
+        strategy=strategy,
         execution=execution,
+        portfolio=portfolio,
     )
-
-    # ---------------------------------------------------------------------
-    # 4. Run backtest
-    # ---------------------------------------------------------------------
-    engine.run()
-
-    equity = pd.DataFrame(
-        {
-            "ts": df["ts"].values,
-            "equity": engine.equity_curve,
-        }
-    )
-
-    inst.info(
-        f"[BacktestL1] done date={date} symbol={symbol} "
-        f"final_equity={equity['equity'].iloc[-1]:.2f}"
-    )
-
-    return equity
+    bt.run()
 
 
-# =============================================================================
-# Internal helpers
-# =============================================================================
-
-def _load_minute_bars(
-    pm: PathManager,
-    date: str,
-    symbol: str,
-) -> pd.DataFrame:
-    """
-    Load minute bar produced by MinuteTradeAggStep.
-    """
-    path = pm.minute_trade_bar(date, symbol)
-
-    if not path.exists():
-        raise FileNotFoundError(f"Minute bar not found: {path}")
-
-    df = pd.read_parquet(path)
-
-    _require_columns(
-        df,
-        [
-            "ts",
-            "symbol",
-            "open",
-            "high",
-            "low",
-            "close",
-            "volume",
-        ],
-        name="minute_bar",
-    )
-
-    return df.sort_values("ts")
-
-
-def _load_features(
-    pm: PathManager,
-    date: str,
-    symbol: str,
-) -> pd.DataFrame:
-    """
-    Load feature table produced by FeatureBuildStep.
-    """
-    path = pm.feature(date, symbol)
-
-    if not path.exists():
-        raise FileNotFoundError(f"Feature file not found: {path}")
-
-    df = pd.read_parquet(path)
-
-    _require_columns(
-        df,
-        [
-            "ts",
-            "symbol",
-        ],
-        name="feature",
-    )
-
-    return df.sort_values("ts")
-
-
-def _align_bar_and_feature(
-    bars: pd.DataFrame,
-    feats: pd.DataFrame,
-) -> pd.DataFrame:
-    """
-    Left-join feature onto bar by (ts, symbol).
-
-    Design law (FROZEN):
-      - Bar is time backbone
-      - Feature may be missing (NaN allowed)
-    """
-    df = bars.merge(
-        feats,
-        on=["ts", "symbol"],
-        how="left",
-        suffixes=("", "_feat"),
-    )
-
-    return df.sort_values("ts").reset_index(drop=True)
-
-
-def _build_market_events(
-    df: pd.DataFrame,
-) -> List[MarketEvent]:
-    """
-    Convert bar rows into MarketEvent stream.
-
-    Level-1:
-      - One MarketEvent per minute bar
-      - Feature NOT embedded in event
-    """
-    events: List[MarketEvent] = []
-
-    for row in df.itertuples(index=False):
-        events.append(
-            MarketEvent(
-                ts=row.ts,
-                symbol=row.symbol,
-                open=float(row.open),
-                high=float(row.high),
-                low=float(row.low),
-                close=float(row.close),
-                volume=float(row.volume),
-            )
+if __name__ == "__main__":
+    # Example:
+    # python -m src.workflows.backtest_l1_workflow
+    run_backtest_l1(
+        BacktestL1Spec(
+            date="2025-12-01",
+            feature_name="l1_norm_ret",  # 改成你真实的 l1 列名
+            threshold=0.0,
         )
-
-    return events
-
-
-def _require_columns(
-    df: pd.DataFrame,
-    cols: Iterable[str],
-    *,
-    name: str,
-) -> None:
-    missing = [c for c in cols if c not in df.columns]
-    if missing:
-        raise ValueError(
-            f"{name} missing required columns: {missing}"
-        )
+    )

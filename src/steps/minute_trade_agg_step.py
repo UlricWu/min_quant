@@ -9,10 +9,10 @@ from src.pipeline.step import PipelineStep
 from src.pipeline.context import PipelineContext
 from src.engines.minute_trade_agg_engine import MinuteTradeAggEngine
 from src.meta.meta import BaseMeta, MetaResult
-from src.meta.symbol_accessor import SymbolAccessor
+# from src.meta.symbol_accessor import SymbolAccessor
 from src.utils.logger import logs
 import pyarrow.compute as pc
-
+from src.meta.symbol_slice_source import SymbolSliceSource
 
 class MinuteTradeAggStep(PipelineStep):
     """
@@ -53,23 +53,23 @@ class MinuteTradeAggStep(PipelineStep):
             # 1. 读取 enriched 表（一次）
             enriched = pq.read_table(input_file)
 
-            # 2. 从 normalize manifest 构造 accessor
-            manifest_path = meta.manifest_path(input_file, stage="normalize")
-            accessor = SymbolAccessor.from_manifest(manifest_path)
-            # 3. 绑定 enriched 表
-            view = accessor.bind(enriched)
+            source = SymbolSliceSource(
+                meta=meta,
+                input_file=input_file,
+                stage='normalize',
+            )
 
             # --------------------------------------------------
             # 3. per-symbol minute aggregation
             # --------------------------------------------------
             with self.inst.timer(f"MinuteTradeAgg_{name}"):
+                symbol_count = 0
+                for symbol, sub in source.bind(enriched):
 
-                for symbol in view.symbols():
-                    trade = view.get(symbol)
-                    if trade.num_rows == 0:
+                    if sub.num_rows == 0:
                         continue
 
-                    minute = self.engine.execute(trade)
+                    minute = self.engine.execute(sub)
                     if minute.num_rows == 0:
                         continue
 
@@ -79,6 +79,7 @@ class MinuteTradeAggStep(PipelineStep):
                     )
 
                     minute_tables.append(minute)
+                    symbol_count += 1
 
                 if not minute_tables:
                     logs.warning(f"[MinuteTradeAgg] {name} no minute data")
@@ -108,7 +109,7 @@ class MinuteTradeAggStep(PipelineStep):
 
                 logs.info(
                     f"[MinuteTradeAgg] written {output_file.name} "
-                    f"symbols={len(view.symbols())} "
+                    f"symbols={symbol_count} "
                     f"(rows={result.num_rows})"
                 )
 

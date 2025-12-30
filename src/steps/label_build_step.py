@@ -13,6 +13,7 @@ from src.meta.meta import BaseMeta, MetaResult
 from src.meta.symbol_accessor import SymbolAccessor
 from src.engines.labels.base import BaseLabelEngine
 from src.utils.logger import logs
+from src.meta.symbol_slice_source import SymbolSliceSource
 
 
 def _exchange_from_min_filename(input_file: Path) -> str:
@@ -80,6 +81,7 @@ class LabelBuildStep(PipelineStep):
 
         # upstream stage (symbol slice index lives here)
         upstream_stage = "min"
+        meta_up = BaseMeta(meta_dir, stage=upstream_stage)
 
         # ------------------------------------------------------------------
         # Iterate fact inputs (single upstream)
@@ -106,30 +108,26 @@ class LabelBuildStep(PipelineStep):
             # Resolve manifest -> SymbolAccessor
             # --------------------------------------------------------------
 
-            manifest_path = meta.manifest_path(input_file, stage=upstream_stage)
-            if not manifest_path.exists():
-                raise FileNotFoundError(
-                    f"[LabelBuild] upstream manifest missing: "
-                    f"stage={upstream_stage}, stem={exchange}, path={manifest_path}"
-                )
-
-            accessor = SymbolAccessor.from_manifest(manifest_path)
-            view = accessor.bind(table)  # provides symbols(), get(symbol)
+            source = SymbolSliceSource(
+                meta=meta_up,
+                input_file=input_file,
+                stage='min',
+            )
 
             # --------------------------------------------------------------
             # Per-symbol label computation
             # --------------------------------------------------------------
             label_tables: List[pa.Table] = []
 
-            symbols = list(view.symbols())
             with self.inst.timer(f"LabelBuild_{exchange}"):
-                for symbol in symbols:
-                    sub = view.get(symbol)  # O(1), 0-copy slice
+                symbol_count = 0
+                for symbol, sub in source.bind(table):
                     if sub.num_rows == 0:
                         continue
 
                     out = self.engine.execute(sub)
                     label_tables.append(out)
+                    symbol_count += 1
 
                 if not label_tables:
                     logs.warning(f"[Label] {exchange} no symbols produced")
@@ -157,7 +155,7 @@ class LabelBuildStep(PipelineStep):
 
                 logs.info(
                     f"[Label] written {output_file.name} "
-                    f"symbols={len(symbols)} "
+                    f"symbols={symbol_count} "
                     f"(rows={result.num_rows}, cols={len(result.column_names)})"
                 )
 

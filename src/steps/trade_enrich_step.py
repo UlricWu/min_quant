@@ -12,12 +12,12 @@ import pyarrow.parquet as pq
 from src.engines.trade_enrich_engine import TradeEnrichEngine
 from src.pipeline.context import EngineContext
 
-from src.meta.symbol_accessor import SymbolAccessor
+# from src.meta.symbol_accessor import SymbolAccessor
 from src.engines.trade_enrich_engine import TradeEnrichEngine
 from src.meta.meta import BaseMeta
 from src.pipeline.context import PipelineContext
 from src.meta.meta import MetaResult
-
+from src.meta.symbol_slice_source import SymbolSliceSource
 
 class TradeEnrichStep:
     """
@@ -60,54 +60,59 @@ class TradeEnrichStep:
 
         meta_dir: Path = ctx.meta_dir
         stage = "enriched"
+        upstream = 'normalize'
         meta = BaseMeta(meta_dir, stage=stage)
-
         for input_file in input_dir.glob("*trade.normalize.parquet"):
 
             if not meta.upstream_changed(input_file):
                 logs.warning(f"[TradeEnrichStep] {input_file.name} unchanged -> skip")
                 continue
-            manifest_path = meta.manifest_path(input_file, 'normalize')
+            source = SymbolSliceSource(
+                meta=meta,
+                input_file=input_file,
+                stage=upstream,
+            )
 
-            accessor = SymbolAccessor.from_manifest(manifest_path)
-
+            input_table = pq.read_table(input_file)
             tables = []
 
             name = input_file.stem.split('.')[0]
             with self.inst.timer(f"TradeEnrich_{name}"):
-                for symbol in accessor.symbols():
-                    table = accessor.get(symbol)
-                    if table.num_rows == 0:
+                symbol_count = 0
+                for symbol, sub in source.bind(input_table):
+                    # table = accessor.get(symbol)
+                    if sub.num_rows == 0:
                         continue
-                    enriched = self.engine.execute(table)
+                    enriched = self.engine.execute(sub)
                     tables.append(enriched)
+                    symbol_count+=1
 
-            if not tables:
-                logs.warning(f"[TradeEnrich] {name} no data")
-                continue
-            # --------------------------------------------------
-            # 3. 合并 & 写出 fact
-            # --------------------------------------------------
-            result_table = pa.concat_tables(tables)
+                if not tables:
+                    logs.warning(f"[TradeEnrich] {name} no data")
+                    continue
+                # --------------------------------------------------
+                # 3. 合并 & 写出 fact
+                # --------------------------------------------------
+                result_table = pa.concat_tables(tables)
 
-            output_file = output_dir / f"{name}.{stage}.parquet"
-            pq.write_table(result_table, output_file)
+                output_file = output_dir / f"{name}.{stage}.parquet"
+                pq.write_table(result_table, output_file)
 
-            # --------------------------------------------------
-            # 4. 提交 Meta（证明这个结果成立）
-            # --------------------------------------------------
-            result = MetaResult(
-                input_file=input_file,
-                output_file=output_file,
-                rows=result_table.num_rows,
-            )
+                # --------------------------------------------------
+                # 4. 提交 Meta（证明这个结果成立）
+                # --------------------------------------------------
+                result = MetaResult(
+                    input_file=input_file,
+                    output_file=output_file,
+                    rows=result_table.num_rows,
+                )
 
-            meta.commit(result)
+                meta.commit(result)
 
-            logs.info(
-                f"[TradeEnrich] written {output_file.name} "
-                f"symbols={len(tables)}"
-                f"(rows={result_table.num_rows})"
-            )
+                logs.info(
+                    f"[TradeEnrich] written {output_file.name} "
+                    f"symbols={symbol_count}"
+                    f"(rows={result_table.num_rows})"
+                )
 
         return ctx
