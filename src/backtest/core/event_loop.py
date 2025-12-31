@@ -2,7 +2,7 @@ from __future__ import annotations
 from typing import Iterable
 
 from src.backtest.core.interfaces import Strategy, Portfolio, ExecutionLike
-from src.backtest.core.events import MarketEvent
+from src.backtest.events import MarketEvent
 
 
 def run_event_loop(

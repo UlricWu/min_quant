@@ -68,26 +68,26 @@ class PipelineStep:
         # raise NotImplementedError
         pass
 
-    def _run(self, ctx: PipelineContext) -> PipelineContext:
-        meta = BaseMeta(meta_dir=ctx.meta_dir, stage=self.stage, output_slot=self.output_slot)
-
-        for file in ctx.last_stage:
-            exchange = file.stem
-
-            if not meta.upstream_changed(file):
-                logs.warning(f"[{self.step_name}] {exchange} unchanged -> skip")
-                continue
-
-            meta.commit(
-                MetaOutput(
-                    input_file=file,
-                    output_file=file,
-                    rows=0,  # CsvConvert 阶段不关心 rows
-                )
-            )
-
-            logs.info(
-                f"[{self.step_name}] meta committed for {file.name}"
-            )
-
-        return ctx
+    # def _run(self, ctx: PipelineContext) -> PipelineContext:
+    #     meta = BaseMeta(meta_dir=ctx.meta_dir, stage=self.stage, output_slot=self.output_slot)
+    #
+    #     for file in ctx.last_stage:
+    #         exchange = file.stem
+    #
+    #         if not meta.upstream_changed(file):
+    #             logs.warning(f"[{self.step_name}] {exchange} unchanged -> skip")
+    #             continue
+    #
+    #         meta.commit(
+    #             MetaOutput(
+    #                 input_file=file,
+    #                 output_file=file,
+    #                 rows=0,  # CsvConvert 阶段不关心 rows
+    #             )
+    #         )
+    #
+    #         logs.info(
+    #             f"[{self.step_name}] meta committed for {file.name}"
+    #         )
+    #
+    #     return ctx

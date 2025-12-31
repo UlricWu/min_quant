@@ -2,7 +2,7 @@ from __future__ import annotations
 from typing import Optional
 
 from src.backtest.core.interfaces import Portfolio
-from src.backtest.core.events import SignalEvent, OrderEvent, FillEvent
+from src.backtest.events import SignalEvent, OrderEvent, FillEvent
 
 
 class DummyPortfolio(Portfolio):

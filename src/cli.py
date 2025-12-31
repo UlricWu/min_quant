@@ -4,6 +4,7 @@ import typer
 from rich import print
 
 from src.workflows.offline_l2_pipeline import build_offline_l2_pipeline
+from src.workflows.offline_l1_backtest import build_offline_l1_backtest
 
 app = typer.Typer(help="MinQuant Data Pipeline CLI")
 
@@ -54,19 +55,24 @@ def today():
     print(f"[yellow]Running L2 Pipeline for today: {date}[/yellow]")
     pipeline.run(date)
 
+
 @app.command()
-def backtest(date: str, symbol: str):
+def backtest():
     """
     Run Level-1 backtest
     """
-    from src.workflows.backtest_l1_workflow import run_backtest_l1
+    date: str = '2015-01-01'
+    symbol: str = ''
 
-    equity = run_backtest_l1(date=date, symbol=symbol)
-    print(equity.tail())
-
+    pipeline = build_offline_l1_backtest(symbol=symbol, date=date)
+    print(
+        f"[magenta]Running L1 Backtest | date={date} | symbol={symbol}[/magenta]"
+    )
+    pipeline.run(date)
 
 
 if __name__ == "__main__":
     app()
 
 # python -m src.cli run 2025-11-04
+# python -m src.cli backtest

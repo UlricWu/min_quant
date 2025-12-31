@@ -3,10 +3,10 @@ from __future__ import annotations
 
 from dataclasses import dataclass
 from pathlib import Path
-from typing import Literal, Optional
+from typing import Literal, Optional, Dict
 from src.engines.parser_engine import NormalizedEvent
 
-
+import pyarrow as pa
 @dataclass
 class PipelineContext:
     """
@@ -61,3 +61,41 @@ class EngineContext:
 
     # 控制
     emit_snapshot: bool = False
+
+from src.backtest.result import BacktestResult
+
+
+@dataclass
+class BacktestContext:
+    """
+    BacktestContext（FINAL / FROZEN）
+
+    设计原则：
+      - Step 之间唯一通信载体
+      - 只存“事实 / 中间态”，不存业务逻辑
+      - offline / l1 / l2 / l3 通用
+    """
+
+    # -------------------------
+    # identity
+    # -------------------------
+    date: str
+    backtest_dir: Path
+    meta_dir: Path
+
+    # -------------------------
+    # data layer
+    # -------------------------
+    tables: Optional[Dict[str, pa.Table]] = None
+    data_handler: Optional[object] = None
+
+    # -------------------------
+    # execution layer
+    # -------------------------
+    portfolio: Optional[object] = None
+
+    # -------------------------
+    # result layer
+    # -------------------------
+    result: Optional[BacktestResult] = None
+    metrics: Optional[dict] = None

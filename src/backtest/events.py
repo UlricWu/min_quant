@@ -1,6 +1,6 @@
 from __future__ import annotations
 from dataclasses import dataclass
-from typing import Dict
+from typing import Dict, Optional
 
 
 # -------------------------
@@ -17,9 +17,12 @@ class Event:
 class MarketEvent(Event):
     ts: int
     symbol: str
-    features_l0: Dict[str, float]
-    features_l1: Dict[str, float]
-    features_l2: Dict[str, float]
+    features: dict[str, float]
+    # ✅ Price-Driven 必须
+    price: float
+
+    # ❌ 不使用 label
+    label: Optional[float] = None
 
 
 # -------------------------
@@ -29,7 +32,7 @@ class MarketEvent(Event):
 class SignalEvent(Event):
     ts: int
     symbol: str
-    direction: int        # +1 / -1 / 0
+    direction: int  # +1 / -1 / 0
     strength: float
 
 
@@ -40,9 +43,9 @@ class SignalEvent(Event):
 class OrderEvent(Event):
     ts: int
     symbol: str
-    side: str             # BUY / SELL
+    side: str  # BUY / SELL
     quantity: float
-    order_type: str       # MARKET / LIMIT
+    order_type: str  # MARKET / LIMIT
 
 
 # -------------------------

@@ -2,7 +2,7 @@ from __future__ import annotations
 from typing import Optional
 
 from src.backtest.core.interfaces import Strategy
-from src.backtest.core.events import MarketEvent, SignalEvent
+from src.backtest.events import MarketEvent, SignalEvent
 
 
 class DummyStrategy(Strategy):

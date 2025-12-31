@@ -2,6 +2,8 @@
 from pathlib import Path
 from typing import Optional
 
+from rich.diagnose import report
+
 from src import logs
 
 
@@ -204,3 +206,8 @@ class PathManager:
     def predict_dir(cls, date: str = '') -> Path:
         if date: return cls.data_dir() / "predict" / date
         return cls.data_dir() / "predict"
+
+    @classmethod
+    def backtest_dir(cls, date: str = '') -> Path:
+        if date: return cls.data_dir() / "backtest" / date
+        return cls.data_dir() / "backtest"

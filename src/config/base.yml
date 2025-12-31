@@ -27,3 +27,33 @@ pipeline:
       horizon: 5
       price_col: close
       use_log_return: false
+
+backtest:
+  name: ma20_threshold
+  level: l1
+  replay: multi
+
+  dates:
+    - "2015-01-01"
+    - "2025-11-04"
+    - "2025-11-05"
+
+  # 本次实验作用的 symbol 集合
+  symbols:
+    - "600004"
+    - "600011"
+
+  # 策略行为定义（与 symbol 解耦）
+  strategy:
+    type: threshold
+
+    # Strategy 可见的 feature 列（由 DataHandler 加载）
+    features:
+      - l1_std_w20_abs_move
+      - l1_z_w20_l0_amount
+
+    # 实际用于产生信号的 feature
+    signal_feature: l1_std_w20_abs_move
+
+    threshold: 0.0
+

@@ -2,7 +2,7 @@ from __future__ import annotations
 from typing import Optional
 
 from src.backtest.core.interfaces import ExecutionLike
-from src.backtest.core.events import OrderEvent, FillEvent
+from src.backtest.events import OrderEvent, FillEvent
 
 
 class DummyExecution(ExecutionLike):
