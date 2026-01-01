@@ -12,6 +12,9 @@ from src.observability.instrumentation import Instrumentation
 class PipelineAbort(Exception):
     """
     用于 Step 主动中断 Pipeline 的信号异常
+
+    某个 Step 有权声明：
+        “在当前上下文下，Pipeline 不应继续执行。
     """
     pass
 
@@ -71,9 +74,31 @@ class DataPipeline:
                 ctx = step.run(ctx)
         except PipelineAbort as e:
             logs.info(f"[Pipeline][SKIP] {e}")
+            self._cleanup_date_dirs(ctx)
             return ctx
 
         # Timeline 只包含 leaf（由 Step / Adapter 写入）
         self.inst.generate_timeline_report(date)
 
         return ctx
+
+    def _cleanup_date_dirs(self, ctx: PipelineContext):
+        """
+        删除该 date 下所有可能被创建的目录
+        失败日必须在文件系统中“不可见”
+        """
+        for path in (
+                ctx.raw_dir,
+                ctx.parquet_dir,
+                ctx.fact_dir,
+                ctx.meta_dir,
+                ctx.feature_dir,
+                ctx.label_dir,
+        ):
+            try:
+                if path.exists():
+                    FileSystem.remove(path)
+                    logs.warning(f"[Pipeline][CLEANUP] removed {path}")
+            except Exception as e:
+                logs.error(f"[Pipeline][CLEANUP][FAILED] {path} | {e}")
+

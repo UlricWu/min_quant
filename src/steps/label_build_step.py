@@ -1,11 +1,10 @@
-# src/steps/label_build_step.py
+#!filepath: src/pipeline/steps/label_build_step.py
 from __future__ import annotations
 
 from pathlib import Path
 from typing import List
 
 import pyarrow as pa
-import pyarrow.parquet as pq
 
 from src.pipeline.step import PipelineStep
 from src.pipeline.context import PipelineContext
@@ -13,6 +12,9 @@ from src.meta.base import BaseMeta, MetaOutput
 from src.meta.slice_source import SliceSource
 from src.engines.labels.base import BaseLabelEngine
 from src.utils.logger import logs
+
+from src.engines.symbol_index_engine import SymbolIndexEngine
+from src.utils.parquet_writer import ParquetAppendWriter
 
 
 # -----------------------------------------------------------------------------
@@ -23,18 +25,17 @@ class LabelBuildStep(PipelineStep):
     LabelBuildStep（FINAL / FROZEN）
 
     输入：
-      fact/*.min.parquet        （multi-symbol, minute-level）
+      fact/min.*.parquet        （multi-symbol, minute-level）
 
     输出：
-      label/*.label.parquet
+      label/label.*.parquet
 
     冻结原则：
       - orchestration only
       - label 是派生数据资产
-      - engine 只处理单 slice
+      - engine 只处理单 symbol
       - slice discovery 完全由 SliceSource 驱动
-      - 不 bind、不 read table
-      - 单 parquet 写入 + 单次 Meta commit
+      - 统一 canonicalize + writer + meta
     """
 
     stage = "label"
@@ -57,8 +58,9 @@ class LabelBuildStep(PipelineStep):
 
         label_dir.mkdir(parents=True, exist_ok=True)
 
-        for input_file in sorted(fact_dir.glob(f"*.{self.upstream_stage}.parquet")):
-            name = input_file.stem.split(".")[0]
+        for input_file in fact_dir.glob(f"{self.upstream_stage}.*.parquet"):
+            name = input_file.stem.split(".")[1]
+            output_file = label_dir / f"{self.stage}.{name}.parquet"
 
             meta = BaseMeta(
                 meta_dir=meta_dir,
@@ -85,10 +87,9 @@ class LabelBuildStep(PipelineStep):
             label_tables: List[pa.Table] = []
 
             # --------------------------------------------------
-            # 3. per-slice label computation
+            # 3. per-symbol label computation（engine 纯计算）
             # --------------------------------------------------
             with self.inst.timer(f"[{self.stage}] {name}"):
-                slice_count = 0
 
                 for symbol, sub in source:
                     if sub.num_rows == 0:
@@ -99,19 +100,21 @@ class LabelBuildStep(PipelineStep):
                         continue
 
                     label_tables.append(out)
-                    slice_count += 1
 
             if not label_tables:
                 logs.warning(f"[{self.stage}] {name} no labels produced")
                 continue
 
             # --------------------------------------------------
-            # 4. concat + write
+            # 4. concat + canonicalize + rebuild slice index
             # --------------------------------------------------
-            result = pa.concat_tables(label_tables, promote_options="default")
+            tables, index = SymbolIndexEngine.execute(
+                pa.concat_tables(label_tables)
+            )
 
-            output_file = label_dir / f"{name}.{self.stage}.parquet"
-            pq.write_table(result, output_file)
+            writer = ParquetAppendWriter(output_file=output_file)
+            writer.write(tables)
+            writer.close()
 
             # --------------------------------------------------
             # 5. commit meta
@@ -120,15 +123,15 @@ class LabelBuildStep(PipelineStep):
                 MetaOutput(
                     input_file=input_file,
                     output_file=output_file,
-                    rows=result.num_rows,
-                    # label stage 通常不声明 slice capability
+                    rows=tables.num_rows,
+                    index=index,  # label 默认可 slice（即使暂时不用）
                 )
             )
 
             logs.info(
                 f"[{self.stage}] written {output_file.name} "
-                f"slices={slice_count} "
-                f"(rows={result.num_rows}, cols={len(result.column_names)})"
+                f"symbols={len(label_tables)} "
+                f"(rows={tables.num_rows}, cols={len(tables.column_names)})"
             )
 
         return ctx

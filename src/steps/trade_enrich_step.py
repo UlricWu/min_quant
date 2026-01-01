@@ -15,6 +15,9 @@ from src.meta.base import BaseMeta, MetaOutput
 from src.meta.slice_source import SliceSource
 from src.utils.logger import logs
 
+from src.engines.symbol_index_engine import SymbolIndexEngine
+from src.utils.parquet_writer import ParquetAppendWriter
+
 
 class TradeEnrichStep(PipelineStep):
     """
@@ -36,7 +39,7 @@ class TradeEnrichStep(PipelineStep):
     """
 
     stage = "enriched"
-    upstream_stage = "normalize"
+    upstream_stage = "convert"
 
     def __init__(
             self,
@@ -49,11 +52,12 @@ class TradeEnrichStep(PipelineStep):
     # ------------------------------------------------------------------
     def run(self, ctx: PipelineContext) -> PipelineContext:
         input_dir: Path = ctx.fact_dir
-        output_dir: Path = ctx.fact_dir
         meta_dir: Path = ctx.meta_dir
+        output_dir = ctx.fact_dir
 
-        for input_file in input_dir.glob(f"*{self.upstream_stage}.parquet"):
-            name = input_file.stem.split(".")[0]
+        for input_file in input_dir.glob(f"{self.upstream_stage}.*trade.parquet"):
+            name = input_file.stem.split(".")[1]
+            output_file = output_dir / f"{self.stage}.{name}.parquet"
 
             meta = BaseMeta(
                 meta_dir=meta_dir,
@@ -73,7 +77,7 @@ class TradeEnrichStep(PipelineStep):
             # --------------------------------------------------
             source = SliceSource(
                 meta_dir=ctx.meta_dir,
-                stage="normalize",
+                stage=self.upstream_stage,
                 output_slot=name,
             )
 
@@ -83,8 +87,6 @@ class TradeEnrichStep(PipelineStep):
             # 3. per-symbol enrich（engine 纯计算）
             # --------------------------------------------------
             with self.inst.timer(f"[TradeEnrich] {name}"):
-                symbol_count = 0
-
                 for symbol, sub in source:
                     if sub.num_rows == 0:
                         continue
@@ -94,21 +96,15 @@ class TradeEnrichStep(PipelineStep):
                         continue
 
                     enriched_tables.append(enriched)
-                    symbol_count += 1
 
             if not enriched_tables:
                 logs.warning(f"[TradeEnrichStep] {name} no enriched data")
                 continue
 
-            # --------------------------------------------------
-            # 4. concat + rebuild slice index
-            # --------------------------------------------------
-            result_table = pa.concat_tables(enriched_tables)
-
-            index = self._build_symbol_slice_index(result_table)
-
-            output_file = output_dir / f"{name}.{self.stage}.parquet"
-            pq.write_table(result_table, output_file)
+            tables, index = SymbolIndexEngine.execute(pa.concat_tables(enriched_tables))
+            writer = ParquetAppendWriter(output_file=output_file)
+            writer.write(tables)
+            writer.close()
 
             # --------------------------------------------------
             # 5. commit meta（带 slice capability）
@@ -117,46 +113,14 @@ class TradeEnrichStep(PipelineStep):
                 MetaOutput(
                     input_file=input_file,
                     output_file=output_file,
-                    rows=result_table.num_rows,
+                    rows=tables.num_rows,
                     index=index,
                 )
             )
 
             logs.info(
                 f"[TradeEnrichStep] written {output_file.name} "
-                f"symbols={symbol_count} rows={result_table.num_rows}"
+                f"symbols={len(enriched_tables)} rows={tables.num_rows}"
             )
 
         return ctx
-
-    # ------------------------------------------------------------------
-    @staticmethod
-    def _build_symbol_slice_index(
-            table: pa.Table,
-    ) -> Dict[str, Tuple[int, int]]:
-        """
-        构建 symbol -> (start, length)
-
-        前置条件（由本 Step 保证）：
-          - table 按 symbol 分块 concat
-          - 每个 symbol 内部顺序已保持
-        """
-        if table.num_rows == 0:
-            return {}
-
-        sym = table["symbol"]
-        if not pa.types.is_string(sym.type):
-            sym = pc.cast(sym, pa.string())
-
-        ree = pc.run_end_encode(sym).combine_chunks()
-        values = ree.values.to_pylist()
-        run_ends = ree.run_ends.to_pylist()
-
-        index: Dict[str, Tuple[int, int]] = {}
-        start = 0
-        for symbol, end in zip(values, run_ends):
-            end = int(end)
-            index[str(symbol)] = (start, end - start)
-            start = end
-
-        return index

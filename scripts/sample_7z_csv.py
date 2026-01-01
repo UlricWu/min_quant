@@ -14,7 +14,7 @@ INPUT_FILES = [
     "SZ_Order.csv.7z",
     "SZ_Trade.csv.7z",
 ]
-INPUT_DATE = '2025-12-01'
+INPUT_DATE = '2025-12-02'
 OUTPUT_DATE = "2015-01-01"
 
 

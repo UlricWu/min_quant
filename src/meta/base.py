@@ -10,7 +10,7 @@ from typing import Dict, Tuple, Optional
 
 from src import logs
 from src.utils.filesystem import FileSystem
-
+from src import logs
 
 @dataclass(frozen=True)
 class MetaOutput:

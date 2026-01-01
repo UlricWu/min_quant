@@ -4,7 +4,6 @@ from __future__ import annotations
 from abc import ABC, abstractmethod
 from typing import Generic, TypeVar, Iterable, Any, Dict
 
-
 InEvent = TypeVar("InEvent")
 OutEvent = TypeVar("OutEvent")
 
@@ -31,4 +30,4 @@ class BaseEngine(ABC, Generic[InEvent, OutEvent]):
         如需状态机可在子类中覆写。
         """
         for ev in events:
-            yield self.process(ev)
+            yield self.execute(ev)

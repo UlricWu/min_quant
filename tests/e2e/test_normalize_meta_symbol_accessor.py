@@ -1,26 +1,20 @@
 from __future__ import annotations
 
-from pathlib import Path
-
 import pytest
 import pyarrow as pa
-import pyarrow.parquet as pq
 
 from src.engines.normalize_engine import NormalizeEngine
 from src.engines.parser_engine import INTERNAL_SCHEMA
-from src.meta.base import BaseMeta, MetaOutput
-from src.meta.slice_source import SliceSource
 
 
 # -----------------------------------------------------------------------------
 # Helpers
 # -----------------------------------------------------------------------------
-def _make_internal_trade_table() -> pa.Table:
+def make_internal_trade_table() -> pa.Table:
     """
-    构造一个满足 INTERNAL_SCHEMA 的最小 internal 表，并且包含乱序 (symbol, ts)
-    用于验证 NormalizeEngine(v2) 排序 + symbol_slice index。
+    构造一个满足 INTERNAL_SCHEMA 的最小 internal 表
+    含乱序 (symbol, ts)，用于验证 NormalizeEngine 的单 batch 行为
     """
-    schema = INTERNAL_SCHEMA
     n = 4
 
     symbol_vals = ["600000", "600000", "000001", "300001"]
@@ -32,7 +26,7 @@ def _make_internal_trade_table() -> pa.Table:
     ]
 
     arrays = []
-    for field in schema:
+    for field in INTERNAL_SCHEMA:
         if field.name == "symbol":
             arrays.append(pa.array(symbol_vals, type=field.type))
         elif field.name == "ts":
@@ -40,265 +34,85 @@ def _make_internal_trade_table() -> pa.Table:
         else:
             arrays.append(pa.array([None] * n, type=field.type))
 
-    return pa.Table.from_arrays(arrays, schema=schema)
-
-
-def _normalize_and_write_parquet(
-    *,
-    engine: NormalizeEngine,
-    table: pa.Table,
-    input_file: Path,
-    out_dir: Path,
-) -> MetaOutput:
-    """
-    Step-like 最小职责：
-      - 调 NormalizeEngine(v2)
-      - 写 canonical parquet
-      - 返回 MetaOutput
-    """
-    out_dir.mkdir(parents=True, exist_ok=True)
-
-    norm = engine.execute([table])
-    output_file = out_dir / "canonical.parquet"
-
-    pq.write_table(norm.canonical, output_file)
-
-    return MetaOutput(
-        input_file=input_file,
-        output_file=output_file,
-        rows=norm.rows,
-        index=norm.index,
-    )
+    return pa.Table.from_arrays(arrays, schema=INTERNAL_SCHEMA)
 
 
 # -----------------------------------------------------------------------------
-# Fixtures
+# Tests
 # -----------------------------------------------------------------------------
-@pytest.fixture
-def sh_trade_parquet(tmp_path: Path) -> Path:
-    """
-    占位 input_file（NormalizeEngine v2 不读取 parquet）
-    """
-    p = tmp_path / "sh_trade.parquet"
-    p.write_bytes(b"")
-    return p
+def test_normalize_basic_sort_and_filter():
+    engine = NormalizeEngine()
+    table = make_internal_trade_table()
+
+    out = engine.execute(table)
+
+    assert out.num_rows > 0
+    assert out.column_names == table.column_names
+
+    # A-share filter 生效（无非 A 股）
+    symbols = out["symbol"].to_pylist()
+    assert set(symbols) <= {"600000", "000001", "300001"}
+
+    # 排序语义：(symbol asc, ts asc)
+    prev_sym = None
+    prev_ts = None
+    for sym, ts in zip(out["symbol"].to_pylist(), out["ts"].to_pylist()):
+        if prev_sym is None:
+            prev_sym, prev_ts = sym, ts
+            continue
+
+        if sym == prev_sym:
+            assert ts >= prev_ts
+        else:
+            assert sym > prev_sym
+
+        prev_sym, prev_ts = sym, ts
 
 
-@pytest.fixture
-def internal_trade_table() -> pa.Table:
-    return _make_internal_trade_table()
-
-
-# -----------------------------------------------------------------------------
-# Tests (SliceSource-based)
-# -----------------------------------------------------------------------------
-def test_normalize_and_commit_meta(
-    sh_trade_parquet: Path,
-    internal_trade_table: pa.Table,
-    tmp_path: Path,
-):
+def test_normalize_dictionary_symbol_cast():
     engine = NormalizeEngine()
 
-    out_dir = tmp_path / "normalize"
-    meta_dir = tmp_path / "meta"
+    symbols = pa.array(
+        ["000001", "000001", "600000"],
+    ).dictionary_encode()
+    ts = pa.array([3, 1, 2], pa.int64())
 
-    result = _normalize_and_write_parquet(
-        engine=engine,
-        table=internal_trade_table,
-        input_file=sh_trade_parquet,
-        out_dir=out_dir,
-    )
+    table = pa.Table.from_arrays([symbols, ts], names=["symbol", "ts"])
+    out = engine.execute(table)
 
-    stage = "normalize"
-    output_slot = "canonical"
-
-    meta = BaseMeta(
-        meta_dir=meta_dir,
-        stage=stage,
-        output_slot=output_slot,
-    )
-    meta.commit(result)
-
-    manifest_path = meta_dir / f"{stage}.{output_slot}.manifest.json"
-    assert manifest_path.exists()
+    assert pa.types.is_string(out["symbol"].type)
+    assert out["symbol"].to_pylist() == ["000001", "000001", "600000"]
 
 
-def test_slice_source_basic(
-    sh_trade_parquet: Path,
-    internal_trade_table: pa.Table,
-    tmp_path: Path,
-):
+def test_normalize_empty_table_passthrough():
     engine = NormalizeEngine()
-    out_dir = tmp_path / "normalize"
-    meta_dir = tmp_path / "meta"
+    table = pa.table({"symbol": [], "ts": []})
 
-    result = _normalize_and_write_parquet(
-        engine=engine,
-        table=internal_trade_table,
-        input_file=sh_trade_parquet,
-        out_dir=out_dir,
-    )
+    out = engine.execute(table)
 
-    stage = "normalize"
-    output_slot = "canonical"
-
-    meta = BaseMeta(
-        meta_dir=meta_dir,
-        stage=stage,
-        output_slot=output_slot,
-    )
-    meta.commit(result)
-
-    source = SliceSource(
-        meta_dir=meta_dir,
-        stage=stage,
-        output_slot=output_slot,
-    )
-
-    assert set(source.symbols()) == set(result.index.keys())
+    assert out.num_rows == 0
+    assert out.column_names == table.column_names
 
 
-def test_slice_source_get_correct_symbol(
-    sh_trade_parquet: Path,
-    internal_trade_table: pa.Table,
-    tmp_path: Path,
-):
+def test_normalize_missing_required_columns_raises():
     engine = NormalizeEngine()
-    out_dir = tmp_path / "normalize"
-    meta_dir = tmp_path / "meta"
 
-    result = _normalize_and_write_parquet(
-        engine=engine,
-        table=internal_trade_table,
-        input_file=sh_trade_parquet,
-        out_dir=out_dir,
-    )
+    with pytest.raises(ValueError):
+        engine.execute(pa.table({"symbol": ["000001"]}))
 
-    stage = "normalize"
-    output_slot = "canonical"
-
-    BaseMeta(
-        meta_dir=meta_dir,
-        stage=stage,
-        output_slot=output_slot,
-    ).commit(result)
-
-    source = SliceSource(
-        meta_dir=meta_dir,
-        stage=stage,
-        output_slot=output_slot,
-    )
-
-    for symbol in source.symbols():
-        table = source.get(symbol)
-        assert set(table["symbol"].to_pylist()) == {symbol}
+    with pytest.raises(ValueError):
+        engine.execute(pa.table({"ts": [1, 2, 3]}))
 
 
-def test_slice_source_slice_size_matches_index(
-    sh_trade_parquet: Path,
-    internal_trade_table: pa.Table,
-    tmp_path: Path,
-):
+def test_normalize_invalid_symbol_type_raises():
     engine = NormalizeEngine()
-    out_dir = tmp_path / "normalize"
-    meta_dir = tmp_path / "meta"
 
-    result = _normalize_and_write_parquet(
-        engine=engine,
-        table=internal_trade_table,
-        input_file=sh_trade_parquet,
-        out_dir=out_dir,
+    table = pa.table(
+        {
+            "symbol": pa.array([1, 2, 3], pa.int64()),
+            "ts": [1, 2, 3],
+        }
     )
 
-    stage = "normalize"
-    output_slot = "canonical"
-
-    BaseMeta(
-        meta_dir=meta_dir,
-        stage=stage,
-        output_slot=output_slot,
-    ).commit(result)
-
-    source = SliceSource(
-        meta_dir=meta_dir,
-        stage=stage,
-        output_slot=output_slot,
-    )
-
-    for symbol, (_start, length) in result.index.items():
-        assert source.get(symbol).num_rows == length
-
-
-def test_slice_source_missing_symbol_returns_empty(
-    sh_trade_parquet: Path,
-    internal_trade_table: pa.Table,
-    tmp_path: Path,
-):
-    engine = NormalizeEngine()
-    out_dir = tmp_path / "normalize"
-    meta_dir = tmp_path / "meta"
-
-    result = _normalize_and_write_parquet(
-        engine=engine,
-        table=internal_trade_table,
-        input_file=sh_trade_parquet,
-        out_dir=out_dir,
-    )
-
-    stage = "normalize"
-    output_slot = "canonical"
-
-    BaseMeta(
-        meta_dir=meta_dir,
-        stage=stage,
-        output_slot=output_slot,
-    ).commit(result)
-
-    source = SliceSource(
-        meta_dir=meta_dir,
-        stage=stage,
-        output_slot=output_slot,
-    )
-
-    with pytest.raises(KeyError):
-        source.get("999999")
-
-
-def test_slice_source_table_matches_parquet(
-    sh_trade_parquet: Path,
-    internal_trade_table: pa.Table,
-    tmp_path: Path,
-):
-    engine = NormalizeEngine()
-    out_dir = tmp_path / "normalize"
-    meta_dir = tmp_path / "meta"
-
-    result = _normalize_and_write_parquet(
-        engine=engine,
-        table=internal_trade_table,
-        input_file=sh_trade_parquet,
-        out_dir=out_dir,
-    )
-
-    stage = "normalize"
-    output_slot = "canonical"
-
-    BaseMeta(
-        meta_dir=meta_dir,
-        stage=stage,
-        output_slot=output_slot,
-    ).commit(result)
-
-    source = SliceSource(
-        meta_dir=meta_dir,
-        stage=stage,
-        output_slot=output_slot,
-    )
-
-    parquet_table = pq.read_table(result.output_file)
-
-    reconstructed = pa.concat_tables(
-        [source.get(sym) for sym in source.symbols()]
-    )
-
-    assert reconstructed.equals(parquet_table)
+    with pytest.raises(TypeError):
+        engine.execute(table)

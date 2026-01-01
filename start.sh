@@ -40,9 +40,12 @@ fi
 echo "Starting job: $DATE"
 echo "Log file: $LOG_FILE"
 
-# 3) 后台运行训练任务
+## 3) 后台运行训练任务
+#tmux new-session -d -s "$SESSION" \
+#"python -m src.cli  range 2025-12-01 2025-12-10  2>&1 | tee -a $LOG_FILE"
+
 tmux new-session -d -s "$SESSION" \
-"python -m src.cli  range 2025-12-01 2025-12-10  2>&1 | tee -a $LOG_FILE"
+"python -m src.cli  range 2025-12-01 2025-12-30  2>&1 | tee -a $LOG_FILE"
 
 echo "HOST=$(hostname)"
 echo "USER=$(whoami)"

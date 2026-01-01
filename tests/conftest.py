@@ -211,7 +211,7 @@ def _patch_parse_events(monkeypatch):
             }
         )
 
-    monkeypatch.setattr(ne, "parse_events", _stub_parse_events, raising=True)
+    monkeypatch.setattr(ne, "parse_events_arrow", _stub_parse_events, raising=True)
 
 
 @pytest.fixture

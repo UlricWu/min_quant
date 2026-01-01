@@ -1,4 +1,4 @@
-#!filepath: src/workflows/offline_l2_pipeline.py
+#!filepath: src/workflows/offline_l2_data.py
 from __future__ import annotations
 
 from src.pipeline.pipeline import DataPipeline
@@ -6,27 +6,16 @@ from src.utils.path import PathManager
 from src.config.app_config import AppConfig
 from src.observability.instrumentation import Instrumentation
 
-from src.engines.convert_engine import ConvertEngine
-from src.steps.csv_convert_step import CsvConvertStep
+from src.steps.download_step import DownloadStep
 
-from src.engines.normalize_engine import NormalizeEngine
-from src.steps.normalize_step import NormalizeStep
-
-# from src.engines.symbol_split_engine import SymbolSplitEngine
-# from src.steps.symbol_split_step import SymbolSplitStep
 from src.steps.trade_enrich_step import TradeEnrichStep
-from src.engines.trade_enrich_engine import TradeEnrichEngine
 
 from src.engines.orderbook_rebuild_engine import OrderBookRebuildEngine
 from src.steps.orderbook_rebuild_step import OrderBookRebuildStep
 from src.engines.minute_trade_agg_engine import MinuteTradeAggEngine
 from src.steps.minute_trade_agg_step import MinuteTradeAggStep
 
-from src.engines.minute_order_agg_engine import MinuteOrderAggEngine
-from src.steps.minute_order_agg_step import MinuteOrderAggEngine, MinuteOrderAggStep
-
 from src.engines.ftp_download_engine import FtpDownloadEngine
-from src.steps.download_step import DownloadStep
 from src.engines.trade_enrich_engine import TradeEnrichEngine
 
 from src.engines.feature_l0_engine import FeatureL0Engine
@@ -37,6 +26,8 @@ from src.steps.feature_build_step import FeatureBuildStep
 
 from src.steps.label_build_step import LabelBuildStep
 from src.engines.labels.forward_return_label_engine import ForwardReturnLabelEngine
+
+from src.steps.convert_step import ConvertStep
 
 
 def build_offline_l2_pipeline() -> DataPipeline:
@@ -71,14 +62,9 @@ def build_offline_l2_pipeline() -> DataPipeline:
         remote_root=cfg.data.remote_dir,
     )
 
-    normalize_steps = NormalizeStep(
-        inst=inst,
-    )
-
     # ----------- 并行 Step（不传 engine）-----------
-    extractor_steps = CsvConvertStep(inst=inst,
-                                     stage='convert'
-                                     )
+    extractor_steps = ConvertStep(inst=inst,
+                                  )
 
     trade_step = TradeEnrichStep(inst=inst, engine=TradeEnrichEngine())
     #
@@ -117,8 +103,7 @@ def build_offline_l2_pipeline() -> DataPipeline:
     steps = [
         download_step,
         extractor_steps,
-        normalize_steps,
-        # # 成交主线（稳定、低成本）
+        # # # 成交主线（稳定、低成本）
         trade_step,
         min_trade_step,
         feature_step,

@@ -3,7 +3,7 @@ import pandas as pd
 import typer
 from rich import print
 
-from src.workflows.offline_l2_pipeline import build_offline_l2_pipeline
+from src.workflows.offline_l2_data import build_offline_l2_pipeline
 from src.workflows.offline_l1_backtest import build_offline_l1_backtest
 
 app = typer.Typer(help="MinQuant Data Pipeline CLI")

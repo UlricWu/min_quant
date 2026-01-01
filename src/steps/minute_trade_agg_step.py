@@ -1,12 +1,10 @@
-# src/pipeline/steps/minute_trade_agg_step.py
+#!filepath: src/pipeline/steps/minute_trade_agg_step.py
 from __future__ import annotations
 
 from pathlib import Path
-from typing import Dict, Tuple
+from typing import List
 
 import pyarrow as pa
-import pyarrow.compute as pc
-import pyarrow.parquet as pq
 
 from src.pipeline.step import PipelineStep
 from src.pipeline.context import PipelineContext
@@ -15,16 +13,19 @@ from src.meta.base import BaseMeta, MetaOutput
 from src.meta.slice_source import SliceSource
 from src.utils.logger import logs
 
+from src.engines.symbol_index_engine import SymbolIndexEngine
+from src.utils.parquet_writer import ParquetAppendWriter
+
 
 class MinuteTradeAggStep(PipelineStep):
     """
     MinuteTradeAggStep（FINAL / FROZEN）
 
     输入：
-      fact/*.enriched.parquet   （multi-symbol, event-level）
+      fact/enriched.*trade.parquet   （multi-symbol, event-level）
 
     输出：
-      fact/*.min.parquet        （multi-symbol, minute-level）
+      fact/min.*trade.parquet        （multi-symbol, minute-level）
 
     冻结前置条件（由本 Step 保证）：
       - enriched 表已按 symbol 分块 concat
@@ -34,6 +35,7 @@ class MinuteTradeAggStep(PipelineStep):
       - orchestration only
       - engine 只处理单 symbol
       - min 阶段重新生成 slice index
+      - 统一 writer / index engine
     """
 
     stage = "min"
@@ -51,9 +53,12 @@ class MinuteTradeAggStep(PipelineStep):
     def run(self, ctx: PipelineContext) -> PipelineContext:
         input_dir: Path = ctx.fact_dir
         meta_dir: Path = ctx.meta_dir
+        output_dir: Path = ctx.fact_dir
 
-        for input_file in input_dir.glob(f"*trade.{self.upstream_stage}.parquet"):
-            name = input_file.stem.split(".")[0]
+        # 只处理 trade
+        for input_file in input_dir.glob(f"{self.upstream_stage}.*trade.parquet"):
+            name = input_file.stem.split(".")[1]
+            output_file = output_dir / f"{self.stage}.{name}.parquet"
 
             meta = BaseMeta(
                 meta_dir=meta_dir,
@@ -71,7 +76,7 @@ class MinuteTradeAggStep(PipelineStep):
                 continue
 
             # --------------------------------------------------
-            # 2. 构造 SliceSource（来自 enriched 的 slice capability）
+            # 2. SliceSource（来自 enriched 的 slice capability）
             # --------------------------------------------------
             source = SliceSource(
                 meta_dir=meta_dir,
@@ -79,10 +84,10 @@ class MinuteTradeAggStep(PipelineStep):
                 output_slot=name,
             )
 
-            minute_tables: list[pa.Table] = []
+            minute_tables: List[pa.Table] = []
 
             # --------------------------------------------------
-            # 3. per-symbol minute aggregation
+            # 3. per-symbol minute aggregation（engine 纯计算）
             # --------------------------------------------------
             with self.inst.timer(f"[{self.stage}] {name}"):
                 symbol_count = 0
@@ -95,9 +100,10 @@ class MinuteTradeAggStep(PipelineStep):
                     if minute.num_rows == 0:
                         continue
 
+                    # engine 不负责 symbol，Step 补齐
                     minute = minute.append_column(
                         "symbol",
-                        pa.array([symbol] * minute.num_rows)
+                        pa.array([symbol] * minute.num_rows),
                     )
 
                     minute_tables.append(minute)
@@ -108,14 +114,15 @@ class MinuteTradeAggStep(PipelineStep):
                 continue
 
             # --------------------------------------------------
-            # 4. concat + rebuild slice index
+            # 4. concat + canonical sort + rebuild slice index
             # --------------------------------------------------
-            result_table = pa.concat_tables(minute_tables)
+            tables, index = SymbolIndexEngine.execute(
+                pa.concat_tables(minute_tables)
+            )
 
-            index = self._build_symbol_slice_index(result_table)
-
-            output_file = input_dir / f"{name}.{self.stage}.parquet"
-            pq.write_table(result_table, output_file)
+            writer = ParquetAppendWriter(output_file=output_file)
+            writer.write(tables)
+            writer.close()
 
             # --------------------------------------------------
             # 5. commit meta（带 slice capability）
@@ -124,48 +131,14 @@ class MinuteTradeAggStep(PipelineStep):
                 MetaOutput(
                     input_file=input_file,
                     output_file=output_file,
-                    rows=result_table.num_rows,
+                    rows=tables.num_rows,
                     index=index,
                 )
             )
 
             logs.info(
                 f"[{self.stage}] written {output_file.name} "
-                f"symbols={symbol_count} rows={result_table.num_rows}"
+                f"symbols={symbol_count} rows={tables.num_rows}"
             )
 
         return ctx
-
-    # ------------------------------------------------------------------
-    @staticmethod
-    def _build_symbol_slice_index(
-        table: pa.Table,
-    ) -> Dict[str, Tuple[int, int]]:
-        """
-        构建 symbol -> (start, length)
-
-        前置条件（由本 Step 保证）：
-          - table 按 symbol 分块 concat
-          - 每个 symbol 内部顺序已保持
-        """
-        if table.num_rows == 0:
-            return {}
-
-        sym = table["symbol"]
-        if not pa.types.is_string(sym.type):
-            sym = pc.cast(sym, pa.string())
-
-        ree = pc.run_end_encode(sym).combine_chunks()
-
-        values = ree.values.to_pylist()
-        run_ends = ree.run_ends.to_pylist()
-
-        index: Dict[str, Tuple[int, int]] = {}
-        start = 0
-
-        for symbol, end in zip(values, run_ends):
-            end = int(end)
-            index[str(symbol)] = (start, end - start)
-            start = end
-
-        return index
