@@ -6,7 +6,7 @@ from pathlib import Path
 import shutil
 import sys
 
-DATA_ROOT = Path.home() / "data"
+DATA_ROOT = Path.home() / "data_handler"
 
 TOP_DIRS = (
     "raw",
@@ -39,7 +39,7 @@ def is_effectively_empty(dir_path: Path) -> bool:
 def main() -> None:
     parser = argparse.ArgumentParser(
         description=(
-            "Remove empty date directories under ~/data/*/<date>/.\n"
+            "Remove empty date directories under ~/data_handler/*/<date>/.\n"
             "Scans all dates without requiring --date.\n"
             "Safe to run periodically or after PipelineAbort."
         )

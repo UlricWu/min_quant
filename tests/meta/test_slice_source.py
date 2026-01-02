@@ -78,10 +78,10 @@ def test_slice_source_get(tmp_path: Path):
             "price": [1, 2, 3],
         }
     )
-    parquet_file = fact_dir / "data.normalize.parquet"
+    parquet_file = fact_dir / "data_handler.normalize.parquet"
     pq.write_table(table, parquet_file)
 
-    meta = BaseMeta(meta_dir, stage="normalize", output_slot="data")
+    meta = BaseMeta(meta_dir, stage="normalize", output_slot="data_handler")
     meta.commit(
         MetaOutput(
             input_file=parquet_file,
@@ -97,7 +97,7 @@ def test_slice_source_get(tmp_path: Path):
     source = SliceSource(
         meta_dir=meta_dir,
         stage="normalize",
-        output_slot="data",
+        output_slot="data_handler",
     )
 
     x = source.get("X")

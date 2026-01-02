@@ -71,7 +71,7 @@ class SliceSource:
             - Return a 0-copy Arrow Table for exactly one symbol.
             - Symbol must exist in the slice index.
             - Missing symbol raises KeyError (no empty fallback).
-            - No business logic, no data mutation.
+            - No business logic, no data_handler mutation.
             - Meta and slice semantics are strictly enforced.
         """
         return self._accessor.get(symbol)

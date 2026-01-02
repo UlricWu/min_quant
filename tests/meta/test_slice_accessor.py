@@ -24,7 +24,7 @@ class DummySliceCapability:
 
 
 def test_slice_accessor_basic(tmp_path: Path):
-    parquet_file = tmp_path / "data.parquet"
+    parquet_file = tmp_path / "data_handler.parquet"
 
     table = pa.table(
         {

@@ -37,7 +37,7 @@ def meta_dir_with_symbol_slice(tmp_path: Path) -> Path:
         }
     )
 
-    parquet_path = manifest_dir / "data.parquet"
+    parquet_path = manifest_dir / "data_handler.parquet"
     pq.write_table(table, parquet_path)
 
     # --------------------------------------------------

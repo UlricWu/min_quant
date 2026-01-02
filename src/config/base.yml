@@ -34,9 +34,9 @@ backtest:
   replay: multi
 
   dates:
-    - "2015-01-01"
-    - "2025-11-04"
-    - "2025-11-05"
+    - "2025-12-01"
+    - "2025-12-02"
+    - "2025-12-03"
 
   # 本次实验作用的 symbol 集合
   symbols:
@@ -48,7 +48,7 @@ backtest:
     type: threshold
 
     # Strategy 可见的 feature 列（由 DataHandler 加载）
-    features:
+    feature:
       - l1_std_w20_abs_move
       - l1_z_w20_l0_amount
 
@@ -56,4 +56,5 @@ backtest:
     signal_feature: l1_std_w20_abs_move
 
     threshold: 0.0
+    params: []
 

@@ -167,6 +167,11 @@ class PathManager:
     def bar_1m_root(cls) -> Path:
         return cls.ssd_root() / "bar" / "1m"
 
+    @classmethod
+    def backtest_dir(cls, date: str | None = None) -> Path:
+        p = cls.ssd_root() / "backtest"
+        return p / date if date else p
+
     # =========================================================
     # shared/
     # =========================================================
@@ -176,7 +181,7 @@ class PathManager:
 
     @classmethod
     def shared_data_dir(cls) -> Path:
-        return cls.shared_dir() / "data"
+        return cls.shared_dir() / "data_handler"
 
     @classmethod
     def models_dir(cls) -> Path:

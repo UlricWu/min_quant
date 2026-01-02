@@ -6,12 +6,12 @@ from pathlib import Path
 import sys
 import shutil
 
-DATA_ROOT = Path.home() / "data"
+DATA_ROOT = Path.home() / "data_handler"
 
 
 def main() -> None:
     parser = argparse.ArgumentParser(
-        description="Clean data by date under ~/data/{canonical,parquet,symbol}/"
+        description="Clean data_handler by date under ~/data_handler/{canonical,parquet,symbol}/"
     )
     parser.add_argument(
         "--date",

@@ -10,7 +10,7 @@ from src.meta.symbol_slice_resolver import SymbolSliceResolver
 from src.backtest.engine import BacktestEngine
 from src.backtest.replay.single_symbol import SingleSymbolReplay
 from src.backtest.replay.multi_symbol import MultiSymbolReplay
-from src.backtest.data.feature_data_handler import FeatureDataHandler
+from src.backtest.data_handler.feature_data_handler import FeatureDataHandler
 from src.backtest.strategy.threshold import ThresholdStrategy
 from src.backtest.portfolio.l1 import L1Portfolio
 

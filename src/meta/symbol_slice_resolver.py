@@ -21,11 +21,11 @@ class SymbolSliceResolver:
         *,
         meta_dir: Path,
         stage: str,
-        output_slot: str,
+        # output_slot: str,
     ) -> None:
         self._meta_dir = meta_dir
         self._stage = stage
-        self._output_slot = output_slot
+        # self._output_slot = output_slot
 
         self._sources: list[SliceSource] = []
 
@@ -41,7 +41,7 @@ class SymbolSliceResolver:
                 continue
 
         if not self._sources:
-            raise RuntimeError("No SliceSource found for resolver")
+            raise RuntimeError(f"No SliceSource found for resolver meta={meta_dir}, stage={stage}, output={exchange}")
 
     # --------------------------------------------------
     def get(self, symbol: str):

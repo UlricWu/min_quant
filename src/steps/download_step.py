@@ -66,12 +66,12 @@ class DownloadStep(PipelineStep):
 
     # ------------------------------------------------------------------
     def __init__(
-        self,
-        engine: FtpDownloadEngine,
-        secret: SecretConfig,
-        backend: DownloadBackend = DownloadBackend.CURL,
-        inst=None,
-        remote_root: str = "",
+            self,
+            engine: FtpDownloadEngine,
+            secret: SecretConfig,
+            backend: DownloadBackend = DownloadBackend.FTPLIB,
+            inst=None,
+            remote_root: str = "",
     ) -> None:
         super().__init__(inst)
 
@@ -96,7 +96,7 @@ class DownloadStep(PipelineStep):
         # 1. 列远端目录（Source 信息）
         #    ⚠️ 此处不等于“执行下载”
         # ==========================================================
-        ftp = ftplib.FTP(timeout=60)
+        ftp = ftplib.FTP(timeout=600)
         ftp.connect(self.host, self.port)
         ftp.login(self.user, self.password)
 
@@ -195,12 +195,12 @@ class DownloadStep(PipelineStep):
     # ------------------------------------------------------------------
     @logs.catch()
     def _download_one(
-        self,
-        *,
-        ftp: ftplib.FTP,
-        date: str,
-        plan: dict,
-        local_path: Path,
+            self,
+            *,
+            ftp: ftplib.FTP,
+            date: str,
+            plan: dict,
+            local_path: Path,
     ) -> None:
         if self.backend == DownloadBackend.CURL:
             self._download_by_curl(
@@ -219,16 +219,16 @@ class DownloadStep(PipelineStep):
     @Retry.decorator(
         exceptions=(ftplib.error_temp, ftplib.error_perm, OSError, TimeoutError),
         max_attempts=2,
-        delay=30,
+        delay=60,
         backoff=2,
         jitter=True,
     )
     def _download_by_ftplib(
-        self,
-        *,
-        ftp: ftplib.FTP,
-        remote_file: str,
-        local_path: Path,
+            self,
+            *,
+            ftp: ftplib.FTP,
+            remote_file: str,
+            local_path: Path,
     ) -> None:
         logs.info(f"[FTP] ftplib downloading {remote_file}")
 
@@ -239,16 +239,16 @@ class DownloadStep(PipelineStep):
     @Retry.decorator(
         exceptions=(RuntimeError, OSError),
         max_attempts=3,
-        delay=30,
+        delay=60,
         backoff=2,
         jitter=True,
     )
     def _download_by_curl(
-        self,
-        *,
-        date: str,
-        remote_file: str,
-        local_path: Path,
+            self,
+            *,
+            date: str,
+            remote_file: str,
+            local_path: Path,
     ) -> None:
         logs.info(f"[FTP] curl downloading {remote_file}")
 
@@ -277,13 +277,19 @@ class DownloadStep(PipelineStep):
             url,
         ]
 
-        result = subprocess.run(
-            cmd,
-            stdout=subprocess.PIPE,
-            stderr=subprocess.PIPE,
-            text=True,
-            timeout=600,
-        )
+        try:
+            result = subprocess.run(
+                cmd,
+                stdout=subprocess.PIPE,
+                stderr=subprocess.PIPE,
+                text=True,
+                timeout=600,
+            )
+        except subprocess.TimeoutExpired as e:
+            raise RuntimeError(
+                f"[DownloadStep][curl timeout] {remote_file} | "
+                f"timeout=600s | url={url}"
+            ) from e
 
         # --------------------------------------------------
         # 1. curl 执行失败：立即抛异常（不解析 stdout）

@@ -3,10 +3,19 @@ from __future__ import annotations
 
 from dataclasses import dataclass
 from pathlib import Path
-from typing import Literal, Optional, Dict
+from typing import Literal, Optional, Dict, Any
 from src.engines.parser_engine import NormalizedEvent
 
 import pyarrow as pa
+from src.backtest.result import BacktestResult
+from src.config.backtest_config import BacktestConfig
+
+from src.config.backtest_config import BacktestConfig
+from src.backtest.portfolio.base import Portfolio
+from src.backtest.recorder.simple_recorder import SimpleRecorder
+from src.backtest.data_handler.feature_data_handler import FeatureDataHandler
+from src.backtest.result import BacktestResult
+
 @dataclass
 class PipelineContext:
     """
@@ -52,7 +61,7 @@ class EngineContext:
     key: str  # output_slot
     input_file: Path  # input
     output_file: Path  # output
-    mode: str ="full" # "full" | "order" | "trade"
+    mode: str = "full"  # "full" | "order" | "trade"
 
     # mode: Literal["offline", "replay", "realtime"] = "offline"
 
@@ -62,40 +71,48 @@ class EngineContext:
     # 控制
     emit_snapshot: bool = False
 
-from src.backtest.result import BacktestResult
-
-
-@dataclass
+@dataclass(slots=True)
 class BacktestContext:
     """
     BacktestContext（FINAL / FROZEN）
 
-    设计原则：
-      - Step 之间唯一通信载体
-      - 只存“事实 / 中间态”，不存业务逻辑
-      - offline / l1 / l2 / l3 通用
+    规则：
+      - 所有字段必须在这里显式声明
+      - Step 禁止注入新字段
     """
 
-    # -------------------------
-    # identity
-    # -------------------------
+    # --------------------------------------------------
+    # Identity
+    # --------------------------------------------------
+    run_id: str
     date: str
+
+    # --------------------------------------------------
+    # Directories
+    # --------------------------------------------------
     backtest_dir: Path
     meta_dir: Path
+    feature_dir: Path
+    label_dir: Path
 
-    # -------------------------
-    # data layer
-    # -------------------------
-    tables: Optional[Dict[str, pa.Table]] = None
-    data_handler: Optional[object] = None
+    # --------------------------------------------------
+    # Config
+    # --------------------------------------------------
+    cfg: BacktestConfig
 
-    # -------------------------
-    # execution layer
-    # -------------------------
-    portfolio: Optional[object] = None
+    # --------------------------------------------------
+    # Per-date data (由 LoadDataStep 填充)
+    # --------------------------------------------------
+    data_handler: Optional[FeatureDataHandler] = None
 
-    # -------------------------
-    # result layer
-    # -------------------------
+    # --------------------------------------------------
+    # Cross-date accumulated state
+    # --------------------------------------------------
+    portfolio: Optional[Portfolio] = None
+    recorder: Optional[SimpleRecorder] = None
+
+    # --------------------------------------------------
+    # Run-final outputs
+    # --------------------------------------------------
     result: Optional[BacktestResult] = None
-    metrics: Optional[dict] = None
+    metrics: Optional[Dict[str, Any]] = None  # ⭐ 新增（最后一个）

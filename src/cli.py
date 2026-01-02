@@ -55,20 +55,19 @@ def today():
     print(f"[yellow]Running L2 Pipeline for today: {date}[/yellow]")
     pipeline.run(date)
 
-
 @app.command()
-def backtest():
+def backtest(run_id: str | None = None):
     """
-    Run Level-1 backtest
+    Run Level-1 backtest (dates defined in YAML)
     """
-    date: str = '2015-01-01'
-    symbol: str = ''
+    if run_id is None:
+        from datetime import datetime
+        run_id = datetime.now().strftime("%Y-%m-%d")
 
-    pipeline = build_offline_l1_backtest(symbol=symbol, date=date)
-    print(
-        f"[magenta]Running L1 Backtest | date={date} | symbol={symbol}[/magenta]"
-    )
-    pipeline.run(date)
+    pipeline = build_offline_l1_backtest()
+    print(f"[magenta]Running L1 Backtest | run_id={run_id}[/magenta]")
+
+    pipeline.run(run_id)
 
 
 if __name__ == "__main__":

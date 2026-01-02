@@ -94,7 +94,7 @@ def main():
     for name in list(input_dir.glob("*.7z")):
         process_file(name, out_dir)
 
-    print("\n✅ Sample data ready:")
+    print("\n✅ Sample data_handler ready:")
     print(out_dir.resolve())
 
 

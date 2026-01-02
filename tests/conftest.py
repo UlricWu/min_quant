@@ -31,13 +31,13 @@ def date() -> str:
 @pytest.fixture
 def parquet_input_dir(tmp_path: Path, date: str) -> Path:
     """
-    /data/parquet/<date>/
+    /data_handler/parquet/<date>/
         SH_Order.parquet
         SH_Trade.parquet
         SZ_Order.parquet
         SZ_Trade.parquet
     """
-    base = tmp_path / "data" / "parquet" / date
+    base = tmp_path / "data_handler" / "parquet" / date
     base.mkdir(parents=True)
 
     # =========================
@@ -154,7 +154,7 @@ def parquet_input_dir(tmp_path: Path, date: str) -> Path:
 
 @pytest.fixture
 def canonical_output_dir(tmp_path: Path, date: str) -> Path:
-    out = tmp_path / "data" / "canonical" / date
+    out = tmp_path / "data_handler" / "canonical" / date
     out.mkdir(parents=True)
     return out
 
@@ -248,7 +248,7 @@ def dummy_file(tmp_path: Path) -> Path:
 @pytest.fixture
 def dummy_output(tmp_path: Path) -> Path:
     p = tmp_path / "output.txt"
-    p.write_text("output data", encoding="utf-8")
+    p.write_text("output data_handler", encoding="utf-8")
     return p
 
 

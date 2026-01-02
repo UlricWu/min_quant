@@ -142,8 +142,8 @@ def test_upstream_changed_when_output_deleted(tmp_path: Path):
     input_file = tmp_path / "input.csv"
     output_file = tmp_path / "out.parquet"
 
-    input_file.write_text("input data", encoding="utf-8")
-    output_file.write_text("parquet data", encoding="utf-8")
+    input_file.write_text("input data_handler", encoding="utf-8")
+    output_file.write_text("parquet data_handler", encoding="utf-8")
 
     meta.commit(
         MetaOutput(
