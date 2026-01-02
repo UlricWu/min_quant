@@ -90,7 +90,7 @@ class DownloadStep(PipelineStep):
     # Source Step: enumerate remote logical units
     # ==================================================
     def run(self, ctx: PipelineContext) -> PipelineContext:
-        date_str = self.engine.resolve_date(ctx.date)
+        date_str = self.engine.resolve_date(ctx.today)
 
         # ==========================================================
         # 1. 列远端目录（Source 信息）

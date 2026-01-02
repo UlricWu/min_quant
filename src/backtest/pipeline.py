@@ -1,9 +1,11 @@
 from __future__ import annotations
 
 from dataclasses import dataclass
+from pathlib import Path
 from typing import List
 
 from src import logs, PathManager
+from src.config.backtest_config import BacktestConfig
 from src.observability.instrumentation import Instrumentation
 from src.pipeline.step import PipelineStep
 
@@ -19,15 +21,16 @@ class BacktestContext:
     - Step 只读 + 写自己负责的字段
     """
     cfg: object
-    pm: object
     inst: object
 
     # runtime (per-date)
-    date: str | None = None
+    today: str | None = None
     symbols: list[str] | None = None
 
+    # path
+    meta_dir: Path = None
+
     # engine outputs
-    data_view: object | None = None
     portfolio: object | None = None
     equity_curve: object | None = None
     report: object | None = None
@@ -52,7 +55,7 @@ class BacktestPipeline:
             final_steps: List[PipelineStep],
             pm: PathManager,
             inst: Instrumentation,
-            cfg,
+            cfg: BacktestConfig,
     ):
         self.daily_steps = daily_steps
         self.final_steps = final_steps
@@ -63,12 +66,14 @@ class BacktestPipeline:
     def run(self, run_id: str) -> BacktestContext:
         logs.info(f"[BacktestPipeline] START run_id={run_id}")
 
-        ctx = BacktestContext(cfg=self.cfg, pm=self.pm, inst=self.inst)
+        ctx = BacktestContext(cfg=self.cfg, inst=self.inst)
+        ctx.symbols = list(self.cfg.symbols)
 
-        for date in self.cfg.dates:
-            logs.info(f"[BacktestPipeline] DATE={date}")
-            ctx.date = date
-            ctx.symbols = list(self.cfg.symbols)
+        for today in self.cfg.dates:
+            logs.info(f"[BacktestPipeline] DATE={today}")
+            ctx.today = today
+
+            ctx.meta_dir = self.pm.meta_dir(today)
 
             for step in self.daily_steps:
                 ctx = step.run(ctx)

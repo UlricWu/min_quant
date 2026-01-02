@@ -49,7 +49,7 @@ class BacktestL1Step(PipelineStep):
 
         with self.timed():
             logs.info(
-                f"[BacktestL1] start data_version={ctx.date} "
+                f"[BacktestL1] start data_version={ctx.today} "
                 f"symbols={symbols} replay={replay_mode}"
             )
 
@@ -97,10 +97,10 @@ class BacktestL1Step(PipelineStep):
             out_dir = Path(ctx.backtest_dir)
             out_dir.mkdir(parents=True, exist_ok=True)
 
-            out = out_dir / f"{self._bt.name}_{ctx.date}.txt"
+            out = out_dir / f"{self._bt.name}_{ctx.today}.txt"
             out.write_text(
                 f"name={self._bt.name}\n"
-                f"data_version={ctx.date}\n"
+                f"data_version={ctx.today}\n"
                 f"symbols={symbols}\n"
                 f"replay={replay_mode}\n"
                 f"final_equity={portfolio.equity}\n"

@@ -43,9 +43,6 @@ class DummyPathManager:
     def raw_dir(self, date: str) -> Path:
         return Path("/tmp/raw")
 
-    def parquet_dir(self, date: str) -> Path:
-        return Path("/tmp/parquet")
-
     def fact_dir(self, date) -> Path:
         return Path("/tmp/fact")
 
@@ -93,7 +90,7 @@ def test_skip_step_does_not_pollute_timeline(tmp_path, inst, make_test_pipeline_
 
     ctx = make_test_pipeline_context(tmp_path)
 
-    pipeline.run(date=ctx.date)
+    pipeline.run(date=ctx.today)
 
     assert inst.timeline == {}, "Skip step should not write anything into timeline"
 
@@ -109,7 +106,7 @@ def test_leaf_step_writes_timeline(inst, tmp_path, make_test_pipeline_context):
         inst=inst,
     )
     ctx = make_test_pipeline_context(tmp_path)
-    pipeline.run(date=ctx.date)
+    pipeline.run(date=ctx.today)
 
     assert "DUMMY_LEAF" in inst.timeline
     assert inst.timeline["DUMMY_LEAF"] >= 0.0

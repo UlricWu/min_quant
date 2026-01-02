@@ -21,7 +21,7 @@ class PipelineContext:
     # -------------------------
     # time
     # -------------------------
-    date: str
+    today: str
 
     # -------------------------
     # resolved dirs（方便使用）

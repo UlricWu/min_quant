@@ -284,7 +284,7 @@ def make_test_pipeline_context(tmp_path: Path):
             d.mkdir(parents=True, exist_ok=True)
 
         return PipelineContext(
-            date=date,
+            today=date,
             raw_dir=raw_dir,
             fact_dir=fact_dir,
             feature_dir=feature_dir,

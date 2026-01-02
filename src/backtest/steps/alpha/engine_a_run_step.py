@@ -1,6 +1,7 @@
 #!filepath: src/backtest/steps/alpha/engine_a_run_step.py
 from __future__ import annotations
 
+from src.backtest.pipeline import BacktestContext
 from src.pipeline.step import PipelineStep
 from src import logs
 
@@ -50,11 +51,11 @@ class EngineARunStep(PipelineStep):
     def __init__(self, *, inst):
         self.inst = inst
 
-    def run(self, ctx):
-        logs.info(f"[EngineARunStep] date={ctx.date}")
+    def run(self, ctx:BacktestContext):
+        logs.info(f"[EngineARunStep] date={ctx.today}")
 
         resolver = SymbolSliceResolver(
-            meta_dir=ctx.pm.meta_dir(ctx.date),
+            meta_dir=ctx.meta_dir,
             stage="feature",  # or cfg.level
         )
 

@@ -55,7 +55,7 @@ class DataPipeline:
         FileSystem.ensure_dir(label_dir)
 
         ctx = PipelineContext(
-            date=date,
+            today=date,
             raw_dir=raw_dir,
             fact_dir=fact_dir,
             meta_dir=meta_dir,
@@ -86,7 +86,6 @@ class DataPipeline:
         """
         for path in (
                 ctx.raw_dir,
-                ctx.parquet_dir,
                 ctx.fact_dir,
                 ctx.meta_dir,
                 ctx.feature_dir,
