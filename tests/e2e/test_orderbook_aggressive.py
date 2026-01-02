@@ -126,9 +126,10 @@ def test_trade_side_matches_orderbook_consumption(tmp_path):
     engine = OrderBookRebuildEngine()
 
     ctx = EngineContext(
+        key='',
         mode="offline",
-        input_path=input_path,
-        output_path=out_path,
+        input_file=input_path,
+        output_file=out_path,
     )
 
     engine.execute(ctx)

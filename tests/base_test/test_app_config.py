@@ -8,6 +8,7 @@ from src.config.log_config import LogConfig
 from src.config.data_config import DataConfig
 from src.config.model_config import ModelConfig
 from src.config.pipeline_config import PipelineConfig
+from src.config.backtest_config import BacktestConfig
 
 
 @pytest.fixture
@@ -37,6 +38,15 @@ def sample_config_file(tmp_path):
         },
         "pipeline": {
             'ftp_backend': 'curl'
+        },
+        # ✅ 新增 backtest（关键）
+        "backtest": {
+            "name": "dummy",
+            "level": "l1",
+            "replay": "single",
+            "dates": [],
+            "symbols": ['600001'],
+            "strategy": {}
         }
     }
 

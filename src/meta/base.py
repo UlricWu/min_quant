@@ -8,11 +8,12 @@ from dataclasses import dataclass
 from pathlib import Path
 from typing import Dict, Tuple, Optional
 
+from src import logs
 from src.utils.filesystem import FileSystem
-
+from src import logs
 
 @dataclass(frozen=True)
-class MetaResult:
+class MetaOutput:
     """
     MetaResult（冻结版 · 能力声明式）
 
@@ -35,55 +36,58 @@ class MetaResult:
     index: Optional[Dict[str, Tuple[int, int]]] = None
 
 
+import json
+from pathlib import Path
+from typing import List, Optional
+
+
+# ----------------------------------------------------------------------
+# BaseMeta v2（冻结）
+# ----------------------------------------------------------------------
 class BaseMeta:
-    """
-    BaseMeta（冻结 v1.1）
+    META_VERSION = 1.2
 
-    统一职责：
-      - 记录“在什么上游状态下”产生了某个 Result
-      - 判断上游是否发生变化
-      - 以 manifest 形式声明结果能力（如 symbol_slice）
-
-    设计铁律：
-      - 不理解业务
-      - 不解析 index
-      - 不区分 normalize / min / feature
-    """
-
-    def __init__(self, meta_dir: Path, stage: str):
-        self.meta_dir = Path(meta_dir)
+    def __init__(
+            self,
+            meta_dir: Path,
+            stage: str,
+            output_slot: str,
+            # inst: Optional[str] = None,
+    ) -> None:
+        self.meta_dir = meta_dir
         self.stage = stage
+        self.output_slot = output_slot
+        # self.inst = inst
 
     # --------------------------------------------------
-    # Manifest path
-    # --------------------------------------------------
-    def manifest_path(self, file_stem: str | Path, stage: str | None = None) -> Path:
-        if isinstance(file_stem, Path):
-            file_stem = file_stem.stem
-
-        stage = stage or self.stage
-        name = file_stem.split(".")[0]
-
-        return self.meta_dir / f"{name}.{stage}.manifest.json"
+    @property
+    def name(self) -> str:
+        parts = [self.stage, self.output_slot]
+        # if self.inst:
+        #     parts.append(self.inst)
+        return ".".join(parts) + ".manifest.json"
 
     # --------------------------------------------------
-    # Load
+    @property
+    def path(self) -> Path:
+        return self.meta_dir / self.name
+
     # --------------------------------------------------
-    def load(self, file_stem: str | Path) -> Dict[str, Any] | None:
-        path = self.manifest_path(file_stem)
-        if not path.exists():
-            return None
-        with path.open("r", encoding="utf-8") as f:
+    def exists(self) -> bool:
+        return self.path.exists()
+
+    # --------------------------------------------------
+    def load(self) -> dict:
+        with self.path.open("r", encoding="utf-8") as f:
             return json.load(f)
 
     # --------------------------------------------------
-    # Commit
-    # --------------------------------------------------
-    def commit(self, result: MetaResult) -> None:
+    def commit(self, result: MetaOutput | dict) -> None:
         if isinstance(result, dict):
-            result = MetaResult(**result)
+            result = MetaOutput(**result)
+
         payload: Dict[str, Any] = {
-            "version": 1,
+            "version": self.META_VERSION,
             "stage": self.stage,
             "created_at": datetime.now(timezone.utc).isoformat(),
             "upstream": {
@@ -111,38 +115,42 @@ class BaseMeta:
             }
 
         data = json.dumps(payload, indent=2, sort_keys=True).encode("utf-8")
+
         FileSystem.safe_write(
-            self.manifest_path(result.input_file.stem),
+            self.path,
             data,
         )
 
-    # --------------------------------------------------
-    # Change detection（冻结 v1）
-    # --------------------------------------------------
-    def upstream_changed(self, input_file: Path) -> bool:
+    def upstream_changed(self) -> bool:
         """
         判断上游是否发生变化：
 
         True  -> 需要重跑
         False -> 可复用
         """
-        manifest = self.load(input_file.stem)
-
-        # 没有历史记录
-        if manifest is None:
+        # # 没有历史记录
+        if not self.path.exists():
+            logs.debug(f'[meta] manifest not exist: {self.path.name}')
             return True
+
+        manifest = self.load()
 
         recorded = (
             manifest
             .get("upstream", {})
             .get("fingerprint", {})
         )
+        input_file = manifest.get("upstream", {}).get("file", '')
+
+        if input_file is None:
+            logs.debug(f'[meta] input_file not exist: {self.path.name}')
+            return True
 
         current = {
             "size": FileSystem.get_file_size(input_file),
         }
-
         if recorded.get("size") != current.get("size"):
+            logs.warning(f'[meta] upstream_changed size')
             return True
 
         # 下游完整性校验
@@ -153,12 +161,14 @@ class BaseMeta:
         )
 
         if not output_file.exists():
+            logs.debug(f'[meta] output_file not exist: {output_file}')
             return True
 
         if (
                 manifest["outputs"].get("size")
                 != FileSystem.get_file_size(output_file)
         ):
+            logs.warning(f'[meta] output_file size change')
             return True
 
         return False

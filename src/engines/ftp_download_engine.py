@@ -35,10 +35,10 @@ class FtpDownloadEngine:
 
     # --------------------------------------------------
     def plan_downloads(
-        self,
-        *,
-        date: str,
-        available_files: List[str],
+            self,
+            *,
+            date: str,
+            available_files: List[str],
     ) -> List[dict]:
         """
         输入：

@@ -3,8 +3,9 @@ from __future__ import annotations
 
 from dataclasses import dataclass
 from pathlib import Path
-from typing import Literal, Optional
+from typing import Literal, Optional, Dict, Any
 from src.engines.parser_engine import NormalizedEvent
+
 
 @dataclass
 class PipelineContext:
@@ -20,18 +21,17 @@ class PipelineContext:
     # -------------------------
     # time
     # -------------------------
-    date: str
+    today: str
 
     # -------------------------
     # resolved dirs（方便使用）
     # -------------------------
     raw_dir: Path
-    parquet_dir: Path
     fact_dir: Path
     meta_dir: Path
-    event_dir: Path
 
     feature_dir: Path
+    label_dir: Path
     # -------- PipelineRuntime flags --------
     abort_pipeline: bool = False
     abort_reason: Optional[str] = None
@@ -46,13 +46,14 @@ class EngineContext:
     - offline / replay / realtime 只是 mode 差异
     - execute(ctx) 永远只看 ctx
     """
-
-    mode: Literal["offline", "replay", "realtime"]="offline"
-
     # 通用
     # offline
-    input_path: Optional[Path] = Path
-    output_path: Optional[Path] = Path
+    key: str  # output_slot
+    input_file: Path  # input
+    output_file: Path  # output
+    mode: str = "full"  # "full" | "order" | "trade"
+
+    # mode: Literal["offline", "replay", "realtime"] = "offline"
 
     # # replay / realtime
     event: Optional[NormalizedEvent] = None

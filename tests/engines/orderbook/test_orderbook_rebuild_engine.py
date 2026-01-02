@@ -61,8 +61,9 @@ def test_orderbook_add_only(tmp_path):
     engine.execute(
         EngineContext(
             mode="offline",
-            input_path=in_path,
-            output_path=out_path,
+            input_file=in_path,
+            output_file=out_path,
+            key=''
         )
     )
 
@@ -99,8 +100,10 @@ def test_orderbook_cancel(tmp_path):
     engine.execute(
         EngineContext(
             mode="offline",
-            input_path=in_path,
-            output_path=out_path,
+            input_file=in_path,
+            output_file=out_path,
+            key=''
+
         )
     )
 
@@ -126,8 +129,10 @@ def test_orderbook_partial_trade(tmp_path):
     engine.execute(
         EngineContext(
             mode="offline",
-            input_path=in_path,
-            output_path=out_path,
+            input_file=in_path,
+            output_file=out_path,
+            key=''
+
         )
     )
 
@@ -156,8 +161,10 @@ def test_orderbook_full_trade(tmp_path):
     engine.execute(
         EngineContext(
             mode="offline",
-            input_path=in_path,
-            output_path=out_path,
+            input_file=in_path,
+            output_file=out_path,
+            key=''
+
         )
     )
 
@@ -184,8 +191,10 @@ def test_orderbook_multi_level_sorting(tmp_path):
     engine.execute(
         EngineContext(
             mode="offline",
-            input_path=in_path,
-            output_path=out_path,
+            input_file=in_path,
+            output_file=out_path,
+            key=''
+
         )
     )
 
@@ -232,8 +241,9 @@ def test_orderbook_rebuild_offline_basic(tmp_path: Path, canonical_events_parque
 
     ctx = EngineContext(
         mode="offline",
-        input_path=canonical_events_parquet,
-        output_path=out_snapshot,
+        input_file=canonical_events_parquet,
+        output_file=out_snapshot,
+        key=''
     )
 
     engine.execute(ctx)
@@ -284,8 +294,9 @@ def test_orderbook_price_sorting(tmp_path: Path):
     engine.execute(
         EngineContext(
             mode="offline",
-            input_path=input_path,
-            output_path=out,
+            input_file=input_path,
+            output_file=out,
+            key=''
         )
     )
 
@@ -322,8 +333,9 @@ def test_orderbook_empty_input(tmp_path: Path):
     engine.execute(
         EngineContext(
             mode="offline",
-            input_path=input_path,
-            output_path=out,
+            input_file=input_path,
+            output_file=out,
+            key=''
         )
     )
 

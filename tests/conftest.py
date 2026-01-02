@@ -31,13 +31,13 @@ def date() -> str:
 @pytest.fixture
 def parquet_input_dir(tmp_path: Path, date: str) -> Path:
     """
-    /data/parquet/<date>/
+    /data_handler/parquet/<date>/
         SH_Order.parquet
         SH_Trade.parquet
         SZ_Order.parquet
         SZ_Trade.parquet
     """
-    base = tmp_path / "data" / "parquet" / date
+    base = tmp_path / "data_handler" / "parquet" / date
     base.mkdir(parents=True)
 
     # =========================
@@ -154,7 +154,7 @@ def parquet_input_dir(tmp_path: Path, date: str) -> Path:
 
 @pytest.fixture
 def canonical_output_dir(tmp_path: Path, date: str) -> Path:
-    out = tmp_path / "data" / "canonical" / date
+    out = tmp_path / "data_handler" / "canonical" / date
     out.mkdir(parents=True)
     return out
 
@@ -211,7 +211,7 @@ def _patch_parse_events(monkeypatch):
             }
         )
 
-    monkeypatch.setattr(ne, "parse_events", _stub_parse_events, raising=True)
+    monkeypatch.setattr(ne, "parse_events_arrow", _stub_parse_events, raising=True)
 
 
 @pytest.fixture
@@ -248,7 +248,7 @@ def dummy_file(tmp_path: Path) -> Path:
 @pytest.fixture
 def dummy_output(tmp_path: Path) -> Path:
     p = tmp_path / "output.txt"
-    p.write_text("output data", encoding="utf-8")
+    p.write_text("output data_handler", encoding="utf-8")
     return p
 
 
@@ -269,16 +269,14 @@ def make_test_pipeline_context(tmp_path: Path):
 
     def _make(date: str = "2025-01-01") -> PipelineContext:
         raw_dir = tmp_path / "raw"
-        parquet_dir = tmp_path / "parquet"
         fact_dir = tmp_path / "fact"
         feature_dir = tmp_path / "feature"
         meta_dir = tmp_path / "meta"
-        event_dir = tmp_path / "event_dir"
+        label_dir = tmp_path / "label"
 
         for d in (
                 raw_dir,
-                parquet_dir,
-                event_dir,
+                label_dir,
                 fact_dir,
                 feature_dir,
                 meta_dir,
@@ -286,13 +284,12 @@ def make_test_pipeline_context(tmp_path: Path):
             d.mkdir(parents=True, exist_ok=True)
 
         return PipelineContext(
-            date=date,
+            today=date,
             raw_dir=raw_dir,
-            parquet_dir=parquet_dir,
             fact_dir=fact_dir,
             feature_dir=feature_dir,
             meta_dir=meta_dir,
-            event_dir=event_dir
+            label_dir=label_dir
         )
 
     return _make

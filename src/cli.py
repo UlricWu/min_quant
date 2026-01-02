@@ -3,7 +3,8 @@ import pandas as pd
 import typer
 from rich import print
 
-from src.workflows.offline_l2_pipeline import build_offline_l2_pipeline
+from src.workflows.offline_l2_data import build_offline_l2_pipeline
+from src.workflows.offline_l1_backtest import build_offline_l1_backtest
 
 app = typer.Typer(help="MinQuant Data Pipeline CLI")
 
@@ -54,8 +55,23 @@ def today():
     print(f"[yellow]Running L2 Pipeline for today: {date}[/yellow]")
     pipeline.run(date)
 
+@app.command()
+def backtest(run_id: str | None = None):
+    """
+    Run Level-1 backtest (dates defined in YAML)
+    """
+    if run_id is None:
+        from datetime import datetime
+        run_id = datetime.now().strftime("%Y-%m-%d")
+
+    pipeline = build_offline_l1_backtest()
+    print(f"[magenta]Running L1 Backtest | run_id={run_id}[/magenta]")
+
+    pipeline.run(run_id)
+
 
 if __name__ == "__main__":
     app()
 
 # python -m src.cli run 2025-11-04
+# python -m src.cli backtest

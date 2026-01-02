@@ -29,8 +29,9 @@ def test_record_events_consistent_with_snapshot(tmp_path, make_events_parquet):
     engine.execute(
         EngineContext(
             mode="offline",
-            input_path=input_path,
-            output_path=snapshot_path,
+            input_file=input_path,
+            output_file=snapshot_path,
+            key=''
         )
     )
 

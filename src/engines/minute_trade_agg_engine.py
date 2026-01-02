@@ -221,7 +221,7 @@ class MinuteTradeAggEngine:
         # --------------------------------------------------
         return pa.table(
             {
-                "minute_local_us": grouped["minute_local_us"],
+                "ts": grouped["minute_local_us"],
                 "trade_date": trade_date,
                 "minute": pc.cast(minute_hhmm, pa.int16()),
                 "minute_str": minute_str,

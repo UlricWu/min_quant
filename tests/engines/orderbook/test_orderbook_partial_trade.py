@@ -57,8 +57,9 @@ def test_trade_partial_fill_keeps_order(tmp_path: Path):
     engine.execute(
         EngineContext(
             mode="offline",
-            input_path=input_path,
-            output_path=output_path,
+            input_file=input_path,
+            output_file=output_path,
+            key=''
         )
     )
 
@@ -109,8 +110,9 @@ def test_trade_partial_partial_then_filled(tmp_path, make_events_parquet):
     engine.execute(
         EngineContext(
             mode="offline",
-            input_path=input_path,
-            output_path=out,
+            input_file=input_path,
+            output_file=out,
+            key=''
         )
     )
 
@@ -138,8 +140,9 @@ def test_trade_exact_fill_removes_order(tmp_path, make_events_parquet):
     engine.execute(
         EngineContext(
             mode="offline",
-            input_path=input_path,
-            output_path=out,
+            input_file=input_path,
+            output_file=out,
+            key=''
         )
     )
 
@@ -165,8 +168,9 @@ def test_trade_exact_fill_removes_order(tmp_path, make_events_parquet):
     engine.execute(
         EngineContext(
             mode="offline",
-            input_path=input_path,
-            output_path=out,
+            input_file=input_path,
+            output_file=out,
+            key=''
         )
     )
 
@@ -192,8 +196,9 @@ def test_trade_overfill_is_defensive(tmp_path, make_events_parquet):
     engine.execute(
         EngineContext(
             mode="offline",
-            input_path=input_path,
-            output_path=out,
+            input_file=input_path,
+            output_file=out,
+            key=''
         )
     )
 
@@ -230,8 +235,9 @@ def test_add_cancel_then_trade_is_ignored(tmp_path, make_events_parquet):
     engine.execute(
         EngineContext(
             mode="offline",
-            input_path=input_path,
-            output_path=out,
+            input_file=input_path,
+            output_file=out,
+            key=''
         )
     )
 

@@ -31,8 +31,9 @@ def test_fifo_same_price_multiple_orders(tmp_path, make_events_parquet):
     engine.execute(
         EngineContext(
             mode="offline",
-            input_path=input_path,
-            output_path=out,
+            input_file=input_path,
+            output_file=out,
+            key=''
         )
     )
 
@@ -71,8 +72,9 @@ def test_fifo_partial_then_full_does_not_touch_next(tmp_path, make_events_parque
     engine.execute(
         EngineContext(
             mode="offline",
-            input_path=input_path,
-            output_path=out,
+            input_file=input_path,
+            output_file=out,
+            key=''
         )
     )
 
@@ -111,8 +113,9 @@ def test_multi_price_level_sorting(tmp_path, make_events_parquet):
     engine.execute(
         EngineContext(
             mode="offline",
-            input_path=input_path,
-            output_path=out,
+            input_file=input_path,
+            output_file=out,
+            key=''
         )
     )
 

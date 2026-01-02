@@ -63,7 +63,7 @@ def test_minute_trade_agg_respects_exchange_timezone():
     # --------------------------------------------------
     # 核心断言 1：absolute instant（唯一真相）
     # --------------------------------------------------
-    minute_local_us = out["minute_local_us"][0].as_py()
+    minute_local_us = out["ts"][0].as_py()
 
     # 上海本地钟面 09:25:00，对应的 epoch us（本地时间轴）
     expected_minute_local_us = us(
@@ -366,7 +366,7 @@ def test_minute_trade_agg_time_fields_consistency():
     assert row["minute_str"] == ["10:15"]
 
     # 再验证 minute_local_us 反推分钟
-    minute_local_us = row["minute_local_us"][0]
+    minute_local_us = row["ts"][0]
     minute_mod_day = minute_local_us % US_PER_DAY
 
     assert minute_mod_day // US_PER_HOUR == 10

@@ -1,4 +1,3 @@
-
 # =============================================================================
 # Internal Event Schema（唯一真相）
 # =============================================================================
@@ -15,6 +14,8 @@ import pyarrow.compute as pc
 from src import DateTimeUtils
 
 EventKind = Literal["order", "trade"]
+
+
 @dataclass(slots=True)
 class NormalizedEvent:
     symbol: str
@@ -44,17 +45,18 @@ class NormalizedEvent:
     def to_dict(self) -> dict:
         return asdict(self)
 
+
 INTERNAL_SCHEMA = pa.schema(
-    [   ('symbol', pa.string()),
-        ("ts", pa.int64()),
-        ("event", pa.string()),
-        ("order_id", pa.int64()),
-        ("side", pa.string()),
-        ("price", pa.float64()),
-        ("volume", pa.int64()),
-        ("buy_no", pa.int64()),
-        ("sell_no", pa.int64()),
-    ]
+    [('symbol', pa.string()),
+     ("ts", pa.int64()),
+     ("event", pa.string()),
+     ("order_id", pa.int64()),
+     ("side", pa.string()),
+     ("price", pa.float64()),
+     ("volume", pa.int64()),
+     ("buy_no", pa.int64()),
+     ("sell_no", pa.int64()),
+     ]
 )
 
 
@@ -218,7 +220,8 @@ def zeros(n: int) -> pa.Array:
 
 def parse_events_arrow(
         table: pa.Table,
-        kind: Literal["order", "trade"] = '',
+        # kind: Literal["order", "trade"] = '',
+        kind: str = '',
         exchange: str = ''
 ) -> pa.Table:
     """
@@ -282,18 +285,18 @@ def parse_events_arrow(
         else zeros(table.num_rows)
     )
     out = pa.table(
-        {   "symbol":pc.cast(table[definition.symbol_field], pa.string()),
-            "ts": ts,
-            "event": event,
-            "order_id": pc.cast(table[definition.id_field], pa.int64()),
-            "side": side,
-            "price": pc.cast(table[definition.price_field], pa.float64()),
-            "volume": pc.cast(table[definition.volume_field], pa.int64()),
-            "buy_no": pc.cast(buy_no, pa.int64()),
-            "sell_no": pc.cast(sell_no, pa.int64()),
-        }
+        {"symbol": pc.cast(table[definition.symbol_field], pa.string()),
+         "ts": ts,
+         "event": event,
+         "order_id": pc.cast(table[definition.id_field], pa.int64()),
+         "side": side,
+         "price": pc.cast(table[definition.price_field], pa.float64()),
+         "volume": pc.cast(table[definition.volume_field], pa.int64()),
+         "buy_no": pc.cast(buy_no, pa.int64()),
+         "sell_no": pc.cast(sell_no, pa.int64()),
+         }
     )
 
     return out.cast(INTERNAL_SCHEMA)
 
-parse_events = parse_events_arrow
+# parse_events = parse_events_arrow

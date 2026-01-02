@@ -43,14 +43,11 @@ class DummyPathManager:
     def raw_dir(self, date: str) -> Path:
         return Path("/tmp/raw")
 
-    def parquet_dir(self, date: str) -> Path:
-        return Path("/tmp/parquet")
-
     def fact_dir(self, date) -> Path:
         return Path("/tmp/fact")
 
-    def event_dir(self, date) -> Path:
-        return Path("/tmp/event")
+    def label_dir(self, date) -> Path:
+        return Path("/tmp/label")
 
     def meta_dir(self, date) -> Path:
         return Path("/tmp/meta")
@@ -80,31 +77,20 @@ def patch_filesystem(monkeypatch):
     monkeypatch.setattr(filesystem.FileSystem, "ensure_dir", DummyFileSystem.ensure_dir)
 
 
-@pytest.fixture
-def ctx(tmp_path: Path) -> PipelineContext:
-    return PipelineContext(
-        date="2025-11-04",
-        raw_dir=tmp_path / "raw",
-        parquet_dir=tmp_path / "parquet",
-        fact_dir=tmp_path / "symbol",
-        event_dir=tmp_path / "event",
-        meta_dir=tmp_path/'meta',
-        feature_dir=tmp_path / 'feature',
-    )
-
-
 # ------------------------------------------------------------------
 # 核心断言：skip 的 Step 不应写入 timeline
 # ------------------------------------------------------------------
 
-def test_skip_step_does_not_pollute_timeline(inst, ctx):
+def test_skip_step_does_not_pollute_timeline(tmp_path, inst, make_test_pipeline_context):
     pipeline = DataPipeline(
         steps=[DummySkipStep(inst)],
         pm=DummyPathManager(),
         inst=inst,
     )
 
-    pipeline.run(date=ctx.date)
+    ctx = make_test_pipeline_context(tmp_path)
+
+    pipeline.run(date=ctx.today)
 
     assert inst.timeline == {}, "Skip step should not write anything into timeline"
 
@@ -113,14 +99,14 @@ def test_skip_step_does_not_pollute_timeline(inst, ctx):
 # 对照测试：真实 leaf step 会写入 timeline
 # ------------------------------------------------------------------
 
-def test_leaf_step_writes_timeline(inst, ctx):
+def test_leaf_step_writes_timeline(inst, tmp_path, make_test_pipeline_context):
     pipeline = DataPipeline(
         steps=[DummyLeafStep(inst)],
         pm=DummyPathManager(),
         inst=inst,
     )
-
-    pipeline.run(date=ctx.date)
+    ctx = make_test_pipeline_context(tmp_path)
+    pipeline.run(date=ctx.today)
 
     assert "DUMMY_LEAF" in inst.timeline
     assert inst.timeline["DUMMY_LEAF"] >= 0.0
