@@ -1,43 +1,55 @@
 from __future__ import annotations
-from backtest.core.time import ReplayClock, is_minute_boundary
-from backtest.core.portfolio import Portfolio
-from .strategy_runner import StrategyRunner
-from .execution_sim import ExecutionSimulator
-from backtest.core.data import MarketDataView
-# src/backtest/engines/alpha/engine.py
+
+from dataclasses import dataclass
+from typing import List, Dict
+
+from src.backtest.core.time import is_minute_boundary
+from src.backtest.core.events import Fill
+
+
+@dataclass(frozen=True)
+class EquityPoint:
+    ts_us: int
+    equity: float
+
 
 class AlphaBacktestEngine:
     """
-    Alpha backtest engine.
+    Engine A (Alpha Backtest)
 
-    - Driven by ReplayClock
-    - Runs strategy only at minute boundary
+    Contract:
+    - clock yields ts_us (epoch microseconds)
+    - data_view exposes observable facts at current ts
+    - strategy produces target_qty at minute boundary
+    - executor converts target_qty into Fill events
+    - portfolio evolves only by applying fills
     """
 
-    def __init__(
-        self,
-        *,
-        clock: ReplayClock,
-        data_view: MarketDataView,
-        strategy: StrategyRunner,
-        portfolio: Portfolio,
-        executor: ExecutionSimulator,
-    ):
+    def __init__(self, *, clock, data_view, strategy, portfolio, executor):
         self.clock = clock
-        self.data = data_view
+        self.data_view = data_view
         self.strategy = strategy
         self.portfolio = portfolio
         self.executor = executor
+        self.equity_curve: List[EquityPoint] = []
 
     def run(self) -> None:
         for ts in self.clock:
-            self.data.on_time(ts)
+            self.data_view.on_time(ts)
 
-            if not is_minute_boundary(ts):
+            equity = float(self.portfolio.cash)
+            self.equity_curve.append(EquityPoint(ts_us=int(ts), equity=equity))
+
+            if not is_minute_boundary(int(ts)):
                 continue
 
-            target_qty = self.strategy.on_minute(ts, self.data, self.portfolio)
-            fills = self.executor.execute(ts, target_qty)
+            target: Dict[str, int] = self.strategy.on_minute(
+                ts_us=int(ts),
+                data_view=self.data_view,
+                portfolio=self.portfolio,
+            )
 
-            for fill in fills:
-                self.portfolio.apply_fill(fill)
+            fills: List[Fill] = self.executor.execute(int(ts), target)
+
+            for f in fills:
+                self.portfolio.apply_fill(f)

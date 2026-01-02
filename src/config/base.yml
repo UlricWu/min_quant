@@ -29,7 +29,7 @@ pipeline:
       use_log_return: false
 
 backtest:
-  name: ma20_threshold
+  name: "rf_alpha_v1"
   level: l1
   replay: multi
 
@@ -45,7 +45,16 @@ backtest:
 
   # 策略行为定义（与 symbol 解耦）
   strategy:
-    type: threshold
+    type: "registry"
+    model:
+      name: "rf_v1"
+      params:
+        model_path: "/models/rf_alpha.pkl"
+    policy:
+      name: "long_only"
+      params:
+        threshold: 0.15
+        qty: 100
 
     # Strategy 可见的 feature 列（由 DataHandler 加载）
     feature:

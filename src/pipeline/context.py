@@ -7,14 +7,10 @@ from typing import Literal, Optional, Dict, Any
 from src.engines.parser_engine import NormalizedEvent
 
 import pyarrow as pa
-from src.backtest.result import BacktestResult
 from src.config.backtest_config import BacktestConfig
 
 from src.config.backtest_config import BacktestConfig
-from src.backtest.portfolio.base import Portfolio
-from src.backtest.recorder.simple_recorder import SimpleRecorder
-from src.backtest.data_handler.feature_data_handler import FeatureDataHandler
-from src.backtest.result import BacktestResult
+
 
 @dataclass
 class PipelineContext:
@@ -70,49 +66,49 @@ class EngineContext:
 
     # 控制
     emit_snapshot: bool = False
-
-@dataclass(slots=True)
-class BacktestContext:
-    """
-    BacktestContext（FINAL / FROZEN）
-
-    规则：
-      - 所有字段必须在这里显式声明
-      - Step 禁止注入新字段
-    """
-
-    # --------------------------------------------------
-    # Identity
-    # --------------------------------------------------
-    run_id: str
-    date: str
-
-    # --------------------------------------------------
-    # Directories
-    # --------------------------------------------------
-    backtest_dir: Path
-    meta_dir: Path
-    feature_dir: Path
-    label_dir: Path
-
-    # --------------------------------------------------
-    # Config
-    # --------------------------------------------------
-    cfg: BacktestConfig
-
-    # --------------------------------------------------
-    # Per-date data (由 LoadDataStep 填充)
-    # --------------------------------------------------
-    data_handler: Optional[FeatureDataHandler] = None
-
-    # --------------------------------------------------
-    # Cross-date accumulated state
-    # --------------------------------------------------
-    portfolio: Optional[Portfolio] = None
-    recorder: Optional[SimpleRecorder] = None
-
-    # --------------------------------------------------
-    # Run-final outputs
-    # --------------------------------------------------
-    result: Optional[BacktestResult] = None
-    metrics: Optional[Dict[str, Any]] = None  # ⭐ 新增（最后一个）
+#
+# @dataclass(slots=True)
+# class BacktestContext:
+#     """
+#     BacktestContext（FINAL / FROZEN）
+#
+#     规则：
+#       - 所有字段必须在这里显式声明
+#       - Step 禁止注入新字段
+#     """
+#
+#     # --------------------------------------------------
+#     # Identity
+#     # --------------------------------------------------
+#     run_id: str
+#     date: str
+#
+#     # --------------------------------------------------
+#     # Directories
+#     # --------------------------------------------------
+#     backtest_dir: Path
+#     meta_dir: Path
+#     feature_dir: Path
+#     label_dir: Path
+#
+#     # --------------------------------------------------
+#     # Config
+#     # --------------------------------------------------
+#     cfg: BacktestConfig
+#
+#     # --------------------------------------------------
+#     # Per-date data (由 LoadDataStep 填充)
+#     # --------------------------------------------------
+#     data_handler: Optional[FeatureDataHandler] = None
+#
+#     # --------------------------------------------------
+#     # Cross-date accumulated state
+#     # --------------------------------------------------
+#     portfolio: Optional[Portfolio] = None
+#     recorder: Optional[SimpleRecorder] = None
+#
+#     # --------------------------------------------------
+#     # Run-final outputs
+#     # --------------------------------------------------
+#     result: Optional[BacktestResult] = None
+#     metrics: Optional[Dict[str, Any]] = None  # ⭐ 新增（最后一个）

@@ -1,21 +1,54 @@
 from __future__ import annotations
+
 from typing import Dict, Any, Optional
-from backtest.core.data import MarketDataView
-# src/backtest/engines/alpha/data_view.py
 
-class MinuteFeatureDataView(MarketDataView):
+from src.backtest.core.data import MarketDataView
+
+
+class DummyMinuteDataView(MarketDataView):
     """
-    Data view backed by minute feature parquet.
+    DummyMinuteDataView (MVP)
 
-    Implementation detail:
-    - Uses meta.slice_accessor internally
+    Purpose:
+    - Satisfy MarketDataView contract
+    - Allow Engine A to run end-to-end
+    - No real data semantics
+
+    This class exists ONLY to validate architecture wiring.
     """
 
+    def __init__(self, symbols):
+        self.symbols = list(symbols)
+        self._current_ts: Optional[int] = None
+
+    # --------------------------------------------------
+    # Time progression
+    # --------------------------------------------------
     def on_time(self, ts_us: int) -> None:
-        pass  # fold ts <= current time
+        self._current_ts = int(ts_us)
 
+    # --------------------------------------------------
+    # Observable price
+    # --------------------------------------------------
     def get_price(self, symbol: str) -> Optional[float]:
-        return None
+        # Constant dummy price
+        return 10.0
 
+    # --------------------------------------------------
+    # Observable features
+    # --------------------------------------------------
     def get_features(self, symbol: str) -> Dict[str, Any]:
-        return {}
+        """
+        Return a per-symbol feature snapshot at current time.
+
+        Dummy implementation:
+        - Always returns a constant feature vector
+        - Key names mimic real L1 features
+        """
+        if self._current_ts is None:
+            raise RuntimeError("on_time() must be called before get_features()")
+
+        return {
+            "l1_dummy": 0.0,
+            "ts_us": self._current_ts,
+        }

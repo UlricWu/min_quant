@@ -8,10 +8,11 @@ class BacktestConfig(BaseModel):
     """
     BacktestConfig（FINAL / FROZEN）
 
-    语义：
-      - 回测“实验定义”
-      - symbols 由 backtest 决定（全量数据上做子集选择）
-      - 不定义路径
+语义冻结：
+    - BacktestConfig = 实验定义
+    - 决定：dates / symbols / level / replay / strategy
+    - 不定义路径
+    - 不定义数据加载方式
     """
 
     # 实验名
