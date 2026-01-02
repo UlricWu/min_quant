@@ -32,7 +32,6 @@ class PipelineContext:
     # resolved dirs（方便使用）
     # -------------------------
     raw_dir: Path
-    parquet_dir: Path
     fact_dir: Path
     meta_dir: Path
 

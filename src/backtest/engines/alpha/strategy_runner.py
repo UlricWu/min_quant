@@ -4,6 +4,22 @@ from typing import Dict, Any, Sequence
 
 from src.backtest.core.data import MarketDataView
 from src.backtest.core.portfolio import Portfolio
+"""
+{#!filepath: src/backtest/engines/alpha/strategy_runner.py}
+
+StrategyRunner (FINAL / FROZEN)
+
+Role:
+- Bridge between model predictions and target positions.
+
+Invariants:
+- Consumes ONLY observable facts (MarketDataView, Portfolio).
+- Produces target_qty per symbol.
+- Knows nothing about data sources, replay, or execution mechanics.
+
+Strategy logic MUST remain engine-agnostic.
+"""
+
 
 
 class StrategyRunner:

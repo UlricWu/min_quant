@@ -19,8 +19,24 @@ from src.utils.path import PathManager
 
 from src.backtest.pipeline import BacktestPipeline
 
-# Engine A steps (semantic boundaries)
-from src.backtest.steps.alpha.engine_a_data_view_step import EngineADataViewStep
+"""
+{#!filepath: src/workflows/offline_l1_backtest.py}
+
+Offline Level-1 Backtest Workflow (FINAL / FROZEN)
+
+Design invariant:
+- Workflow ONLY orchestrates experiment execution.
+- BacktestConfig defines WHAT experiment to run.
+- Workflow does NOT interpret config fields.
+- Replay, data access, and strategy are engine-internal concerns.
+
+Pipeline semantics:
+- Stage 1: Run Alpha Backtest (EngineARunStep)
+- Stage 2: Generate research reports
+
+The workflow must remain stable even as engines evolve.
+"""
+
 from src.backtest.steps.alpha.engine_a_run_step import EngineARunStep
 from src.backtest.steps.alpha.engine_a_report_step import EngineAReportStep
 
@@ -51,7 +67,7 @@ def build_offline_l1_backtest() -> BacktestPipeline:
             # 1) Resolve MarketDataView for (date, symbols)
             #    - uses cfg.symbols
             #    - uses manifest + meta.slice_accessor
-            EngineADataViewStep(inst=inst),
+            # EngineADataViewStep(inst=inst),
 
             # 2) Run Alpha Backtest
             #    - replay policy (cfg.replay)

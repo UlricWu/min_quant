@@ -96,7 +96,7 @@ class DownloadStep(PipelineStep):
         # 1. 列远端目录（Source 信息）
         #    ⚠️ 此处不等于“执行下载”
         # ==========================================================
-        ftp = ftplib.FTP(timeout=600)
+        ftp = ftplib.FTP(timeout=1200)
         ftp.connect(self.host, self.port)
         ftp.login(self.user, self.password)
 

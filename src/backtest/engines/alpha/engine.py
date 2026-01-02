@@ -6,6 +6,30 @@ from typing import List, Dict
 from src.backtest.core.time import is_minute_boundary
 from src.backtest.core.events import Fill
 
+"""
+{#!filepath: src/backtest/engines/alpha/engine.py}
+
+Engine A: Alpha Backtest (FINAL / FROZEN)
+
+Purpose:
+- Validate statistical alpha under idealized execution assumptions.
+
+Semantics:
+- Time is driven by ReplayClock.
+- Decisions are made at minute boundaries.
+- Execution is idealized (always filled, no slippage).
+- Output is a sequence of immutable Fill events.
+
+Invariants:
+- Does not know data source formats.
+- Does not know model implementations.
+- Does not mutate portfolio directly.
+- Portfolio state changes ONLY via Fill events.
+
+This engine answers:
+"Does the alpha exist in an idealized world?"
+"""
+
 
 @dataclass(frozen=True)
 class EquityPoint:

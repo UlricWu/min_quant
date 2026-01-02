@@ -6,6 +6,23 @@ from typing import Dict, Iterable
 
 from src.meta.slice_source import SliceSource
 
+"""
+{#!filepath: src/meta/symbol_slice_resolver.py}
+
+SymbolSliceResolver (FINAL / FROZEN)
+
+Role:
+- Resolve the unique physical data source (SliceSource) for a given symbol.
+
+Invariants:
+- Each symbol must map to EXACTLY ONE SliceSource.
+- Missing or multiple sources are fatal errors.
+- No business logic is allowed here.
+
+The meta layer defines WHERE facts live,
+never HOW they are interpreted or used.
+"""
+
 
 class SymbolSliceResolver:
     """

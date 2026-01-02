@@ -269,7 +269,6 @@ def make_test_pipeline_context(tmp_path: Path):
 
     def _make(date: str = "2025-01-01") -> PipelineContext:
         raw_dir = tmp_path / "raw"
-        parquet_dir = tmp_path / "parquet"
         fact_dir = tmp_path / "fact"
         feature_dir = tmp_path / "feature"
         meta_dir = tmp_path / "meta"
@@ -277,7 +276,6 @@ def make_test_pipeline_context(tmp_path: Path):
 
         for d in (
                 raw_dir,
-                parquet_dir,
                 label_dir,
                 fact_dir,
                 feature_dir,
@@ -288,7 +286,6 @@ def make_test_pipeline_context(tmp_path: Path):
         return PipelineContext(
             date=date,
             raw_dir=raw_dir,
-            parquet_dir=parquet_dir,
             fact_dir=fact_dir,
             feature_dir=feature_dir,
             meta_dir=meta_dir,

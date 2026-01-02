@@ -3,7 +3,8 @@ from __future__ import annotations
 from dataclasses import dataclass
 from typing import List
 
-from src import logs
+from src import logs, PathManager
+from src.observability.instrumentation import Instrumentation
 from src.pipeline.step import PipelineStep
 
 
@@ -45,13 +46,13 @@ class BacktestPipeline:
     """
 
     def __init__(
-        self,
-        *,
-        daily_steps: List[PipelineStep],
-        final_steps: List[PipelineStep],
-        pm,
-        inst,
-        cfg,
+            self,
+            *,
+            daily_steps: List[PipelineStep],
+            final_steps: List[PipelineStep],
+            pm: PathManager,
+            inst: Instrumentation,
+            cfg,
     ):
         self.daily_steps = daily_steps
         self.final_steps = final_steps
@@ -59,7 +60,7 @@ class BacktestPipeline:
         self.inst = inst
         self.cfg = cfg
 
-    def run(self, run_id:str) -> BacktestContext:
+    def run(self, run_id: str) -> BacktestContext:
         logs.info(f"[BacktestPipeline] START run_id={run_id}")
 
         ctx = BacktestContext(cfg=self.cfg, pm=self.pm, inst=self.inst)

@@ -4,6 +4,28 @@ from typing import Dict, List, Optional
 
 from src.backtest.core.events import Fill, Side
 from src.backtest.core.data import MarketDataView
+"""
+{#!filepath: src/backtest/engines/alpha/execution_sim.py}
+
+ExecutionSimulator (Engine A / FINAL / FROZEN)
+
+Role:
+- Convert target_qty into immutable Fill events at a given time.
+
+Assumptions:
+- Idealized execution.
+- No slippage.
+- Always filled if price is observable.
+
+Invariants:
+- Does NOT advance time.
+- Does NOT mutate portfolio.
+- Emits ONLY immutable Fill events.
+
+Execution mechanisms differ across engines;
+event semantics NEVER change.
+"""
+
 
 
 class ExecutionSimulator:
