@@ -25,6 +25,8 @@ from typing import Dict, Tuple, Type
 
 from src.backtest.strategy.base import Strategy, Model
 from src.backtest.strategy.threshold import ThresholdModel, ThresholdStrategy
+from src.backtest.strategy.ml.rf_model import RandomForestModel
+from src.backtest.strategy.ml.prob_strategy import ProbabilityThresholdStrategy
 
 
 class StrategyFactory:
@@ -42,6 +44,7 @@ class StrategyFactory:
     # --------------------------------------------------
     _REGISTRY: Dict[str, Tuple[Type[Model], Type[Strategy]]] = {
         "threshold": (ThresholdModel, ThresholdStrategy),
+        "rf_prob": (RandomForestModel, ProbabilityThresholdStrategy)
         # "ma_cross": (MACrossModel, MACrossStrategy),
         # Future strategies MUST be added explicitly here.
     }
