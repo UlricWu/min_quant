@@ -3,16 +3,15 @@ from __future__ import annotations
 
 from __future__ import annotations
 
-from dataclasses import dataclass
 from pathlib import Path
-from typing import Literal, Dict, Any
+from typing import Literal
 
 import pandas as pd
 import pytest
 import pyarrow as pa
 import pyarrow.parquet as pq
 from loguru import logger
-from src.pipeline.context import PipelineContext
+from src.data_system.context import DataContext
 
 
 @pytest.fixture(autouse=True)
@@ -164,7 +163,7 @@ def canonical_output_dir(tmp_path: Path, date: str) -> Path:
 # ============================================================
 @pytest.fixture(autouse=True)
 def _patch_parse_events(monkeypatch):
-    import src.engines.parser_engine as ne
+    import src.data_system.engines.parser_engine as ne
 
     def _stub_parse_events(df: pd.DataFrame, kind: Literal["order", "trade"]):
         symbol = df["SecurityID"].astype(str).str.zfill(6)
@@ -267,7 +266,7 @@ def make_test_pipeline_context(tmp_path: Path):
     - All directory paths are real and isolated under tmp_path
     """
 
-    def _make(date: str = "2025-01-01") -> PipelineContext:
+    def _make(date: str = "2025-01-01") -> DataContext:
         raw_dir = tmp_path / "raw"
         fact_dir = tmp_path / "fact"
         feature_dir = tmp_path / "feature"
@@ -283,7 +282,7 @@ def make_test_pipeline_context(tmp_path: Path):
         ):
             d.mkdir(parents=True, exist_ok=True)
 
-        return PipelineContext(
+        return DataContext(
             today=date,
             raw_dir=raw_dir,
             fact_dir=fact_dir,

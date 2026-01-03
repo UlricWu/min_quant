@@ -1,60 +1,61 @@
-# src/pipeline/steps/trade_enrich_step.py
+#!filepath: src/pipeline/steps/minute_trade_agg_step.py
 from __future__ import annotations
 
 from pathlib import Path
-from typing import Dict, Tuple
+from typing import List
 
 import pyarrow as pa
-import pyarrow.compute as pc
-import pyarrow.parquet as pq
 
 from src.pipeline.step import PipelineStep
-from src.pipeline.context import PipelineContext
-from src.engines.trade_enrich_engine import TradeEnrichEngine
+from src.data_system.context import DataContext
+from src.data_system.engines.minute_trade_agg_engine import MinuteTradeAggEngine
 from src.meta.base import BaseMeta, MetaOutput
 from src.meta.slice_source import SliceSource
 from src.utils.logger import logs
 
-from src.engines.symbol_index_engine import SymbolIndexEngine
+from src.data_system.engines.symbol_index_engine import SymbolIndexEngine
 from src.utils.parquet_writer import ParquetAppendWriter
 
 
-class TradeEnrichStep(PipelineStep):
+class MinuteTradeAggStep(PipelineStep):
     """
-    TradeEnrichStep（FINAL / FROZEN）
-    前置条件（由本 Step 保证）：
-    - table 按 symbol 分块 concat
-    - 每个 symbol 内部顺序已保持
+    MinuteTradeAggStep（FINAL / FROZEN）
 
     输入：
-      fact/*.normalize.parquet   （multi-symbol, canonical）
+      fact/enriched.*trade.parquet   （multi-symbol, event-level）
 
     输出：
-      fact/*.enriched.parquet    （multi-symbol, enriched）
+      fact/min.*trade.parquet        （multi-symbol, minute-level）
+
+    冻结前置条件（由本 Step 保证）：
+      - enriched 表已按 symbol 分块 concat
+      - 每个 symbol 内部 ts 已升序
 
     冻结原则：
       - orchestration only
       - engine 只处理单 symbol
-      - enriched 阶段重新生成 slice index
+      - min 阶段重新生成 slice index
+      - 统一 writer / index engine
     """
 
-    stage = "enriched"
-    upstream_stage = "convert"
+    stage = "min"
+    upstream_stage = "enriched"
 
     def __init__(
-            self,
-            engine: TradeEnrichEngine,
-            inst=None,
+        self,
+        engine: MinuteTradeAggEngine,
+        inst=None,
     ) -> None:
         super().__init__(inst)
         self.engine = engine
 
     # ------------------------------------------------------------------
-    def run(self, ctx: PipelineContext) -> PipelineContext:
+    def run(self, ctx: DataContext) -> DataContext:
         input_dir: Path = ctx.fact_dir
         meta_dir: Path = ctx.meta_dir
-        output_dir = ctx.fact_dir
+        output_dir: Path = ctx.fact_dir
 
+        # 只处理 trade
         for input_file in input_dir.glob(f"{self.upstream_stage}.*trade.parquet"):
             name = input_file.stem.split(".")[1]
             output_file = output_dir / f"{self.stage}.{name}.parquet"
@@ -69,39 +70,56 @@ class TradeEnrichStep(PipelineStep):
             # 1. upstream check
             # --------------------------------------------------
             if not meta.upstream_changed():
-                logs.warning(f"[TradeEnrichStep] meta hit → skip {input_file.name}")
+                logs.warning(
+                    f"[{self.stage}] meta hit → skip {input_file.name}"
+                )
                 continue
 
             # --------------------------------------------------
-            # 2. 构造 SliceSource（来自 normalize 的 slice capability）
+            # 2. SliceSource（来自 enriched 的 slice capability）
             # --------------------------------------------------
             source = SliceSource(
-                meta_dir=ctx.meta_dir,
+                meta_dir=meta_dir,
                 stage=self.upstream_stage,
                 output_slot=name,
             )
 
-            enriched_tables: list[pa.Table] = []
+            minute_tables: List[pa.Table] = []
 
             # --------------------------------------------------
-            # 3. per-symbol enrich（engine 纯计算）
+            # 3. per-symbol minute aggregation（engine 纯计算）
             # --------------------------------------------------
-            with self.inst.timer(f"[TradeEnrich] {name}"):
+            with self.inst.timer(f"[{self.stage}] {name}"):
+                symbol_count = 0
+
                 for symbol, sub in source:
                     if sub.num_rows == 0:
                         continue
 
-                    enriched = self.engine.execute(sub)
-                    if enriched.num_rows == 0:
+                    minute = self.engine.execute(sub)
+                    if minute.num_rows == 0:
                         continue
 
-                    enriched_tables.append(enriched)
+                    # engine 不负责 symbol，Step 补齐
+                    minute = minute.append_column(
+                        "symbol",
+                        pa.array([symbol] * minute.num_rows),
+                    )
 
-            if not enriched_tables:
-                logs.warning(f"[TradeEnrichStep] {name} no enriched data")
+                    minute_tables.append(minute)
+                    symbol_count += 1
+
+            if not minute_tables:
+                logs.warning(f"[{self.stage}] {name} no minute data")
                 continue
 
-            tables, index = SymbolIndexEngine.execute(pa.concat_tables(enriched_tables))
+            # --------------------------------------------------
+            # 4. concat + canonical sort + rebuild slice index
+            # --------------------------------------------------
+            tables, index = SymbolIndexEngine.execute(
+                pa.concat_tables(minute_tables)
+            )
+
             writer = ParquetAppendWriter(output_file=output_file)
             writer.write(tables)
             writer.close()
@@ -119,8 +137,8 @@ class TradeEnrichStep(PipelineStep):
             )
 
             logs.info(
-                f"[TradeEnrichStep] written {output_file.name} "
-                f"symbols={len(enriched_tables)} rows={tables.num_rows}"
+                f"[{self.stage}] written {output_file.name} "
+                f"symbols={symbol_count} rows={tables.num_rows}"
             )
 
         return ctx

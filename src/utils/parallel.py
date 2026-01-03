@@ -1,12 +1,18 @@
-# src/pipeline/parallel/executor.py
+# src/utils/parallel.py
 from __future__ import annotations
 
 import os
 from concurrent.futures import ProcessPoolExecutor, as_completed
 from typing import Iterable, Callable, Any
 
-from src.pipeline.parallel.types import ParallelKind
 from src import logs
+
+from enum import Enum
+
+
+class ParallelKind(str, Enum):
+    FILE = "file"
+    SYMBOL = "symbol"
 
 
 class ParallelExecutor:

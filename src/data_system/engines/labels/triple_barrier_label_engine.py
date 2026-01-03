@@ -5,7 +5,7 @@ from dataclasses import dataclass
 
 import pyarrow as pa
 
-from src.engines.labels.base import BaseLabelEngine, LabelSpec, require_columns
+from src.data_system.engines.labels.base import BaseLabelEngine, LabelSpec, require_columns
 
 
 @dataclass(frozen=True)

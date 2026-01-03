@@ -9,8 +9,7 @@ from collections import defaultdict, deque
 import pyarrow as pa
 import pyarrow.parquet as pq
 
-from src.pipeline.context import EngineContext
-from src import logs
+from src.data_system.context import DataContext
 
 
 # ===============================
@@ -236,7 +235,7 @@ class OrderBookRebuildEngine:
         self._event_writer: Optional[pq.ParquetWriter] = None
 
     # ======================================================
-    def execute(self, ctx: EngineContext) -> None:
+    def execute(self, ctx: DataContext) -> None:
         if self.book is None:
             self.book = OrderBook()
 

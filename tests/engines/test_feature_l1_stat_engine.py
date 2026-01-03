@@ -6,7 +6,7 @@ import pandas as pd
 import pyarrow as pa
 import pytest
 
-from src.engines.feature_l1_stat_engine import FeatureL1StatEngine
+from src.data_system.engines.feature_l1_stat_engine import FeatureL1StatEngine
 
 
 # -----------------------------------------------------------------------------

@@ -3,7 +3,7 @@ from __future__ import annotations
 import pytest
 import pyarrow as pa
 
-from src.engines.parser_engine import (
+from src.data_system.engines.parser_engine import (
     parse_events_arrow,
     INTERNAL_SCHEMA,
 )

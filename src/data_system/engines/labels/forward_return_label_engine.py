@@ -6,7 +6,7 @@ from typing import Sequence
 import pyarrow as pa
 import pyarrow.compute as pc
 
-from src.engines.labels.base import BaseLabelEngine, require_columns
+from src.data_system.engines.labels.base import BaseLabelEngine, require_columns
 
 
 class ForwardReturnLabelEngine(BaseLabelEngine):

@@ -1,5 +1,6 @@
-from src.engines.orderbook_rebuild_engine import OrderBookRebuildEngine
-from src.pipeline.context import EngineContext
+from src.data_system.engines.orderbook_rebuild_engine import OrderBookRebuildEngine
+from src.data_system.engines.context import EngineContext
+
 import pyarrow.parquet as pq
 
 
@@ -31,7 +32,6 @@ def test_record_events_consistent_with_snapshot(tmp_path, make_events_parquet):
             mode="offline",
             input_file=input_path,
             output_file=snapshot_path,
-            key=''
         )
     )
 

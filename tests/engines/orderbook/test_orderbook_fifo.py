@@ -1,5 +1,6 @@
-from src.engines.orderbook_rebuild_engine import OrderBookRebuildEngine
-from src.pipeline.context import EngineContext
+from src.data_system.engines.orderbook_rebuild_engine import OrderBookRebuildEngine
+from src.data_system.engines.context import EngineContext
+
 import pyarrow.parquet as pq
 
 """
@@ -33,7 +34,6 @@ def test_fifo_same_price_multiple_orders(tmp_path, make_events_parquet):
             mode="offline",
             input_file=input_path,
             output_file=out,
-            key=''
         )
     )
 
@@ -74,7 +74,6 @@ def test_fifo_partial_then_full_does_not_touch_next(tmp_path, make_events_parque
             mode="offline",
             input_file=input_path,
             output_file=out,
-            key=''
         )
     )
 
@@ -115,7 +114,6 @@ def test_multi_price_level_sorting(tmp_path, make_events_parquet):
             mode="offline",
             input_file=input_path,
             output_file=out,
-            key=''
         )
     )
 

@@ -18,9 +18,11 @@ ADD → CANCEL → TRADE（非法序列）防御测试
 
 """
 
-from src.engines.orderbook_rebuild_engine import OrderBookRebuildEngine
-from src.pipeline.context import EngineContext
-import pytest
+from src.data_system.engines.orderbook_rebuild_engine import OrderBookRebuildEngine
+from src.data_system.engines.context import EngineContext
+
+
+
 def _make_parquet(path: Path) -> Path:
     table = pa.table(
         {
@@ -59,7 +61,6 @@ def test_trade_partial_fill_keeps_order(tmp_path: Path):
             mode="offline",
             input_file=input_path,
             output_file=output_path,
-            key=''
         )
     )
 
@@ -112,7 +113,6 @@ def test_trade_partial_partial_then_filled(tmp_path, make_events_parquet):
             mode="offline",
             input_file=input_path,
             output_file=out,
-            key=''
         )
     )
 
@@ -142,7 +142,6 @@ def test_trade_exact_fill_removes_order(tmp_path, make_events_parquet):
             mode="offline",
             input_file=input_path,
             output_file=out,
-            key=''
         )
     )
 
@@ -170,7 +169,6 @@ def test_trade_exact_fill_removes_order(tmp_path, make_events_parquet):
             mode="offline",
             input_file=input_path,
             output_file=out,
-            key=''
         )
     )
 
@@ -198,7 +196,6 @@ def test_trade_overfill_is_defensive(tmp_path, make_events_parquet):
             mode="offline",
             input_file=input_path,
             output_file=out,
-            key=''
         )
     )
 
@@ -237,7 +234,6 @@ def test_add_cancel_then_trade_is_ignored(tmp_path, make_events_parquet):
             mode="offline",
             input_file=input_path,
             output_file=out,
-            key=''
         )
     )
 

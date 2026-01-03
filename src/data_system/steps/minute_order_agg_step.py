@@ -3,8 +3,9 @@ from __future__ import annotations
 from pathlib import Path
 
 from src.pipeline.step import PipelineStep
-from src.pipeline.context import PipelineContext, EngineContext
-from src.engines.minute_order_agg_engine import MinuteOrderAggEngine
+from src.data_system.context import DataContext
+from src.data_system.engines.context import EngineContext
+from src.data_system.engines.minute_order_agg_engine import MinuteOrderAggEngine
 from src.utils.logger import logs
 
 # from src.observability.timer import noop_timer
@@ -22,7 +23,7 @@ class MinuteOrderAggStep(PipelineStep):
         self.engine = engine
         self.inst = inst
 
-    def run(self, ctx: PipelineContext) -> None:
+    def run(self, ctx: DataContext) -> None:
         symbol_root: Path = ctx.fact_dir
 
         if not symbol_root.exists():

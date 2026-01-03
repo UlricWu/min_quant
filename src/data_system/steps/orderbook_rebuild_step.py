@@ -7,12 +7,13 @@ import traceback
 from dataclasses import dataclass
 from multiprocessing import get_context
 from pathlib import Path
-from typing import Iterable, Optional, Tuple
+from typing import Iterable, Optional
 
 from src import logs
-from src.pipeline.context import PipelineContext, EngineContext
+from src.data_system.context import DataContext
+from src.data_system.engines.context import  EngineContext
 from src.pipeline.step import PipelineStep
-from src.engines.orderbook_rebuild_engine import OrderBookRebuildEngine
+from src.data_system.engines.orderbook_rebuild_engine import OrderBookRebuildEngine
 
 
 # ============================================================
@@ -172,7 +173,7 @@ class OrderBookRebuildStep(PipelineStep):
             yield _Job(symbol=symbol, input_path=inp, output_path=out)
 
     # ------------------------------------------------------------
-    def run(self, ctx: PipelineContext) -> None:
+    def run(self, ctx: DataContext) -> None:
         # date = ctx.date  # 你现有 PipelineContext 已经在用 ctx.date
         input_dir = ctx.fact_dir
         t0 = time.perf_counter()

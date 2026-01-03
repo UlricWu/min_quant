@@ -7,12 +7,12 @@ from typing import List, Optional, Sequence
 import pyarrow as pa
 
 from src.pipeline.step import PipelineStep
-from src.pipeline.context import PipelineContext
+from src.data_system.context import DataContext
 from src.meta.base import BaseMeta, MetaOutput
 from src.meta.slice_source import SliceSource
 from src.utils.logger import logs
 
-from src.engines.symbol_index_engine import SymbolIndexEngine
+from src.data_system.engines.symbol_index_engine import SymbolIndexEngine
 from src.utils.parquet_writer import ParquetAppendWriter
 
 
@@ -96,7 +96,7 @@ class FeatureBuildStep(PipelineStep):
         self.only_feature_columns = only_feature_columns
 
     # ------------------------------------------------------------------
-    def run(self, ctx: PipelineContext) -> PipelineContext:
+    def run(self, ctx: DataContext) -> DataContext:
         fact_dir: Path = ctx.fact_dir
         feature_dir: Path = ctx.feature_dir
         meta_dir: Path = ctx.meta_dir

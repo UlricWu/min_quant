@@ -6,14 +6,13 @@ import json
 import subprocess
 from pathlib import Path
 
-from src.pipeline.context import PipelineContext
+from src.data_system.context import DataContext
 from src.pipeline.step import PipelineStep
-from src.pipeline.pipeline import PipelineAbort
+from src.data_system.pipeline import PipelineAbort
 
-from src.engines.ftp_download_engine import FtpDownloadEngine
+from src.data_system.engines.ftp_download_engine import FtpDownloadEngine
 from src.meta.base import BaseMeta, MetaOutput
 
-from src.utils.filesystem import FileSystem
 from src.utils.retry import Retry
 from src.utils.logger import logs
 
@@ -97,7 +96,7 @@ class DownloadStep(PipelineStep):
     # ==================================================================
     # Source Step entry
     # ==================================================================
-    def run(self, ctx: PipelineContext) -> PipelineContext:
+    def run(self, ctx: DataContext) -> DataContext:
         date_str = self.engine.resolve_date(ctx.today)
 
         # --------------------------------------------------

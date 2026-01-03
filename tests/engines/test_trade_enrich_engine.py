@@ -1,7 +1,7 @@
 import pyarrow as pa
 import pytest
 
-from src.engines.trade_enrich_engine import TradeEnrichEngine
+from src.data_system.engines.trade_enrich_engine import TradeEnrichEngine
 
 def test_trade_enrich_basic():
     table = pa.table(

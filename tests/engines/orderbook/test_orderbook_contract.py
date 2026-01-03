@@ -17,7 +17,7 @@ TRADE 超额 → 不得出现负聚合量
 同价位多订单 → FIFO 不变
 """
 import pytest
-from src.engines.orderbook_rebuild_engine import OrderBook
+from src.data_system.engines.orderbook_rebuild_engine import OrderBook
 
 
 @pytest.mark.contract

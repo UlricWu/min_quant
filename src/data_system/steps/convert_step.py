@@ -7,19 +7,18 @@ import pyarrow as pa
 
 from src import logs
 from src.pipeline.step import PipelineStep
-from src.pipeline.context import PipelineContext
-from src.pipeline.parallel.executor import ParallelExecutor
-from src.pipeline.parallel.types import ParallelKind
+from src.data_system.context import DataContext
+from src.utils.parallel import ParallelExecutor, ParallelKind
 
 from src.meta.base import BaseMeta, MetaOutput
 
-from src.engines.parser_engine import parse_events_arrow
+from src.data_system.engines.parser_engine import parse_events_arrow
 
 from src.utils.csv7z_batch_source import Csv7zBatchSource
-from src.engines.normalize_engine import NormalizeEngine
+from src.data_system.engines.normalize_engine import NormalizeEngine
 from src.utils.parquet_writer import ParquetAppendWriter
-from src.engines.symbol_index_engine import SymbolIndexEngine
-from src.engines.raw_unit_builder import RawUnitBuilder
+from src.data_system.engines.symbol_index_engine import SymbolIndexEngine
+from src.data_system.engines.raw_unit_builder import RawUnitBuilder
 
 
 # =============================================================================
@@ -141,7 +140,7 @@ class ConvertStep(PipelineStep):
         self.max_workers = max_workers
 
     # ------------------------------------------------------------------
-    def run(self, ctx: PipelineContext) -> PipelineContext:
+    def run(self, ctx: DataContext) -> DataContext:
 
         # --------------------------------------------------
         # 1. meta-first：判定哪些 raw 文件需要处理

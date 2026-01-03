@@ -1,39 +1,12 @@
 from __future__ import annotations
 
-from dataclasses import dataclass
-from pathlib import Path
 from typing import List
 
 from src import logs, PathManager
 from src.config.backtest_config import BacktestConfig
 from src.observability.instrumentation import Instrumentation
 from src.pipeline.step import PipelineStep
-
-
-@dataclass
-class BacktestContext:
-    """
-    BacktestContext（冻结）
-
-    原则：
-    - cfg / pm / inst 由 Pipeline 注入
-    - date / symbols 在 Pipeline 层绑定
-    - Step 只读 + 写自己负责的字段
-    """
-    cfg: object
-    inst: object
-
-    # runtime (per-date)
-    today: str | None = None
-    symbols: list[str] | None = None
-
-    # path
-    meta_dir: Path = None
-
-    # engine outputs
-    portfolio: object | None = None
-    equity_curve: object | None = None
-    report: object | None = None
+from src.backtest.context import BacktestContext
 
 
 class BacktestPipeline:
@@ -66,8 +39,7 @@ class BacktestPipeline:
     def run(self, run_id: str) -> BacktestContext:
         logs.info(f"[BacktestPipeline] START run_id={run_id}")
 
-        ctx = BacktestContext(cfg=self.cfg, inst=self.inst)
-        ctx.symbols = list(self.cfg.symbols)
+        ctx = BacktestContext(cfg=self.cfg, inst=self.inst, symbols=list(self.cfg.symbols))
 
         for today in self.cfg.dates:
             # logs.info(f"[BacktestPipeline] DATE={today}")

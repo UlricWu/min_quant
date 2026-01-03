@@ -1,7 +1,8 @@
 import pyarrow as pa
-from src.engines.trade_enrich_engine import TradeEnrichEngine
-from src.engines.orderbook_rebuild_engine import OrderBookRebuildEngine
-from src.pipeline.context import EngineContext
+from src.data_system.engines.trade_enrich_engine import TradeEnrichEngine
+from src.data_system.engines.orderbook_rebuild_engine import OrderBookRebuildEngine
+from src.data_system.engines.context import EngineContext
+
 import pyarrow.compute as pc
 def make_canonical_events(rows: list[dict]) -> pa.Table:
     return pa.table(
@@ -126,7 +127,6 @@ def test_trade_side_matches_orderbook_consumption(tmp_path):
     engine = OrderBookRebuildEngine()
 
     ctx = EngineContext(
-        key='',
         mode="offline",
         input_file=input_path,
         output_file=out_path,

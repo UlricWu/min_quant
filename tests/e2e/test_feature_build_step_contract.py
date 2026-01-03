@@ -7,7 +7,7 @@ import pyarrow as pa
 import pyarrow.parquet as pq
 import pytest
 
-from src.steps.feature_build_step import FeatureBuildStep
+from src.data_system.steps.feature_build_step import FeatureBuildStep
 from src.meta.base import BaseMeta, MetaOutput
 
 

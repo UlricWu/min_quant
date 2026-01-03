@@ -7,8 +7,7 @@ import pyarrow as pa
 import pyarrow.compute as pc
 import pyarrow.parquet as pq
 
-from src.pipeline.context import EngineContext
-from src.utils.logger import logs
+from src.data_system.engines.context import EngineContext
 
 US_PER_MINUTE = 60 * 1_000_000
 

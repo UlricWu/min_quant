@@ -3,8 +3,8 @@ from __future__ import annotations
 import pyarrow as pa
 import pyarrow.parquet as pq
 
-from src.engines.minute_order_agg_engine import MinuteOrderAggEngine
-from src.pipeline.context import EngineContext
+from src.data_system.engines.minute_order_agg_engine import MinuteOrderAggEngine
+from src.data_system.engines.context import EngineContext
 
 US_PER_MINUTE = 60 * 1_000_000
 
@@ -58,7 +58,6 @@ def test_minute_order_agg_basic(tmp_path, write_parquet):
         mode="offline",
         input_file=in_path,
         output_file=out_path,
-        key=''
     )
 
     engine.execute(ctx)
@@ -183,8 +182,6 @@ def test_minute_order_agg_multi_minute(tmp_path):
             mode="offline",
             input_file=in_path,
             output_file=out_path,
-            key=''
-
         )
     )
 
@@ -222,7 +219,6 @@ def test_minute_order_agg_only_add(tmp_path):
             mode="offline",
             input_file=in_path,
             output_file=out_path,
-            key=''
 
         )
     )
@@ -265,8 +261,6 @@ def test_minute_order_agg_empty_input(tmp_path):
             mode="offline",
             input_file=in_path,
             output_file=out_path,
-            key=''
-
         )
     )
 
@@ -299,8 +293,6 @@ def test_minute_order_agg_schema(tmp_path):
             mode="offline",
             input_file=in_path,
             output_file=out_path,
-            key=''
-
         )
     )
 

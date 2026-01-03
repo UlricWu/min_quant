@@ -18,11 +18,10 @@ def _make_canonical_events_for_enrich_and_book(tmp_path):
     return path, table
 
 import pyarrow.parquet as pq
-import pytest
 
-from src.engines.trade_enrich_engine import TradeEnrichEngine
-from src.engines.orderbook_rebuild_engine import OrderBookRebuildEngine
-from src.pipeline.context import EngineContext
+from src.data_system.engines.trade_enrich_engine import TradeEnrichEngine
+from src.data_system.engines.orderbook_rebuild_engine import OrderBookRebuildEngine
+from src.data_system.engines.context import EngineContext
 
 
 def test_trade_enrich_and_orderbook_direction_consistency(tmp_path):

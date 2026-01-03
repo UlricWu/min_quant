@@ -2,10 +2,9 @@
 from __future__ import annotations
 
 import pyarrow as pa
-import pyarrow.compute as pc
 import pytest
 
-from src.engines.normalize_engine import NormalizeEngine
+from src.data_system.engines.normalize_engine import NormalizeEngine
 
 
 # -----------------------------------------------------------------------------

@@ -1,12 +1,9 @@
 from __future__ import annotations
 
 import os
-import time
-import pytest
-from multiprocessing import Manager
 
-from src.pipeline.parallel.executor import ParallelExecutor
-from src.pipeline.parallel.types import ParallelKind
+from src.utils.parallel import ParallelExecutor
+from src.utils.parallel import ParallelKind
 
 
 def parallel_test_handler(args):

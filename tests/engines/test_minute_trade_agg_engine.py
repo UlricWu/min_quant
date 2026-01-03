@@ -6,7 +6,7 @@ import pyarrow as pa
 import pyarrow.compute as pc
 import pytest
 
-from src.engines.minute_trade_agg_engine import MinuteTradeAggEngine
+from src.data_system.engines.minute_trade_agg_engine import MinuteTradeAggEngine
 
 
 # -----------------------------------------------------------------------------
@@ -343,7 +343,7 @@ def test_minute_trade_agg_time_fields_consistency():
       minute_str
     必须来自同一个“本地钟面时间”
     """
-    from src.engines.minute_trade_agg_engine import US_PER_DAY,US_PER_MINUTE, US_PER_HOUR
+    from src.data_system.engines.minute_trade_agg_engine import US_PER_DAY,US_PER_MINUTE, US_PER_HOUR
     engine = MinuteTradeAggEngine(exchange="CN")
 
     ts = us(datetime(2025, 6, 18, 2, 15, 45, tzinfo=timezone.utc))  # 10:15:45 CST

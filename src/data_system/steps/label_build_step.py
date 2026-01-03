@@ -7,13 +7,13 @@ from typing import List
 import pyarrow as pa
 
 from src.pipeline.step import PipelineStep
-from src.pipeline.context import PipelineContext
+from src.data_system.context import DataContext
 from src.meta.base import BaseMeta, MetaOutput
 from src.meta.slice_source import SliceSource
-from src.engines.labels.base import BaseLabelEngine
+from src.data_system.engines.labels.base import BaseLabelEngine
 from src.utils.logger import logs
 
-from src.engines.symbol_index_engine import SymbolIndexEngine
+from src.data_system.engines.symbol_index_engine import SymbolIndexEngine
 from src.utils.parquet_writer import ParquetAppendWriter
 
 
@@ -51,7 +51,7 @@ class LabelBuildStep(PipelineStep):
         self.engine = engine
 
     # ------------------------------------------------------------------
-    def run(self, ctx: PipelineContext) -> PipelineContext:
+    def run(self, ctx: DataContext) -> DataContext:
         fact_dir: Path = ctx.fact_dir
         label_dir: Path = ctx.label_dir
         meta_dir: Path = ctx.meta_dir

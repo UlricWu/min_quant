@@ -41,8 +41,9 @@ class RandomForestModel(Model):
                 "RandomForestModel expects a .joblib artifact"
             )
 
-        self.model = joblib.load(model_path)
-        self.feature_order = feature_order
+        artifact = joblib.load(model_path)
+        self.model = artifact["model"]
+        self.feature_order = artifact["feature_order"]
         self.proba_index = proba_index
 
     def predict(

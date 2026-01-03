@@ -5,8 +5,8 @@ from pathlib import Path
 
 import pytest
 
-from src.pipeline.pipeline import DataPipeline
-from src.pipeline.context import PipelineContext
+from src.data_system.pipeline import DataPipeline
+from src.data_system.context import DataContext
 from src.pipeline.step import PipelineStep
 from src.observability.instrumentation import Instrumentation
 
@@ -18,7 +18,7 @@ class DummySkipStep(PipelineStep):
     - 只用于验证 timeline 不会被污染
     """
 
-    def run(self, ctx: PipelineContext) -> PipelineContext:
+    def run(self, ctx: DataContext) -> DataContext:
         # Step scope（record=False），但内部没有任何 leaf timer
         with self.timed():
             pass
@@ -30,7 +30,7 @@ class DummyLeafStep(PipelineStep):
     一个会真实执行 leaf timer 的 Step，用于对照测试。
     """
 
-    def run(self, ctx: PipelineContext) -> PipelineContext:
+    def run(self, ctx: DataContext) -> DataContext:
         with self.timed():
             with self.inst.timer("DUMMY_LEAF"):
                 pass

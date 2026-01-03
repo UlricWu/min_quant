@@ -2,9 +2,8 @@ from __future__ import annotations
 
 import pyarrow as pa
 import pandas as pd
-import pytest
 
-from src.engines.feature_l1_norm_engine import FeatureL1NormEngine
+from src.data_system.engines.feature_l1_norm_engine import FeatureL1NormEngine
 
 
 # -----------------------------------------------------------------------------

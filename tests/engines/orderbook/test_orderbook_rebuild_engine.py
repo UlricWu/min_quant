@@ -3,8 +3,9 @@ from __future__ import annotations
 import pyarrow as pa
 import pyarrow.parquet as pq
 
-from src.engines.orderbook_rebuild_engine import OrderBookRebuildEngine
-from src.pipeline.context import EngineContext
+from src.data_system.engines.orderbook_rebuild_engine import OrderBookRebuildEngine
+from src.data_system.engines.context import EngineContext
+
 
 from pathlib import Path
 
@@ -63,7 +64,6 @@ def test_orderbook_add_only(tmp_path):
             mode="offline",
             input_file=in_path,
             output_file=out_path,
-            key=''
         )
     )
 
@@ -102,8 +102,6 @@ def test_orderbook_cancel(tmp_path):
             mode="offline",
             input_file=in_path,
             output_file=out_path,
-            key=''
-
         )
     )
 
@@ -131,8 +129,6 @@ def test_orderbook_partial_trade(tmp_path):
             mode="offline",
             input_file=in_path,
             output_file=out_path,
-            key=''
-
         )
     )
 
@@ -163,8 +159,6 @@ def test_orderbook_full_trade(tmp_path):
             mode="offline",
             input_file=in_path,
             output_file=out_path,
-            key=''
-
         )
     )
 
@@ -193,8 +187,6 @@ def test_orderbook_multi_level_sorting(tmp_path):
             mode="offline",
             input_file=in_path,
             output_file=out_path,
-            key=''
-
         )
     )
 
@@ -243,7 +235,6 @@ def test_orderbook_rebuild_offline_basic(tmp_path: Path, canonical_events_parque
         mode="offline",
         input_file=canonical_events_parquet,
         output_file=out_snapshot,
-        key=''
     )
 
     engine.execute(ctx)
@@ -296,7 +287,6 @@ def test_orderbook_price_sorting(tmp_path: Path):
             mode="offline",
             input_file=input_path,
             output_file=out,
-            key=''
         )
     )
 
@@ -335,7 +325,6 @@ def test_orderbook_empty_input(tmp_path: Path):
             mode="offline",
             input_file=input_path,
             output_file=out,
-            key=''
         )
     )
 
