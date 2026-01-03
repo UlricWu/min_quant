@@ -45,16 +45,11 @@ backtest:
 
   # 策略行为定义（与 symbol 解耦）
   strategy:
-    type: "registry"
-    model:
-      name: "rf_v1"
-      params:
-        model_path: "/models/rf_alpha.pkl"
-    policy:
-      name: "long_only"
-      params:
-        threshold: 0.15
-        qty: 100
+    type: threshold
+    model: { }
+    params:
+      threshold: 0.0
+      qty: 10
 
     # Strategy 可见的 feature 列（由 DataHandler 加载）
     feature:
@@ -65,5 +60,4 @@ backtest:
     signal_feature: l1_std_w20_abs_move
 
     threshold: 0.0
-    params: []
 

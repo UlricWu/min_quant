@@ -31,7 +31,7 @@ class StrategyRunner:
     - Produces target_qty per symbol
     """
 
-    def __init__(self, *, model, strategy, symbols: Sequence[str]):
+    def __init__(self, *, model, strategy, symbols: list[str]):
         self.model = model
         self.strategy = strategy
         self.symbols = list(symbols)

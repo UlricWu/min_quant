@@ -10,7 +10,7 @@ from src.backtest.core.portfolio import Portfolio
 from src.backtest.engines.alpha.engine import AlphaBacktestEngine
 from src.backtest.engines.alpha.execution_sim import ExecutionSimulator
 from src.backtest.engines.alpha.strategy_runner import StrategyRunner
-from src.backtest.strategy.registry import StrategyFactory
+from src.backtest.strategy.factory import StrategyFactory
 from src.backtest.engines.alpha.data_view import MinuteFeatureDataView
 
 from src.meta.symbol_slice_resolver import SymbolSliceResolver

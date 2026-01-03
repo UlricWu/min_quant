@@ -70,7 +70,7 @@ class BacktestPipeline:
         ctx.symbols = list(self.cfg.symbols)
 
         for today in self.cfg.dates:
-            logs.info(f"[BacktestPipeline] DATE={today}")
+            # logs.info(f"[BacktestPipeline] DATE={today}")
             ctx.today = today
 
             ctx.meta_dir = self.pm.meta_dir(today)

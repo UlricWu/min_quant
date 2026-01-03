@@ -1,11 +1,10 @@
-# src/steps/download_step.py
+#!filepath: src/steps/download_step.py
 from __future__ import annotations
 
 import ftplib
 import json
 import subprocess
 from pathlib import Path
-from typing import Optional
 
 from src.pipeline.context import PipelineContext
 from src.pipeline.step import PipelineStep
@@ -22,43 +21,53 @@ from src.config.secret_config import SecretConfig
 from src.config.pipeline_config import DownloadBackend
 
 
-# TODO(stage-1):
-#   在系统进入全自动跑后：
-#   - 下载前获取远端 size（ftp.size）
-#   - 下载后校验 local size == remote size
-#   - 将 remote_size 写入 Meta
-
-
 class DownloadStep(PipelineStep):
     """
-    DownloadStep（Source Step / 冻结 · 串行）
+    DownloadStep（Source Step / 冻结 · FTP Connection Lifecycle）
 
-    语义：
-      - upstream：远端 FTP 文件（虚拟 Path，仅用于 Meta）
-      - output  ：本地 raw/*.7z 文件
-      - rows    ：0（Source Step，无表结构）
+    【核心定位】
+    - DownloadStep 是 Source Step，仅负责将「远端逻辑文件」物化为本地 raw 文件
+    - 所有执行必须遵循 meta-first 语义
+    - 本 Step 不承载任何可复用的 I/O 连接状态
 
-    Engine 约束：
-      - 不做任何 I/O
-      - 不依赖 ftplib / Path / OS
-      - 只负责：日期、文件选择、远端路径规则
+    ────────────────────────────────────────────────────────────────────────────
+    FTP Connection Lifecycle（冻结级约束）
+    ────────────────────────────────────────────────────────────────────────────
 
-    冻结原则（与 MinuteTradeAggStep 完全一致）：
-      1. Step 只做 orchestration
-      2. 所有执行必须先通过 meta.upstream_changed()
-      3. I/O 只在“获得执行资格”后发生
-      4. 每个 logical output（filename）一个 Meta
-      5. 成功后才 commit meta
+    ⚠️ 本 Step 对 FTP 连接的生命周期有严格且不可回退的设计约束：
 
-    Source existence：
-      - ftp.cwd(date) 是唯一 existence check
-      - 550 Failed to change directory = 非致命
-      - 必须立刻 PipelineAbort
-      - 不得进入 meta / download / engine
+    1. ftplib.FTP 连接是一次性、不可复用的 I/O 资源
+    2. 任意 socket / timeout / I/O 异常后，该 FTP 对象被视为永久失效
+    3. Retry 语义必须等价于「全新下载尝试」
+    4. 因此：
+       - 每一次文件下载 attempt 必须创建新的 FTP 连接
+       - 失败的 FTP 实例不得进入下一次 retry
+       - FTP 对象严禁跨文件、跨 retry、跨方法边界复用
+    5. DownloadStep 实例本身不得持有任何 FTP 连接状态
 
-    行为约定：
-      - 非程序错误（无交易 / 无数据 / 权限） → PipelineAbort（跳过）
-      - 程序错误（网络 / curl / bug）      → 原样抛异常
+    【强制约束】
+    - FTP existence check 与 FTP download 禁止共享连接
+    - Retry decorator 只能作用于“内部自行创建 FTP 连接”的函数
+    - 任何试图缓存、复用、池化 ftplib.FTP 的修改，均视为破坏冻结契约
+
+    ────────────────────────────────────────────────────────────────────────────
+    Backend 策略（冻结）
+    ────────────────────────────────────────────────────────────────────────────
+
+    - curl 是默认且推荐的生产后端
+    - ftplib 仅作为 fallback / debug backend 使用
+
+    ────────────────────────────────────────────────────────────────────────────
+    回退禁止声明（Hard Freeze）
+    ────────────────────────────────────────────────────────────────────────────
+
+    ❌ 禁止的修改包括但不限于：
+    - 在 run() 中创建并复用单一 FTP 实例
+    - 在 Step / Engine / Context 上缓存 FTP 对象
+    - 在 Retry 中复用已失败的 FTP 连接
+    - 通过“重置 socket”方式修补 FTP 实例
+
+    任何违反上述规则的改动，必须引入新的 ADR。
     """
 
     stage = "download"
@@ -78,7 +87,6 @@ class DownloadStep(PipelineStep):
         self.engine = engine
         self.backend = backend
 
-        self._secret = secret
         self.host = secret.ftp_host
         self.user = secret.ftp_user
         self.password = secret.ftp_password
@@ -86,54 +94,30 @@ class DownloadStep(PipelineStep):
 
         self.remote_root = remote_root.rstrip("/")
 
-    # ==================================================
-    # Source Step: enumerate remote logical units
-    # ==================================================
+    # ==================================================================
+    # Source Step entry
+    # ==================================================================
     def run(self, ctx: PipelineContext) -> PipelineContext:
         date_str = self.engine.resolve_date(ctx.today)
 
-        # ==========================================================
-        # 1. 列远端目录（Source 信息）
-        #    ⚠️ 此处不等于“执行下载”
-        # ==========================================================
-        ftp = ftplib.FTP(timeout=1200)
-        ftp.connect(self.host, self.port)
-        ftp.login(self.user, self.password)
+        # --------------------------------------------------
+        # 1. Existence check（独立 FTP 连接）
+        # --------------------------------------------------
+        self._check_remote_date_exists(date_str)
 
         # --------------------------------------------------
-        # 2. 切到 remote_root + date 目录（Source existence check）
+        # 2. 列文件名（独立 FTP 连接）
         # --------------------------------------------------
-        try:
-            ftp.cwd(self.remote_root)
-            ftp.cwd(date_str)
-        except ftplib.error_perm as e:
-            # 550 Failed to change directory.
-            msg = str(e)
-            logs.warning(
-                f"[{self.stage}][NO DATA] {date_str} directory not found | {msg}"
-            )
-
-            # 该 date 在 upstream 中不存在任何可消费的数据入口
-            # ⛔️ 这是“无数据”，不是错误：
-            #   - 不是某个文件坏了
-            #   - 不是网络抖动
-            #   - 不是权限错误（在你的白名单里）
-            #   - 而是：这个交易日在该数据源中是“空”的
-            raise PipelineAbort(msg)
-
-        # ==========================================================
-        # 3. 列文件（仅在 upstream 存在时）
-        # ==========================================================
-        filenames = ftp.nlst()
+        filenames = self._list_remote_files(date_str)
 
         plans = self.engine.plan_downloads(
             date=date_str,
             available_files=filenames,
         )
 
-        # ==========================================================
-        # 4. 文件级 meta-first 下载
-        # ==========================================================
+        # --------------------------------------------------
+        # 3. 文件级 meta-first 下载
+        # --------------------------------------------------
         for plan in plans:
             filename = plan["filename"]
             local_path = ctx.raw_dir / filename
@@ -149,20 +133,14 @@ class DownloadStep(PipelineStep):
                 output_slot=filename,
             )
 
-            # ⛔️ meta 不允许执行
             if not meta.upstream_changed():
                 logs.info(f"[{self.stage}] meta hit → skip {filename}")
                 continue
 
-            # ✅ 第一次真正产生副作用，才创建目录
-            FileSystem.ensure_dir(ctx.raw_dir)
-            FileSystem.ensure_dir(ctx.meta_dir)
-
             with self.inst.timer(f"download_{filename.split('.')[0]}"):
                 self._download_one(
-                    ftp=ftp,
                     date=date_str,
-                    plan=plan,
+                    remote_file=filename,
                     local_path=local_path,
                 )
 
@@ -178,44 +156,67 @@ class DownloadStep(PipelineStep):
 
         return ctx
 
-    # ------------------------------------------------------------------
-    def _remote_url(self, *, date: str, filename: str) -> str:
-        """
-        唯一的远端定位来源（冻结）：
-        ftp://host:port/root/date/filename
-        """
-        return (
-            f"ftp://{self.host}:{self.port}"
-            f"/{self.remote_root}/{date}/{filename}"
-        )
+    # ==================================================================
+    # Remote helpers (FTP connections are NEVER shared)
+    # ==================================================================
+    def _check_remote_date_exists(self, date: str) -> None:
+        ftp = ftplib.FTP(timeout=1200)
+        try:
+            ftp.connect(self.host, self.port)
+            ftp.login(self.user, self.password)
+            ftp.cwd(self.remote_root)
+            ftp.cwd(date)
+        except ftplib.error_perm as e:
+            logs.warning(
+                f"[{self.stage}][NO DATA] {date} not found | {e}"
+            )
+            raise PipelineAbort(str(e))
+        finally:
+            try:
+                ftp.quit()
+            except Exception:
+                ftp.close()
 
-    def _remote_upstream_path(self, *, date: str, filename: str) -> Path:
-        return Path(self._remote_url(date=date, filename=filename))
+    def _list_remote_files(self, date: str) -> list[str]:
+        ftp = ftplib.FTP(timeout=1200)
+        try:
+            ftp.connect(self.host, self.port)
+            ftp.login(self.user, self.password)
+            ftp.cwd(self.remote_root)
+            ftp.cwd(date)
+            return ftp.nlst()
+        finally:
+            try:
+                ftp.quit()
+            except Exception:
+                ftp.close()
 
-    # ------------------------------------------------------------------
-    @logs.catch()
+    # ==================================================================
+    # Download dispatch
+    # ==================================================================
     def _download_one(
             self,
             *,
-            ftp: ftplib.FTP,
             date: str,
-            plan: dict,
+            remote_file: str,
             local_path: Path,
     ) -> None:
         if self.backend == DownloadBackend.CURL:
             self._download_by_curl(
                 date=date,
-                remote_file=plan["filename"],
+                remote_file=remote_file,
                 local_path=local_path,
             )
         else:
             self._download_by_ftplib(
-                ftp=ftp,
-                remote_file=plan["filename"],
+                date=date,
+                remote_file=remote_file,
                 local_path=local_path,
             )
 
-    # ------------------------------------------------------------------
+    # ==================================================================
+    # ftplib backend (one connection per attempt)
+    # ==================================================================
     @Retry.decorator(
         exceptions=(ftplib.error_temp, ftplib.error_perm, OSError, TimeoutError),
         max_attempts=2,
@@ -226,16 +227,31 @@ class DownloadStep(PipelineStep):
     def _download_by_ftplib(
             self,
             *,
-            ftp: ftplib.FTP,
+            date: str,
             remote_file: str,
             local_path: Path,
     ) -> None:
         logs.info(f"[FTP] ftplib downloading {remote_file}")
 
-        with open(local_path, "wb") as fh:
-            ftp.retrbinary(f"RETR {remote_file}", fh.write)
+        ftp = ftplib.FTP(timeout=1200)
+        try:
+            ftp.connect(self.host, self.port)
+            ftp.login(self.user, self.password)
+            ftp.cwd(self.remote_root)
+            ftp.cwd(date)
 
-    # ------------------------------------------------------------------
+            with open(local_path, "wb") as fh:
+                ftp.retrbinary(f"RETR {remote_file}", fh.write)
+
+        finally:
+            try:
+                ftp.quit()
+            except Exception:
+                ftp.close()
+
+    # ==================================================================
+    # curl backend (preferred)
+    # ==================================================================
     @Retry.decorator(
         exceptions=(RuntimeError, OSError),
         max_attempts=3,
@@ -265,7 +281,7 @@ class DownloadStep(PipelineStep):
             "--retry-delay", "10",
             "--silent",
             "--show-error",
-            "--stderr", "-",  # 错误仍可能进入 stdout
+            "--stderr", "-",
             "--write-out",
             (
                 "{"
@@ -277,43 +293,22 @@ class DownloadStep(PipelineStep):
             url,
         ]
 
-        try:
-            result = subprocess.run(
-                cmd,
-                stdout=subprocess.PIPE,
-                stderr=subprocess.PIPE,
-                text=True,
-                timeout=600,
-            )
-        except subprocess.TimeoutExpired as e:
-            raise RuntimeError(
-                f"[DownloadStep][curl timeout] {remote_file} | "
-                f"timeout=600s | url={url}"
-            ) from e
+        result = subprocess.run(
+            cmd,
+            stdout=subprocess.PIPE,
+            stderr=subprocess.PIPE,
+            text=True,
+            timeout=600,
+        )
 
-        # --------------------------------------------------
-        # 1. curl 执行失败：立即抛异常（不解析 stdout）
-        # --------------------------------------------------
         if result.returncode != 0:
             raise RuntimeError(
                 f"[DownloadStep][curl failed] {remote_file} | "
                 f"code={result.returncode} | "
-                f"stdout={result.stdout.strip()} | "
                 f"stderr={result.stderr.strip()}"
             )
 
-        # --------------------------------------------------
-        # 2. curl 成功：只解析 stdout 的最后一行
-        # --------------------------------------------------
-        stats_line = result.stdout.strip().splitlines()[-1]
-
-        try:
-            stats = json.loads(stats_line)
-        except Exception as e:
-            raise RuntimeError(
-                f"[DownloadStep][curl stats parse failed] {remote_file} | "
-                f"line={stats_line} | err={e}"
-            )
+        stats = json.loads(result.stdout.strip().splitlines()[-1])
 
         logs.info(
             f"[DownloadStats] {remote_file} | "
@@ -321,4 +316,12 @@ class DownloadStep(PipelineStep):
             f"size={stats['size_bytes'] / 1_000_000_000:.2f} GB"
         )
 
-        logs.info(f"[Download] finished {remote_file} → {local_path}")
+    # ------------------------------------------------------------------
+    def _remote_url(self, *, date: str, filename: str) -> str:
+        return (
+            f"ftp://{self.host}:{self.port}"
+            f"/{self.remote_root}/{date}/{filename}"
+        )
+
+    def _remote_upstream_path(self, *, date: str, filename: str) -> Path:
+        return Path(self._remote_url(date=date, filename=filename))
