@@ -5,5 +5,3 @@ from typing import Dict
 
 class DataConfig(BaseModel):
     remote_dir: str
-    local_raw: str
-    parquet_root: str

@@ -9,3 +9,4 @@ PyYAML==6.0.3
 typer==0.20.0
 matplotlib
 joblib==1.5.3
+scikit-learn

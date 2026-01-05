@@ -9,34 +9,45 @@ from src import logs
 
 class PathManager:
     """
-    PathManager（冷热分离 · 冻结版）
+    PathManager（冷热分离 · FINAL / FROZEN）
 
-    物理存储布局（当前）：
+    =========================
+    物理存储布局（冻结）
+    =========================
 
     /home/user
      ├── dev/
      │     └── code/src/...
-     ├── data_ssd/              ← 热数据（SSD / 计算路径）
-     │     ├── parquet/
-     │     ├── fact/
-     │     ├── feature/
-     │     ├── meta/
-     │     ├── label/
-     │     ├── event/
-     │     └── bar/
+     │
+     ├── data/                     ← 热数据（SSD / 工作集）
+     │     ├── feature/            ← 分钟级特征
+     │     ├── label/              ← 分钟级标签
+     │     ├── bar/
+     │     │     └── 1m/            ← 分钟 bar
+     │     ├── meta/               ← slice / manifest / index
+     │     ├── training/           ← 训练中间产物
+     │     ├── backtest/           ← 回测中间产物
+     │     └── event/
+     │
      ├── shared/
      │     ├── configs/
      │     ├── models/
      │     ├── pretrained/
      │     └── cache/
-     └── /mnt/cold/             ← 冷数据（HDD / 不可变事实）
-           └── raw/
+     │
+     └── /mnt/cold/                ← 冷数据（HDD / 不可变事实）
+           ├── raw/                ← *.csv.7z 原始数据
+           └── l2_normalized/      ← normalize 后 L2 parquet
 
-    设计铁律（不可回退）：
-      - raw（*.csv.7z）只存在于 /mnt/cold
-      - parquet / fact / feature / meta 只存在于 SSD
-      - 所有 Step / Pipeline 不感知冷热
-      - 存储策略只能在 PathManager 中修改
+    =========================
+    设计铁律（不可回退）
+    =========================
+
+    - raw（*.csv.7z）只存在于 HDD
+    - normalize 后的 L2 parquet 只存在于 HDD
+    - 分钟级 feature / bar / label / meta 只存在于 SSD
+    - Step / Pipeline 永远不感知冷热
+    - 存储策略只能在 PathManager 中修改
     """
 
     _root: Optional[Path] = None
@@ -94,94 +105,89 @@ class PathManager:
     # =========================================================
     @classmethod
     def ssd_root(cls) -> Path:
-        """
-        热数据根目录（SSD）
-
-        说明：
-          - 当前位于 /home/user/data
-          - 未来可无痛切换到 /mnt/hot
-        """
+        """热数据根目录（SSD）"""
         return cls.base_dir() / "data"
 
     @classmethod
     def hdd_root(cls) -> Path:
-        """
-        冷数据根目录（HDD）
-
-        说明：
-          - 明确使用真实挂载点
-          - 不要求目录名与项目结构一致
-        """
+        """冷数据根目录（HDD）"""
         return Path("/mnt/cold")
 
     # =========================================================
-    # cold data (HDD)
+    # cold data (HDD / immutable)
     # =========================================================
     @classmethod
     def raw_dir(cls, date: str | None = None) -> Path:
         """
         原始数据（*.csv.7z）
-
-        语义：
-          - 不可变事实
-          - 长期保存
-          - 仅 Download / Convert 使用
         """
         p = cls.hdd_root() / "raw"
         return p / date if date else p
 
+    @classmethod
+    def l2_normalized_dir(cls, date: str | None = None) -> Path:
+        """
+        normalize 后的 L2 parquet（逐笔 / 盘口）
+
+        语义：
+          - 冷数据
+          - 顺序访问
+          - 用于 tick / execution replay
+        """
+        p = cls.hdd_root() / "l2_normalized"
+        return p / date if date else p
+
     # =========================================================
-    # hot data (SSD)
+    # hot data (SSD / working set)
     # =========================================================
-    @classmethod
-    def parquet_dir(cls, date: str | None = None) -> Path:
-        p = cls.ssd_root() / "parquet"
-        return p / date if date else p
-
-    @classmethod
-    def fact_dir(cls, date: str | None = None) -> Path:
-        p = cls.ssd_root() / "fact"
-        return p / date if date else p
-
-    @classmethod
-    def meta_dir(cls, date: str | None = None) -> Path:
-        p = cls.ssd_root() / "meta"
-        return p / date if date else p
-
     @classmethod
     def feature_dir(cls, date: str | None = None) -> Path:
+        """分钟级特征"""
         p = cls.ssd_root() / "feature"
         return p / date if date else p
 
     @classmethod
     def label_dir(cls, date: str | None = None) -> Path:
+        """分钟级标签"""
         p = cls.ssd_root() / "label"
         return p / date if date else p
 
+    # @classmethod
+    # def bar_1m_dir(cls, date: str | None = None) -> Path:
+    #     """1 分钟 bar"""
+    #     p = cls.ssd_root() / "bar" / "1m"
+    #     return p / date if date else p
+
     @classmethod
-    def event_dir(cls, date: str | None = None) -> Path:
-        p = cls.ssd_root() / "event"
+    def meta_dir(cls, date: str | None = None) -> Path:
+        """slice / manifest / index"""
+        p = cls.ssd_root() / "meta"
         return p / date if date else p
 
     @classmethod
-    def bar_1m_root(cls) -> Path:
-        return cls.ssd_root() / "bar" / "1m"
+    def model_dir(cls, date: str | None = None) -> Path:
+        """训练结果工作集"""
+        p = cls.ssd_root() / "training"
+        return p / date if date else p
 
     @classmethod
     def backtest_dir(cls, date: str | None = None) -> Path:
+        """回测工作集"""
         p = cls.ssd_root() / "backtest"
         return p / date if date else p
 
+    @classmethod
+    def fact_dir(cls, date: str | None = None) -> Path:
+        """事件缓存"""
+        p = cls.ssd_root() / "fact"
+        return p / date if date else p
+
     # =========================================================
-    # shared/
+    # shared
     # =========================================================
     @classmethod
     def shared_dir(cls) -> Path:
         return cls.base_dir() / "shared"
-
-    @classmethod
-    def shared_data_dir(cls) -> Path:
-        return cls.shared_dir() / "data_handler"
 
     @classmethod
     def models_dir(cls) -> Path:
@@ -196,31 +202,18 @@ class PathManager:
         return cls.shared_dir() / "cache"
 
     # =========================================================
-    # config（优先级：项目内 > shared）
+    # config resolution
     # =========================================================
     @classmethod
     def project_config_dir(cls) -> Path:
-        """
-        项目内部配置：
-          /home/user/dev/code/src/config
-        """
         return cls.root() / "code" / "src" / "config"
 
     @classmethod
     def shared_config_dir(cls) -> Path:
-        """
-        共享配置：
-          /home/user/shared/configs
-        """
         return cls.shared_dir() / "configs"
 
     @classmethod
     def config_file(cls, name: str) -> Path:
-        """
-        配置查找优先级：
-          1) 项目内部 src/config
-          2) shared/configs
-        """
         p1 = cls.project_config_dir() / name
         if p1.exists():
             return p1

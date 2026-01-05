@@ -1,18 +1,5 @@
 from __future__ import annotations
 
-"""
-Offline Level-1 Backtest Workflow (FINAL / FROZEN)
-
-Design invariant:
-- Workflow only orchestrates steps
-- BacktestConfig defines the experiment (dates / symbols / strategy)
-- Workflow does NOT interpret BacktestConfig fields
-- Replay / data access / strategy are step-internal concerns
-
-Engine:
-- Engine A (Alpha Backtest, L1)
-"""
-
 from src.config.app_config import AppConfig
 from src.observability.instrumentation import Instrumentation
 from src.utils.path import PathManager

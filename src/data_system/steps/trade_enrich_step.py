@@ -48,7 +48,7 @@ class TradeEnrichStep(PipelineStep):
 
     # ------------------------------------------------------------------
     def run(self, ctx: DataContext) -> DataContext:
-        input_dir: Path = ctx.fact_dir
+        input_dir: Path = ctx.normalized_dir
         meta_dir: Path = ctx.meta_dir
         output_dir = ctx.fact_dir
 

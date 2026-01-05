@@ -110,3 +110,8 @@ class SymbolSliceResolver:
             result[symbol] = found[0].get(symbol)
 
         return result
+    def symbols(self) -> list[str]:
+        symbols = []
+        for src in self._sources:
+            symbols.extend(src.symbols())
+        return symbols

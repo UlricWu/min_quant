@@ -38,12 +38,15 @@ class DataPipeline:
         meta_dir = self.pm.meta_dir(date)
         feature_l0_dir = self.pm.feature_dir(date)
         label_dir = self.pm.label_dir(date)
+        normalized_dir = self.pm.l2_normalized_dir(date)
 
         FileSystem.ensure_dir(raw_dir)
         FileSystem.ensure_dir(fact_dir)
         FileSystem.ensure_dir(meta_dir)
         FileSystem.ensure_dir(feature_l0_dir)
         FileSystem.ensure_dir(label_dir)
+        FileSystem.ensure_dir(normalized_dir)
+
 
         ctx = DataContext(
             today=date,
@@ -52,6 +55,7 @@ class DataPipeline:
             meta_dir=meta_dir,
             feature_dir=feature_l0_dir,
             label_dir=label_dir,
+            normalized_dir=normalized_dir
         )
 
         # --------------------------------------------------

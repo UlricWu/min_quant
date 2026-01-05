@@ -33,7 +33,7 @@ class NormalizedEvent:
         return cls(
             symbol=str(row.symbol),
             ts=int(row.ts),
-            event=row.event_dir,
+            event=row.fact_dir,
             order_id=int(row.order_id),
             side=None if row.side != row.side else row.side,
             price=float(row.price),

@@ -14,6 +14,7 @@ class DataContext(BaseContext):
     today: str
 
     raw_dir: Path
+    normalized_dir: Path
     fact_dir: Path
     meta_dir: Path
     feature_dir: Path

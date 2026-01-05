@@ -8,7 +8,7 @@ import pyarrow.compute as pc
 
 from src.data_system.engines.labels.base import BaseLabelEngine, require_columns
 
-
+from src import logs
 class ForwardReturnLabelEngine(BaseLabelEngine):
     """
     ForwardReturnLabelEngine（FINAL / FROZEN）
@@ -43,6 +43,7 @@ class ForwardReturnLabelEngine(BaseLabelEngine):
 
         base = "label_fwd_logret" if use_log_return else "label_fwd_ret"
         self._label_col = output_col or f"{base}_s{steps}"
+        logs.info(f'label col={self._label_col}')
 
     # ------------------------------------------------------------------
     # BaseLabelEngine API

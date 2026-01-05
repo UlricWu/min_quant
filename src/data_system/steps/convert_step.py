@@ -178,7 +178,7 @@ class ConvertStep(PipelineStep):
         items = [
             {
                 "input_file": input_path,
-                "output_dir": ctx.fact_dir / f'{self.stage}.{key}.parquet',
+                "output_dir": ctx.normalized_dir / f'{self.stage}.{key}.parquet',
                 "batch_size": self.batch_size,
                 "exchange": key.split("_")[0],
                 "kind": key.split("_")[1]

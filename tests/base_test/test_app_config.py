@@ -26,9 +26,9 @@ def sample_config_file(tmp_path):
         },
         "data": {
             "remote_dir": "/ftp/level2/",
-            "local_raw": "dataloader/raw/",
-            "parquet_root": "dataloader/parquet/",
-            "symbols": ['603322', '002594']
+            # "local_raw": "dataloader/raw/",
+            # "parquet_root": "dataloader/parquet/",
+            # "symbols": ['603322', '002594']
         },
         "model": {
             "train_days": 100,
