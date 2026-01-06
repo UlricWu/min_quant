@@ -1,87 +1,155 @@
 from __future__ import annotations
 
-"""
-{#!filepath: src/backtest/strategy/factory.py}
+import numpy as np
 
+from src import logs
+
+"""
 StrategyFactory (FINAL / FROZEN)
 
-Static, centralized Strategy Factory.
-
-Design rationale:
-- The set of available strategies is treated as an explicit capability whitelist.
-- All strategies MUST be deliberately registered here.
-- No dynamic discovery, decorators, or side-effect-based registration is allowed.
-
-This is a conscious design choice for the current system phase:
-- Research-oriented
-- Low strategy churn
-- High auditability and clarity
-
-A decorator-based registry is a possible future evolution,
-but is intentionally NOT used at this stage.
+Contract:
+- StrategyFactory consumes a resolved ModelArtifact (object), not dict.
+- StrategyFactory does NOT construct train-time models.
+- It builds an inference model from artifact, then constructs a Strategy.
+- sklearn warnings about feature names are STRUCTURALLY eliminated.
 """
 
-from typing import Dict, Tuple, Type
+from typing import Dict, Type
+import joblib
 
-from src.backtest.strategy.base import Strategy, Model
-from src.backtest.strategy.threshold import ThresholdModel, ThresholdStrategy
-# from src.backtest.strategy.ml.rf_model import RandomForestModel
-from src.backtest.strategy.ml.prob_strategy import ProbabilityThresholdStrategy
+from src.pipeline.context import ModelArtifact
+from src.backtest.strategy.base import InferenceModel, Strategy
+from src.backtest.strategy.threshold import ThresholdStrategy
+from src.backtest.strategy.feature_vectorizer import FeatureVectorizer
 
 
+# =============================================================================
+# Inference Model (execution-domain, sklearn-adapted)
+# =============================================================================
+class SklearnInferenceModel(InferenceModel):
+    """
+    Inference wrapper for sklearn models.
+
+    FROZEN rules:
+    - Feature alignment is handled by FeatureVectorizer
+    - sklearn ONLY receives ndarray (no DataFrame)
+    - NaN policy is inference-only and explicit
+    """
+
+    def __init__(self, model, *, feature_names: list[str]):
+        self._model = model
+        self._vectorizer = FeatureVectorizer(feature_names)
+
+    def predict(self, features_by_symbol: Dict[str, dict]) -> Dict[str, float]:
+        # --------------------------------------------------
+        # 1. Vectorize (symbol -> aligned matrix)
+        # --------------------------------------------------
+        X_df, symbols = self._vectorizer.transform(features_by_symbol)
+
+        # --------------------------------------------------
+        # 2. NaN handling (FROZEN inference policy)
+        # --------------------------------------------------
+        # Training-time contract: model never saw NaN
+        # Inference-time policy: NaN -> 0.0
+        X_df = X_df.replace([np.inf, -np.inf], np.nan)
+        X_df = X_df.fillna(0.0)
+        #
+        # mask = np.isfinite(X_df.values).all(axis=1)
+        # X_df = X_df[mask]
+        # symbols = [s for i, s in enumerate(symbols) if mask[i]]
+
+        # Safety invariant
+        assert X_df.shape[1] == len(self._vectorizer.feature_names)
+
+        # --------------------------------------------------
+        # 3. 🔒 sklearn call (ndarray ONLY)
+        # --------------------------------------------------
+        preds = self._model.predict(X_df.values)
+        if np.random.rand() < 0.001:
+            logs.info(
+                f"[Inference] score stats: "
+                f"min={preds.min():.4f}, "
+                f"mean={preds.mean():.4f}, "
+                f"max={preds.max():.4f}"
+            )
+
+        return dict(zip(symbols, preds))
+
+
+# =============================================================================
+# Inference Model Factory (STATIC / FROZEN)
+# =============================================================================
+class InferenceModelFactory:
+    """
+    Build execution-domain inference models from artifacts.
+    """
+
+    @staticmethod
+    def build(artifact: ModelArtifact) -> InferenceModel:
+        if not isinstance(artifact, ModelArtifact):
+            raise TypeError(
+                "[InferenceModelFactory] artifact must be ModelArtifact, "
+                f"got {type(artifact)}"
+            )
+
+        model = joblib.load(artifact.path)
+
+        return SklearnInferenceModel(
+            model=model,
+            feature_names=artifact.feature_names,
+        )
+
+
+# =============================================================================
+# Strategy Factory (STATIC / FROZEN)
+# =============================================================================
 class StrategyFactory:
     """
     Static Strategy Factory (FINAL).
 
-    Responsibilities:
-    - Validate strategy config
-    - Construct (Model, Strategy) pair
-    - Enforce explicit capability whitelist
+    Registry holds Strategy classes ONLY.
+    Models are injected via artifacts.
     """
 
-    # --------------------------------------------------
-    # Explicit capability registry (STATIC / FROZEN)
-    # --------------------------------------------------
-    _REGISTRY: Dict[str, Tuple[Type[Model], Type[Strategy]]] = {
-        "threshold": (ThresholdModel, ThresholdStrategy),
-        # "rf_prob": (RandomForestModel, ProbabilityThresholdStrategy)
-        # "ma_cross": (MACrossModel, MACrossStrategy),
+    _REGISTRY: Dict[str, Type[Strategy]] = {
+        "threshold": ThresholdStrategy,
         # Future strategies MUST be added explicitly here.
     }
 
-    # --------------------------------------------------
     @classmethod
-    def build(cls, cfg: Dict) -> Tuple[Model, Strategy]:
-        """
-        Build (Model, Strategy) from cfg.strategy.
-
-        Expected cfg format:
-        {
-            "type": "threshold",
-            "model": { ... },
-            "params": { ... }
-        }
-
-        Frozen rules:
-        - cfg["type"] MUST exist
-        - type MUST be registered
-        - Unknown type -> hard failure
-        """
-
+    def build(cls, cfg: Dict) -> Strategy:
         if "type" not in cfg:
             raise KeyError("[StrategyFactory] missing 'type' in strategy config")
 
         typ = cfg["type"]
-
         if typ not in cls._REGISTRY:
             raise ValueError(f"[StrategyFactory] unknown strategy type: {typ}")
 
-        model_cls, strategy_cls = cls._REGISTRY[typ]
-
         model_cfg = cfg.get("model", {})
-        strategy_cfg = cfg.get("params", {})
+        params = cfg.get("params", {})
 
-        model = model_cls(**model_cfg)
-        strategy = strategy_cls(**strategy_cfg)
+        # --------------------------------------------------
+        # 🔒 FROZEN CONTRACT: artifact must be resolved
+        # --------------------------------------------------
+        if "artifact" not in model_cfg:
+            raise KeyError(
+                "[StrategyFactory] model.artifact (ModelArtifact) is required"
+            )
 
-        return model, strategy
+        artifact = model_cfg["artifact"]
+        if not isinstance(artifact, ModelArtifact):
+            raise TypeError(
+                "[StrategyFactory] model.artifact must be ModelArtifact, "
+                f"got {type(artifact)}"
+            )
+
+        # --------------------------------------------------
+        # Build inference model
+        # --------------------------------------------------
+        model = InferenceModelFactory.build(artifact)
+
+        # --------------------------------------------------
+        # Build strategy (model injected)
+        # --------------------------------------------------
+        strategy_cls = cls._REGISTRY[typ]
+        return strategy_cls(model=model, **params)

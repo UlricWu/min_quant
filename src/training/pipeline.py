@@ -23,13 +23,13 @@ class TrainingPipeline:
     """
 
     def __init__(
-        self,
-        *,
-        daily_steps: List[PipelineStep],
-        final_steps: List[PipelineStep],
-        pm: PathManager,
-        inst: Instrumentation,
-        cfg: TrainingConfig,
+            self,
+            *,
+            daily_steps: List[PipelineStep],
+            final_steps: List[PipelineStep],
+            pm: PathManager,
+            inst: Instrumentation,
+            cfg: TrainingConfig,
     ):
         self.daily_steps = daily_steps
         self.final_steps = final_steps
@@ -48,18 +48,13 @@ class TrainingPipeline:
             cfg=self.cfg,
             inst=self.inst,
             model_dir=self.pm.model_dir(run_id),
-            update_day=None,
-            eval_day=None,
         )
 
-        dates = pd.date_range(
-            self.cfg.start_date,
-            self.cfg.end_date,
-            freq="D",
-        ).strftime("%Y-%m-%d")
+        dates = self._scan_physical_trading_days()
 
         for i in range(len(dates) - 1):
             update_day = dates[i]
+
             eval_day = dates[i + 1]
 
             ctx.update_day = update_day
@@ -112,3 +107,19 @@ class TrainingPipeline:
 
         logs.info("[TrainingPipeline] DONE")
         return ctx
+
+    def _scan_physical_trading_days(self) -> List[str]:
+        """
+        Trading day definition (PHYSICAL):
+
+        - pm.feature_dir(date) exists
+        - No exchange calendar assumption
+        - No business logic here
+        """
+        calendar_days = pd.date_range(
+            self.cfg.start_date,
+            self.cfg.end_date,
+            freq="D",
+        ).strftime("%Y-%m-%d")
+
+        return [d for d in calendar_days if self.pm.feature_dir(d).exists()]

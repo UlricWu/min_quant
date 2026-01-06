@@ -1,13 +1,11 @@
-# src/training/engines/dataset_build_engine.py
 from __future__ import annotations
 
 from pathlib import Path
-from typing import Tuple, List
+from typing import List, Tuple, Optional
 
+import numpy as np
 import pandas as pd
 
-from src.training.context import TrainingContext
-from src.training.steps.dataset_resolve_step import DatasetDeclaration
 from src.utils.path import PathManager
 
 
@@ -16,61 +14,83 @@ class DatasetBuildEngine:
     DatasetBuildEngine（FINAL / FROZEN）
 
     Responsibility:
-    - Load ONE trading day dataset from disk
-    - Build (train_X, train_y) and (eval_X, eval_y)
-    - No knowledge of exchanges / symbols / models
+    - Build day-level training / evaluation datasets
+    - Own ALL dataset construction semantics:
+        - file discovery
+        - feature / label alignment
+        - numeric sanitization (inf / NaN)
+        - row filtering (drop_na)
+        - concatenation across symbols/files
 
-    Assumptions:
-    - feature/<date>/ contains multiple parquet files
-    - label/<date>/ contains corresponding parquet files
+    Contract (FROZEN):
+    - Step MUST NOT perform any pandas / IO / data cleaning logic
+    - Engine guarantees:
+        - X / y index-aligned
+        - No inf values
+        - drop_na behavior strictly follows cfg
     """
 
-    def __init__(self) -> None:
-        self.pm = PathManager()
+    def __init__(self, pm: PathManager):
+        self.pm = pm
 
-    # ------------------------------------------------------------------
-    # Entry
-    # ------------------------------------------------------------------
+    # ======================================================================
+    # Public API
+    # ======================================================================
     def build(
-        self,
-        *,
-        ctx: TrainingContext,
-    ) -> Tuple[pd.DataFrame, pd.Series, pd.DataFrame | None, pd.Series | None]:
-        dataset: DatasetDeclaration = ctx.dataset
+            self,
+            *,
+            update_day: str,
+            eval_day: Optional[str],
+            feature_columns: Optional[list[str]],
+            label_column: str,
+            drop_na: bool,
+            evaluation_enabled: bool,
+    ) -> Tuple[pd.DataFrame, pd.Series, Optional[pd.DataFrame], Optional[pd.Series]]:
+        """
+        Build train / eval datasets.
 
-        update_day = ctx.update_day_str
-        eval_day = ctx.eval_day_str
+        Returns:
+            train_X, train_y, eval_X, eval_y
+        """
 
-        # --------------------------------------------------
-        # Build train dataset (update_day)
-        # --------------------------------------------------
-        train_X, train_y = self._load_one_day(
+        train_X, train_y = self._build_one_day(
             date=update_day,
-            dataset=dataset,
+            feature_columns=feature_columns,
+            label_column=label_column,
+            drop_na=drop_na,
         )
 
-        # --------------------------------------------------
-        # Build eval dataset (eval_day, optional)
-        # --------------------------------------------------
-        if eval_day is not None:
-            eval_X, eval_y = self._load_one_day(
+        if evaluation_enabled and eval_day is not None:
+            eval_X, eval_y = self._build_one_day(
                 date=eval_day,
-                dataset=dataset,
+                feature_columns=feature_columns,
+                label_column=label_column,
+                drop_na=drop_na,
             )
         else:
             eval_X, eval_y = None, None
 
         return train_X, train_y, eval_X, eval_y
 
-    # ------------------------------------------------------------------
+    # ======================================================================
     # Internal
-    # ------------------------------------------------------------------
-    def _load_one_day(
-        self,
-        *,
-        date: str,
-        dataset: DatasetDeclaration,
+    # ======================================================================
+    def _build_one_day(
+            self,
+            *,
+            date: str,
+            feature_columns: Optional[list[str]],
+            label_column: str,
+            drop_na: bool,
     ) -> Tuple[pd.DataFrame, pd.Series]:
+        """
+        Build dataset for a single physical day.
+
+        Invariants:
+        - Feature / label must be suffix-aligned
+        - Numeric sanitization is ALWAYS applied
+        """
+
         feat_dir = self.pm.feature_dir(date)
         lab_dir = self.pm.label_dir(date)
 
@@ -78,33 +98,75 @@ class DatasetBuildEngine:
         frames_y: List[pd.Series] = []
 
         for feat_file in sorted(feat_dir.glob("feature.*.parquet")):
-            lab_file = lab_dir / feat_file.name.replace("feature.", "label.")
+            suffix = feat_file.name[len("feature."):]
+            lab_file = lab_dir / f"label.{suffix}"
 
             if not lab_file.exists():
+                # Explicitly skip unmatched feature files
                 continue
 
-            feat_df = pd.read_parquet(feat_file)
-            lab_df = pd.read_parquet(lab_file)
+            X, y = self._load_and_align_one_pair(
+                feat_file=feat_file,
+                lab_file=lab_file,
+                feature_columns=feature_columns,
+                label_column=label_column,
+                drop_na=drop_na,
+            )
 
-            # ------------------------------
-            # Select columns
-            # ------------------------------
-            if dataset.feature_columns is not None:
-                X = feat_df[dataset.feature_columns]
-            else:
-                X = feat_df.drop(columns=[dataset.label_column], errors="ignore")
-
-            y = lab_df[dataset.label_column]
-
-            if dataset.drop_na:
-                mask = X.notna().all(axis=1) & y.notna()
-                X = X[mask]
-                y = y[mask]
+            if len(X) == 0:
+                continue
 
             frames_X.append(X)
             frames_y.append(y)
 
         if not frames_X:
-            raise RuntimeError(f"No data found for date={date}")
+            raise RuntimeError(f"No valid dataset built for date={date}")
 
-        return pd.concat(frames_X), pd.concat(frames_y)
+        return (
+            pd.concat(frames_X, ignore_index=True),
+            pd.concat(frames_y, ignore_index=True),
+        )
+
+    # ------------------------------------------------------------------
+    # Pair-level logic (atomic & testable)
+    # ------------------------------------------------------------------
+    def _load_and_align_one_pair(
+            self,
+            *,
+            feat_file: Path,
+            lab_file: Path,
+            feature_columns: Optional[list[str]],
+            label_column: str,
+            drop_na: bool,
+    ) -> Tuple[pd.DataFrame, pd.Series]:
+        """
+        Load one (feature, label) file pair and return sanitized X / y.
+        """
+
+        feat_df = pd.read_parquet(feat_file)
+        lab_df = pd.read_parquet(lab_file)
+
+        # ------------------------------
+        # Column selection
+        # ------------------------------
+        if feature_columns is not None:
+            X = feat_df[feature_columns].copy()
+        else:
+            X = feat_df.copy()
+
+        y = lab_df[label_column].copy()
+
+        # ==============================================================
+        # Numeric sanitization 数值合法性保证(唯一合法位置)
+        # ==============================================================
+        # 1) inf → NaN
+        X.replace([np.inf, -np.inf], np.nan, inplace=True)
+        y.replace([np.inf, -np.inf], np.nan, inplace=True)
+
+        # 2) drop invalid rows
+        if drop_na:
+            mask = X.notna().all(axis=1) & y.notna()
+            X = X.loc[mask]
+            y = y.loc[mask]
+
+        return X, y

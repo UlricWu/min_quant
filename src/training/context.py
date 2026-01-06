@@ -11,7 +11,7 @@ import pandas as pd
 @dataclass
 class ModelState:
     model: Any
-    asof_day: pd.Timestamp
+    asof_day: str
 
 
 @dataclass
@@ -19,10 +19,10 @@ class TrainingContext:
     cfg: Any
     inst: Any
 
-    update_day: pd.Timestamp
-    eval_day: Optional[pd.Timestamp]
-
     model_dir: Path
+
+    update_day: str = None
+    eval_day: Optional[str] = None
 
     train_X: Optional[pd.DataFrame] = None
     train_y: Optional[pd.Series] = None

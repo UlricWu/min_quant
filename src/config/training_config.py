@@ -24,16 +24,21 @@ class TrainingConfig(BaseModel):
     # date range
     start_date: date
     end_date: date
-    warmup_days: int = 20
-    step_unit: Literal["day"] = "day"
+    warmup_days: int
 
+    step_unit: Literal["day"] = "day"
     # dataset
     dataset: FeatureLabelConfig
 
+    # model spec (LEARNING DOMAIN)
+    model_name: str  # "sgd"
+    model_version: str  # "regressor_v1"
+    task_type: Literal["regression", "classification"]
+
     # model
-    task_type: Literal["regression"] = "regression"
-    model_name: str = "sgd"
-    model_version: str = "regressor_v1"
+    # task_type: Literal["regression"] = "regression"
+    # model_name: str = "sgd"
+    # model_version: str = "regressor_v1"
     model_params: Dict[str, Any] = Field(default_factory=dict)
 
     # evaluation

@@ -28,8 +28,6 @@ backtest:
 
   dates:
     - "2025-12-01"
-    - "2025-12-02"
-    - "2025-12-03"
 
   symbols:
     - "600004"
@@ -37,9 +35,16 @@ backtest:
 
   strategy:
     type: threshold
-    model: { }
+    model:
+      spec:
+        family: sgd
+        task: regression
+        version: v1
+        artifact:
+          run: minute_sgd_online_v1
+          asof: latest
     params:
-      threshold: 0.0
+      threshold: -0.0005
       qty: 10
 
     feature:
@@ -59,15 +64,15 @@ training:
   # ----------------------------------
   # Scheduler semantics
   # ----------------------------------
-  start_date: 2005-11-03
-  end_date: 2005-11-06
-  warmup_days: 2
+  start_date: 2025-11-03
+  end_date: 2025-11-05
+  warmup_days: 1
 
   # ----------------------------------
   # Model selection (REGRESSION)
   # ----------------------------------
   model_name: "sgd"
-  model_version: "regressor_v1"
+  model_version: "v1"
   task_type: "regression"
 
   # ❌ classification only fields REMOVED

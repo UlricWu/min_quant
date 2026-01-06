@@ -19,20 +19,27 @@ from typing import Dict, Any
 
 class Strategy(ABC):
     """
-    Base Strategy interface (FINAL).
+    Strategy (FINAL / FROZEN)
 
-    A Strategy:
-    - consumes model scores + portfolio state
-    - outputs target_qty per symbol
+    Contract:
+    - Strategy MUST be constructed with an inference model
+    - Strategy owns decision logic only
     """
 
+    def __init__(self, model: InferenceModel):
+        self.model = model
+
     @abstractmethod
-    def decide(
-        self,
-        ts_us: int,
-        scores: Dict[str, float],
-        portfolio: Any,
-    ) -> Dict[str, int]:
+    def decide(self, ts_us, scores, portfolio):
+        ...
+
+
+class InferenceModel:
+    """
+    Inference-only model (FINAL)
+    """
+
+    def predict(self, X):
         raise NotImplementedError
 
 
@@ -47,7 +54,7 @@ class Model(ABC):
 
     @abstractmethod
     def predict(
-        self,
-        features_by_symbol: Dict[str, Dict[str, Any]],
+            self,
+            features_by_symbol: Dict[str, Dict[str, Any]],
     ) -> Dict[str, float]:
         raise NotImplementedError

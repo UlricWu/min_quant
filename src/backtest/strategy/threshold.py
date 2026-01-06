@@ -1,5 +1,9 @@
 from __future__ import annotations
 
+import numpy as np
+
+from src import logs
+
 """
 {#!filepath: src/backtest/strategy/threshold.py}
 
@@ -12,32 +16,26 @@ A simple reference strategy:
 
 from typing import Dict, Any
 
-from src.backtest.strategy.base import Strategy, Model
-
-
-class ThresholdModel(Model):
-    """
-    Dummy scoring model.
-
-    Produces a scalar score per symbol.
-    """
-
-    def predict(self, features_by_symbol: Dict[str, Dict[str, Any]]) -> Dict[str, float]:
-        # MVP: return zero score for all symbols
-        return {symbol: 0.0 for symbol in features_by_symbol}
+from src.backtest.strategy.base import Strategy, InferenceModel
 
 
 class ThresholdStrategy(Strategy):
     """
-    Threshold-based long-only strategy.
+    Threshold-based long-only strategy (FINAL).
     """
 
-    def __init__(self, threshold: float = 0.0, qty: int = 1):
-        self.threshold = threshold
-        self.qty = qty
+    def __init__(self, model, threshold: float = 0.0, qty: int = 1):
+        self.model = model
+        self.threshold = float(threshold)
+        self.qty = int(qty)
+        self._logged = False
 
     def decide(self, ts_us, scores, portfolio):
-        target = {}
-        for symbol, score in scores.items():
-            target[symbol] = self.qty if score > self.threshold else 0
+        if not self._logged:
+            self._logged = True
+            logs.info(f"[ThresholdStrategy] threshold={self.threshold} qty={self.qty}")
+            # 打印两个 symbol 的分数看看
+            for k, v in list(scores.items())[:2]:
+                logs.info(f"[ThresholdStrategy] sample score {k}={np.clip(v, -10.0, 10.0)}")
+        target = {s: (self.qty if score > self.threshold else 0) for s, score in scores.items()}
         return target

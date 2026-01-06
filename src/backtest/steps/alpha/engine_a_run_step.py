@@ -59,18 +59,25 @@ class EngineARunStep(PipelineStep):
             stage="feature",  # or cfg.level
         )
 
+        artifact = ctx.cfg.strategy["model"]["artifact"]
+
         data_view = MinuteFeatureDataView(
             resolver=resolver,
             symbols=ctx.symbols,
+            feature_names=artifact.feature_names,  # 🔑 唯一可信来源
+            price_col="close",  # 🔑 分钟 bar 的唯一正确价格
         )
 
         # --------------------------------------------------
         # 1. Replay clock (MVP: fixed window)
         # --------------------------------------------------
+        # MVP：先用“每分钟”步长（你后面可以再做 clock policy）
+        step_us = 60_000_000  # 60s in microseconds
+        start_us, end_us = data_view.time_bounds_us()
         clock = ReplayClock(
-            start_us=0,
-            end_us=5_000_000,
-            step_us=1_000_000,
+            start_us=start_us,
+            end_us=end_us,
+            step_us=step_us,
         )
 
         # --------------------------------------------------
@@ -81,8 +88,8 @@ class EngineARunStep(PipelineStep):
         # --------------------------------------------------
         # 3. Strategy / Model (from cfg.strategy)
         # --------------------------------------------------
-        model, strategy = StrategyFactory.build(ctx.cfg.strategy)
-        runner = StrategyRunner(model=model, strategy=strategy, symbols=ctx.symbols)
+        strategy = StrategyFactory.build(ctx.cfg.strategy)
+        runner = StrategyRunner(strategy=strategy, symbols=ctx.symbols)
 
 
         # --------------------------------------------------

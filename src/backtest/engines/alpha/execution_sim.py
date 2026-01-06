@@ -1,9 +1,13 @@
 from __future__ import annotations
 
+from src.utils.datetime_utils import DateTimeUtils
+import math
 from typing import Dict, List, Optional
 
-from src.backtest.core.events import Fill, Side
+from src import logs
+from src.backtest.core.events import Fill, Side, Order
 from src.backtest.core.data import MarketDataView
+
 """
 {#!filepath: src/backtest/engines/alpha/execution_sim.py}
 
@@ -27,7 +31,6 @@ event semantics NEVER change.
 """
 
 
-
 class ExecutionSimulator:
     """
     Idealized execution (Engine A)
@@ -41,29 +44,27 @@ class ExecutionSimulator:
     def __init__(self, *, data_view: MarketDataView):
         self.data_view = data_view
 
-    def execute(self, ts_us: int, target_qty: Dict[str, int]) -> List[Fill]:
+    def execute(self, ts_us: int, orders: List[Order]) -> List[Fill]:
         fills: List[Fill] = []
 
-        for symbol, qty in target_qty.items():
-            if qty == 0:
+        for o in orders:
+            px = self.data_view.get_price(o.symbol)
+
+            date = DateTimeUtils.parse(ts_us)
+            if px is None or (isinstance(px, float) and (not math.isfinite(px) or px <= 0.0)):
+                logs.info(f"[Execution] skip invalid price symbol={o.symbol} price={px} date={date} ts={ts_us}")
                 continue
 
-            price = self._resolve_price(symbol)
-            if price is None:
-                continue
+            logs.info(f"[Execution] {o.side.value} {o.symbol} qty={o.qty} price={px} date={date} ts={ts_us}")
 
-            side = Side.BUY if qty > 0 else Side.SELL
             fills.append(
                 Fill(
-                    symbol=symbol,
-                    side=side,
-                    qty=abs(int(qty)),
-                    price=float(price),
+                    symbol=o.symbol,
+                    side=o.side,
+                    qty=int(o.qty),
+                    price=float(px),
                     ts_us=int(ts_us),
                 )
             )
 
         return fills
-
-    def _resolve_price(self, symbol: str) -> Optional[float]:
-        return self.data_view.get_price(symbol)
