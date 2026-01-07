@@ -15,4 +15,4 @@ class PipelineConfig(BaseModel):
     horizon: int = 5 # = steps（row offset）不是分钟，不是时间
     price_col: str = "close"
     use_log_return: bool = False
-    max_workers: int = 4
+    max_worker: int = 4

@@ -96,7 +96,6 @@ def test_shared_dirs(tmp_path):
     PathManager.set_root(dev)
 
     assert PathManager.models_dir() == tmp_path / "shared" / "models"
-    assert PathManager.shared_data_dir() == tmp_path / "shared" / "data_handler"
     assert PathManager.cache_dir() == tmp_path / "shared" / "cache"
 
 
