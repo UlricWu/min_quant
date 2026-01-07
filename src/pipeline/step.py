@@ -1,13 +1,13 @@
 from __future__ import annotations
 
-from src.pipeline.context import PipelineContext
 from src.observability.instrumentation import (
     Instrumentation,
     NoOpInstrumentation,
 )
+from src.pipeline.context import BaseContext
 
-
-class PipelineStep:
+from abc import ABC, abstractmethod
+class PipelineStep(ABC):
     """
     Pipeline Step 基类（最终冻结版）
 
@@ -57,9 +57,15 @@ class PipelineStep:
     # --------------------------------------------------
     # Contract
     # --------------------------------------------------
-
-    def run(self, ctx: PipelineContext) -> PipelineContext:
+    @abstractmethod
+    def run(self, ctx):
         """
-        子类必须实现。
+        Execute this step.
+
+        Parameters:
+        - ctx: system-specific context
+
+        Returns:
+        - ctx (mutated or replaced)
         """
         raise NotImplementedError

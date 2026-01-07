@@ -3,8 +3,8 @@ from __future__ import annotations
 import pytest
 import pyarrow as pa
 
-from src.engines.normalize_engine import NormalizeEngine
-from src.engines.parser_engine import INTERNAL_SCHEMA
+from src.data_system.engines.normalize_engine import NormalizeEngine
+from src.data_system.engines.parser_engine import INTERNAL_SCHEMA
 
 
 # -----------------------------------------------------------------------------

@@ -1,3 +1,18 @@
+# ==================================================
+# EXECUTION SEMANTICS (FROZEN)
+#
+# - `python -m src.cli train`
+#     → ONLY reads `training`
+#     → MUST NOT read `backtest`
+#
+# - `python -m src.cli backtest`
+#     → ONLY reads `backtest`
+#     → MUST NOT read `training`
+#
+# - `python -m src.cli experiment`
+#     → reads `training` then `backtest`
+# ==================================================
+
 log:
   dir: "logs"
   rotation: "1 day"
@@ -6,10 +21,6 @@ log:
 
 data:
   remote_dir: "level2"
-  local_raw: "dataloader/raw/"
-  parquet_root: "dataloader/parquet/"
-  symbols: [ '603322','002594','300456','300475','300115','300395','001287','688195','300058','688110','688183','001400','300308' ]
-
 
 model:
   train_days: 120
@@ -17,17 +28,14 @@ model:
   test_days: 20
   model_path: "models/"
 
-
-
 pipeline:
-  ftp_backend: 'curl'
-  label:
-    type: forward_return
-    forward_return:
-      horizon: 5
-      price_col: close
-      use_log_return: false
+  ftp_backend: "curl"
+  max_worker: 4
 
+
+# ==================================================
+# Backtest System (unchanged)
+# ==================================================
 backtest:
   name: "rf_alpha_v1"
   level: l1
@@ -35,35 +43,109 @@ backtest:
 
   dates:
     - "2025-12-01"
-    - "2025-12-02"
-    - "2025-12-03"
 
-  # 本次实验作用的 symbol 集合
   symbols:
     - "600004"
     - "600011"
 
-  # 策略行为定义（与 symbol 解耦）
   strategy:
-    type: "registry"
+    type: threshold
     model:
-      name: "rf_v1"
-      params:
-        model_path: "/models/rf_alpha.pkl"
-    policy:
-      name: "long_only"
-      params:
-        threshold: 0.15
-        qty: 100
+      spec:
+        family: sgd
+        task: regression
+        version: v1
+        artifact:
+          run: minute_sgd_online_v1
+          asof: latest
+    params:
+      threshold: -0.0005
+      qty: 10
 
-    # Strategy 可见的 feature 列（由 DataHandler 加载）
     feature:
       - l1_std_w20_abs_move
       - l1_z_w20_l0_amount
 
-    # 实际用于产生信号的 feature
     signal_feature: l1_std_w20_abs_move
-
     threshold: 0.0
-    params: []
 
+
+# ==================================================
+# Training System (ONLINE / FINAL / FROZEN)
+# ==================================================
+training:
+  name: "minute_sgd_online_v1"
+
+  # ----------------------------------
+  # Scheduler semantics
+  # ----------------------------------
+  start_date: 2025-11-03
+  end_date: 2025-11-05
+  warmup_days: 1
+
+  # ----------------------------------
+  # Model selection (REGRESSION)
+  # ----------------------------------
+  model_name: "sgd"
+  model_version: "v1"
+  task_type: "regression"
+
+  # ❌ classification only fields REMOVED
+  # classes: [0, 1]
+
+  model_params:
+    alpha: 0.0005
+    l1_ratio: 0.0
+
+  # ----------------------------------
+  # Evaluation semantics
+  # ----------------------------------
+  evaluation_enabled: true
+  evaluation_metrics:
+    - ic        # Rank IC（核心）
+    # - mse     # 如需数值稳定性，可开启
+    # - mae
+
+  # ----------------------------------
+  # Snapshot
+  # ----------------------------------
+  snapshot_enabled: false
+  snapshot_every_n_steps: 1
+
+  # ----------------------------------
+  # Dataset schema (FROZEN)
+  # ----------------------------------
+  dataset:
+    feature_columns:
+      - open
+      - high
+      - low
+      - close
+      - volume
+      - notional
+      - trade_count
+      - symbol
+      - l0_amount
+      - l0_avg_trade_size
+      - l0_range
+      - l0_abs_move
+      - l0_log_volume
+      - l0_log_trade_count
+      - l1_std_w20_abs_move
+      - l1_ret_w20_1
+      - l1_z_w20_l0_log_trade_count
+      - l1_z_w20_l1_std_w20_abs_move
+
+    label_column: "label_fwd_ret_s5"
+    drop_na: true
+
+
+# ==================================================
+# Label definition (DECLARATIVE / OPTIONAL)
+# ==================================================
+# label:
+#   type: forward_return
+#   forward_return:
+#     horizon: 5
+#     price_col: close
+#     use_log_return: false

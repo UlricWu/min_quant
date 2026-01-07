@@ -11,87 +11,114 @@ from src.meta.symbol_slice_resolver import SymbolSliceResolver
 
 class MinuteFeatureDataView(MarketDataView):
     """
-    MinuteFeatureDataView (FINAL)
+    MinuteFeatureDataView (FINAL / FROZEN)
 
-    Worldview:
-    - Data is immutable Arrow Table (fact)
-    - Time moves via on_time(ts_us)
-    - At each time, expose observable snapshot:
-        - price (last)
-        - features (l1*)
+    FROZEN RULES:
+    - DataView is a FACT VIEW, not a feature-policy enforcer.
+    - It MUST NOT raise on NaN/inf; it returns raw values.
+    - Feature policy (fill/drop/clip) belongs to Strategy/InferenceModel.
     """
 
     def __init__(
-        self,
-        *,
-        resolver: SymbolSliceResolver,
-        symbols: list[str],
-        ts_col: str = "ts",
-        price_col: str = "last",
-        feature_prefix: str = "l1_",
+            self,
+            *,
+            resolver: SymbolSliceResolver,
+            symbols: list[str],
+            feature_names: list[str],
+            ts_col: str = "ts",
+            price_col: str = "close",  # <- ensure this matches your table
     ):
         self._resolver = resolver
         self._symbols = list(symbols)
+        self._feature_names = list(feature_names)
         self._ts_col = ts_col
         self._price_col = price_col
-        self._feature_prefix = feature_prefix
 
-        # --------------------------------------------------
-        # Load Arrow tables once (immutable facts)
-        # --------------------------------------------------
         self._tables: Dict[str, pa.Table] = resolver.get_many(symbols)
-
-        # Current time cursor
         self._current_ts: Optional[int] = None
 
-    # --------------------------------------------------
-    # Time progression
-    # --------------------------------------------------
+        self._validate_schema()
+        self._min_ts_us, self._max_ts_us = self._compute_time_bounds()
+
     def on_time(self, ts_us: int) -> None:
         self._current_ts = int(ts_us)
 
-    # --------------------------------------------------
-    # Observable price
-    # --------------------------------------------------
     def get_price(self, symbol: str) -> Optional[float]:
         row = self._locate_last_row(symbol)
         if row is None:
             return None
-        return float(row[self._price_col].as_py())
+        v = row[self._price_col].as_py()
+        return None if v is None else float(v)
 
-    # --------------------------------------------------
-    # Observable features
-    # --------------------------------------------------
     def get_features(self, symbol: str) -> Dict[str, Any]:
+        """
+        Return raw feature values for current time snapshot.
+
+        FINAL:
+        - returns {} when no row available
+        - returns raw values including None/NaN/inf (no validation, no filling)
+        """
         row = self._locate_last_row(symbol)
         if row is None:
             return {}
 
         feats: Dict[str, Any] = {}
-        for col in row.schema.names:
-            if col.startswith(self._feature_prefix):
-                feats[col] = row[col].as_py()
+        for name in self._feature_names:
+            # raw as_py: may be None, nan, inf; that's allowed
+            feats[name] = row[name].as_py()
         return feats
 
-    # --------------------------------------------------
+    # -------------------------
     # Internals
-    # --------------------------------------------------
+    # -------------------------
     def _locate_last_row(self, symbol: str) -> Optional[pa.StructScalar]:
-        """
-        Locate the latest row with ts <= current_ts.
-        """
         if self._current_ts is None:
             raise RuntimeError("on_time(ts_us) must be called before data access")
 
         table = self._tables[symbol]
         ts_arr = table[self._ts_col]
-
-        # Boolean mask: ts <= current_ts
         mask = pc.less_equal(ts_arr, pa.scalar(self._current_ts))
         filtered = table.filter(mask)
 
         if filtered.num_rows == 0:
             return None
-
-        # Return last row (StructScalar)
         return filtered.slice(filtered.num_rows - 1, 1).to_struct_array()[0]
+
+    def _validate_schema(self) -> None:
+        for symbol, table in self._tables.items():
+            if self._ts_col not in table.schema.names:
+                raise RuntimeError(
+                    f"[MinuteFeatureDataView] missing ts_col={self._ts_col} for symbol={symbol}"
+                )
+            if self._price_col not in table.schema.names:
+                raise RuntimeError(
+                    f"[MinuteFeatureDataView] missing price_col={self._price_col} for symbol={symbol}"
+                )
+
+            missing = {c for c in self._feature_names if c not in table.schema.names}
+            if missing:
+                raise RuntimeError(
+                    f"[MinuteFeatureDataView] missing features={sorted(missing)} for symbol={symbol}"
+                )
+
+    def _compute_time_bounds(self) -> tuple[int, int]:
+        mins = []
+        maxs = []
+        for table in self._tables.values():
+            col = table[self._ts_col]
+            mins.append(pc.min(col).as_py())
+            maxs.append(pc.max(col).as_py())
+        return int(min(mins)), int(max(maxs))
+
+    # --------------------------------------------------
+    # Time bounds (Clock contract)
+    # --------------------------------------------------
+    def time_bounds_us(self) -> tuple[int, int]:
+        """
+        Return (min_ts_us, max_ts_us) across all symbols.
+
+        FINAL CONTRACT:
+        - Values are inclusive
+        - Clock is responsible for stepping policy
+        """
+        return self._min_ts_us, self._max_ts_us
