@@ -16,6 +16,7 @@ from src.training.engines.rank_ic_evaluate_engine import RankICEvaluateEngine
 
 from src.training.steps.artifact_persist_step import ArtifactPersistStep
 
+
 def build_offline_training() -> TrainingPipeline:
     """
     Offline Training Workflow (FINAL / FROZEN)
@@ -34,7 +35,7 @@ def build_offline_training() -> TrainingPipeline:
         final_steps=[
             RankICStep(RankICEvaluateEngine()),
             RankICSeriesReportStep(rolling_window=cfg.warmup_days),
-            ArtifactPersistStep()
+            ArtifactPersistStep(),
         ],
         pm=pm,
         inst=inst,

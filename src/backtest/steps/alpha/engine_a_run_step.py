@@ -1,9 +1,9 @@
-#!filepath: src/backtest/steps/alpha/engine_a_run_step.py
+# src/backtest/steps/alpha/engine_a_run_step.py
 from __future__ import annotations
 
-from src.backtest.pipeline import BacktestContext
+from src.backtest.context import BacktestContext
 from src.pipeline.step import PipelineStep
-from src import logs
+from src import logs, PathManager
 
 from src.backtest.core.time import ReplayClock
 from src.backtest.core.portfolio import Portfolio
@@ -14,65 +14,60 @@ from src.backtest.strategy.factory import StrategyFactory
 from src.backtest.engines.alpha.data_view import MinuteFeatureDataView
 
 from src.meta.symbol_slice_resolver import SymbolSliceResolver
-"""
-{#!filepath: src/backtest/steps/alpha/engine_a_run_step.py}
-
-EngineARunStep (FINAL / FROZEN)
-
-Semantic boundary:
-- This step fully encapsulates Engine A (Alpha Backtest).
-- It is treated as ONE atomic experiment by the pipeline.
-
-Responsibilities:
-- Construct the observable world (MarketDataView) using meta slices.
-- Initialize replay clock, portfolio, strategy, and execution model.
-- Run the Alpha Backtest engine end-to-end for a given date.
-
-Pipeline invariants:
-- The pipeline MUST treat this step as a black box.
-- No intermediate artifacts are exposed to the pipeline.
-- World construction is an engine concern, NOT a pipeline concern.
-
-Do NOT split DataView construction into a separate step.
-That would violate engine ownership of its observable world.
-"""
+from src.pipeline.model_artifact import resolve_model_artifact_from_dir
 
 
 class EngineARunStep(PipelineStep):
     """
-    Engine A 执行步（FINAL）
+    EngineARunStep（FINAL / FROZEN）
 
-    - 使用 cfg.replay / cfg.strategy
-    - 不知道 workflow
+    Hard rules:
+    - Backtest ONLY consumes published model artifacts
+    - NEVER consumes train run artifacts
+    - Artifact resolution is engine responsibility
     """
 
     stage = "engine_a_run"
 
     def __init__(self, *, inst):
         self.inst = inst
+        self.pm = PathManager()
 
-    def run(self, ctx:BacktestContext):
+    def run(self, ctx: BacktestContext):
         logs.info(f"[EngineARunStep] date={ctx.today}")
 
+        # --------------------------------------------------
+        # 0. Resolve published model (HARD RULE)
+        # --------------------------------------------------
+        model_name = ctx.cfg.strategy["model"]["spec"]["artifact"]["run"]
+
+        artifact_dir = self.pm.model_latest_dir(model_name)
+        if not artifact_dir.exists():
+            raise RuntimeError(
+                f"[Backtest] No published model found: {artifact_dir}"
+            )
+
+        artifact = resolve_model_artifact_from_dir(artifact_dir)
+
+        # --------------------------------------------------
+        # 1. Data view (observable world)
+        # --------------------------------------------------
         resolver = SymbolSliceResolver(
             meta_dir=ctx.meta_dir,
-            stage="feature",  # or cfg.level
+            stage="feature",
         )
-
-        artifact = ctx.cfg.strategy["model"]["artifact"]
 
         data_view = MinuteFeatureDataView(
             resolver=resolver,
             symbols=ctx.symbols,
-            feature_names=artifact.feature_names,  # 🔑 唯一可信来源
-            price_col="close",  # 🔑 分钟 bar 的唯一正确价格
+            feature_names=artifact.feature_names,  # ✅ 唯一可信来源
+            price_col="close",
         )
 
         # --------------------------------------------------
-        # 1. Replay clock (MVP: fixed window)
+        # 2. Replay clock
         # --------------------------------------------------
-        # MVP：先用“每分钟”步长（你后面可以再做 clock policy）
-        step_us = 60_000_000  # 60s in microseconds
+        step_us = 60_000_000  # 60s
         start_us, end_us = data_view.time_bounds_us()
         clock = ReplayClock(
             start_us=start_us,
@@ -81,24 +76,41 @@ class EngineARunStep(PipelineStep):
         )
 
         # --------------------------------------------------
-        # 2. Portfolio (pure state)
+        # 3. Portfolio
         # --------------------------------------------------
         portfolio = Portfolio(cash=1_000_000.0)
 
         # --------------------------------------------------
-        # 3. Strategy / Model (from cfg.strategy)
+        # 4. Strategy
         # --------------------------------------------------
+        from copy import deepcopy
+
+        # --------------------------------------------------
+        # 🔒 Normalize strategy config into EXECUTION form
+        # --------------------------------------------------
+        orig_strategy = ctx.cfg.strategy
+
+        strategy = deepcopy(orig_strategy)
+        strategy["model"] = {
+            "artifact": artifact,  # ← 唯一可信来源
+        }
+
+        ctx.cfg.strategy = strategy
+        # 仅消费 ModelArtifact，禁止：
+        #                           - dict spec
+        #                           -  run / asof / latest 语义
+        #                           - 文件系统访问
+
         strategy = StrategyFactory.build(ctx.cfg.strategy)
         runner = StrategyRunner(strategy=strategy, symbols=ctx.symbols)
 
-
         # --------------------------------------------------
-        # 4. Execution (idealized, observable-price-based)
+        # 5. Execution
         # --------------------------------------------------
         executor = ExecutionSimulator(data_view=data_view)
 
         # --------------------------------------------------
-        # 5. Engine
+        # 6. Engine
         # --------------------------------------------------
         engine = AlphaBacktestEngine(
             clock=clock,
@@ -111,5 +123,4 @@ class EngineARunStep(PipelineStep):
 
         ctx.portfolio = portfolio
         ctx.equity_curve = engine.equity_curve
-
         return ctx

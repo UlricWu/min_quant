@@ -1,23 +1,12 @@
 from __future__ import annotations
 
 import numpy as np
-
-from src import logs
-
-"""
-StrategyFactory (FINAL / FROZEN)
-
-Contract:
-- StrategyFactory consumes a resolved ModelArtifact (object), not dict.
-- StrategyFactory does NOT construct train-time models.
-- It builds an inference model from artifact, then constructs a Strategy.
-- sklearn warnings about feature names are STRUCTURALLY eliminated.
-"""
-
 from typing import Dict, Type
+from pathlib import Path
 import joblib
 
-from src.pipeline.context import ModelArtifact
+from src import logs
+from src.pipeline.model_artifact import ModelArtifact
 from src.backtest.strategy.base import InferenceModel, Strategy
 from src.backtest.strategy.threshold import ThresholdStrategy
 from src.backtest.strategy.feature_vectorizer import FeatureVectorizer
@@ -41,30 +30,18 @@ class SklearnInferenceModel(InferenceModel):
         self._vectorizer = FeatureVectorizer(feature_names)
 
     def predict(self, features_by_symbol: Dict[str, dict]) -> Dict[str, float]:
-        # --------------------------------------------------
-        # 1. Vectorize (symbol -> aligned matrix)
-        # --------------------------------------------------
+        # 1. Vectorize
         X_df, symbols = self._vectorizer.transform(features_by_symbol)
 
-        # --------------------------------------------------
-        # 2. NaN handling (FROZEN inference policy)
-        # --------------------------------------------------
-        # Training-time contract: model never saw NaN
-        # Inference-time policy: NaN -> 0.0
+        # 2. NaN handling (inference policy)
         X_df = X_df.replace([np.inf, -np.inf], np.nan)
         X_df = X_df.fillna(0.0)
-        #
-        # mask = np.isfinite(X_df.values).all(axis=1)
-        # X_df = X_df[mask]
-        # symbols = [s for i, s in enumerate(symbols) if mask[i]]
 
-        # Safety invariant
         assert X_df.shape[1] == len(self._vectorizer.feature_names)
 
-        # --------------------------------------------------
-        # 3. 🔒 sklearn call (ndarray ONLY)
-        # --------------------------------------------------
+        # 3. sklearn inference (ndarray ONLY)
         preds = self._model.predict(X_df.values)
+
         if np.random.rand() < 0.001:
             logs.info(
                 f"[Inference] score stats: "
@@ -82,6 +59,8 @@ class SklearnInferenceModel(InferenceModel):
 class InferenceModelFactory:
     """
     Build execution-domain inference models from artifacts.
+
+    FINAL / FROZEN
     """
 
     @staticmethod
@@ -92,7 +71,14 @@ class InferenceModelFactory:
                 f"got {type(artifact)}"
             )
 
-        model = joblib.load(artifact.path)
+        # 🔒 FROZEN: artifact.path is ROOT DIR
+        model_path = Path(artifact.path) / "model.joblib"
+        if not model_path.exists():
+            raise FileNotFoundError(
+                f"[InferenceModelFactory] model file not found: {model_path}"
+            )
+
+        model = joblib.load(model_path)
 
         return SklearnInferenceModel(
             model=model,
@@ -105,15 +91,14 @@ class InferenceModelFactory:
 # =============================================================================
 class StrategyFactory:
     """
-    Static Strategy Factory (FINAL).
+    Static Strategy Factory (FINAL / FROZEN)
 
-    Registry holds Strategy classes ONLY.
-    Models are injected via artifacts.
+    - Registry holds Strategy classes ONLY
+    - Models are injected via resolved ModelArtifact
     """
 
     _REGISTRY: Dict[str, Type[Strategy]] = {
         "threshold": ThresholdStrategy,
-        # Future strategies MUST be added explicitly here.
     }
 
     @classmethod
@@ -129,7 +114,7 @@ class StrategyFactory:
         params = cfg.get("params", {})
 
         # --------------------------------------------------
-        # 🔒 FROZEN CONTRACT: artifact must be resolved
+        # 🔒 FROZEN CONTRACT
         # --------------------------------------------------
         if "artifact" not in model_cfg:
             raise KeyError(
@@ -149,7 +134,7 @@ class StrategyFactory:
         model = InferenceModelFactory.build(artifact)
 
         # --------------------------------------------------
-        # Build strategy (model injected)
+        # Build strategy
         # --------------------------------------------------
         strategy_cls = cls._REGISTRY[typ]
         return strategy_cls(model=model, **params)

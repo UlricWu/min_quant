@@ -8,7 +8,7 @@ from src.training.engines.model.sgd_regressor_train_engine import (
     SklearnSGDRegressorTrainEngine,
 )
 from src.config.training_config import TrainingConfig
-from src.pipeline.context import ModelSpec
+from src.pipeline.model_artifact import ModelSpec
 
 _ENGINE_REGISTRY: Dict[
     Tuple[str, str, str],

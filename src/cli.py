@@ -11,6 +11,7 @@ from src.workflows.offline_l1_backtest import build_offline_l1_backtest
 from src.workflows.offline_training import build_offline_training
 from src.utils.SourceMetaRepairTool import SourceMetaRepairTool
 from src.workflows.experiment_train_backtest import run_train_then_backtest
+
 app = typer.Typer(help="MinQuant Data Pipeline CLI")
 
 
@@ -106,6 +107,8 @@ def repair(start_date: str, end_date: str):
 def experiment():
     pipeline = run_train_then_backtest()
     pipeline.run(run_id="exp_2026_01_06")
+
+
 if __name__ == "__main__":
     app()
 

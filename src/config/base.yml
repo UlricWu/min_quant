@@ -1,3 +1,18 @@
+# ==================================================
+# EXECUTION SEMANTICS (FROZEN)
+#
+# - `python -m src.cli train`
+#     → ONLY reads `training`
+#     → MUST NOT read `backtest`
+#
+# - `python -m src.cli backtest`
+#     → ONLY reads `backtest`
+#     → MUST NOT read `training`
+#
+# - `python -m src.cli experiment`
+#     → reads `training` then `backtest`
+# ==================================================
+
 log:
   dir: "logs"
   rotation: "1 day"

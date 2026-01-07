@@ -154,7 +154,7 @@ def test_feature_build_symbol_local_and_row_count(
 
     fact_file = write_fact_min(ctx.fact_dir)
     base = pq.read_table(fact_file)
-    write_min_manifest(ctx.model_dir, ctx.fact_dir, base)
+    write_min_manifest(ctx.train_dir, ctx.fact_dir, base)
 
     step = FeatureBuildStep(
         l0_engine=DummyL0Engine(),
@@ -175,7 +175,7 @@ def test_feature_build_l1_requires_l0(tmp_path: Path, make_test_pipeline_context
 
     fact_file = write_fact_min(ctx.fact_dir)
     base = pq.read_table(fact_file)
-    write_min_manifest(ctx.model_dir, ctx.fact_dir, base)
+    write_min_manifest(ctx.train_dir, ctx.fact_dir, base)
 
     step = FeatureBuildStep(
         l0_engine=None,
@@ -192,7 +192,7 @@ def test_feature_build_ignores_fact_override_when_feature_only(
 
     fact_file = write_fact_min(ctx.fact_dir)
     base = pq.read_table(fact_file)
-    write_min_manifest(ctx.model_dir, ctx.fact_dir, base)
+    write_min_manifest(ctx.train_dir, ctx.fact_dir, base)
 
     step = FeatureBuildStep(
         l0_engine=DummyL0Engine(),
@@ -230,7 +230,7 @@ def test_feature_build_atomic_output(tmp_path: Path, make_test_pipeline_context)
 
     fact_file = write_fact_min(ctx.fact_dir)
     base = pq.read_table(fact_file)
-    write_min_manifest(ctx.model_dir, ctx.fact_dir, base)
+    write_min_manifest(ctx.train_dir, ctx.fact_dir, base)
 
     step = FeatureBuildStep(
         l0_engine=DummyL0Engine(),
@@ -250,7 +250,7 @@ def test_feature_build_preserves_symbol_contiguity(
 
     fact_file = write_fact_min(ctx.fact_dir)
     base = pq.read_table(fact_file)
-    write_min_manifest(ctx.model_dir, ctx.fact_dir, base)
+    write_min_manifest(ctx.train_dir, ctx.fact_dir, base)
 
     step = FeatureBuildStep(
         l0_engine=DummyL0Engine(),
@@ -276,7 +276,7 @@ def test_feature_build_canonicalizes_ts_within_symbol(
 
     fact_file = write_fact_min(ctx.fact_dir)
     base = pq.read_table(fact_file)
-    write_min_manifest(ctx.model_dir, ctx.fact_dir, base)
+    write_min_manifest(ctx.train_dir, ctx.fact_dir, base)
 
     step = FeatureBuildStep(
         l0_engine=DummyL0Engine(),
@@ -304,7 +304,7 @@ def test_feature_build_commits_meta_with_index(
 
     fact_file = write_fact_min(ctx.fact_dir)
     base = pq.read_table(fact_file)
-    write_min_manifest(ctx.model_dir, ctx.fact_dir, base)
+    write_min_manifest(ctx.train_dir, ctx.fact_dir, base)
 
     step = FeatureBuildStep(
         l0_engine=DummyL0Engine(),
@@ -313,7 +313,7 @@ def test_feature_build_commits_meta_with_index(
     step.run(ctx)
 
     # meta 文件必须存在
-    manifest_path = ctx.model_dir / "feature.sh_trade.manifest.json"
+    manifest_path = ctx.train_dir / "feature.sh_trade.manifest.json"
     assert manifest_path.exists()
 
     # 通过 BaseMeta 读取 manifest（如果你 BaseMeta 有 load API 可用就用；没有就只验证 SliceSource）
@@ -321,7 +321,7 @@ def test_feature_build_commits_meta_with_index(
     from src.meta.slice_source import SliceSource
 
     source = SliceSource(
-        meta_dir=ctx.model_dir,
+        meta_dir=ctx.train_dir,
         stage="feature",
         output_slot="sh_trade",
     )
@@ -345,7 +345,7 @@ def test_feature_build_index_matches_python_reference(
 
     fact_file = write_fact_min(ctx.fact_dir)
     base = pq.read_table(fact_file)
-    write_min_manifest(ctx.model_dir, ctx.fact_dir, base)
+    write_min_manifest(ctx.train_dir, ctx.fact_dir, base)
 
     step = FeatureBuildStep(
         l0_engine=DummyL0Engine(),
@@ -360,7 +360,7 @@ def test_feature_build_index_matches_python_reference(
     from src.meta.slice_source import SliceSource
 
     source = SliceSource(
-        meta_dir=ctx.model_dir,
+        meta_dir=ctx.train_dir,
         stage="feature",
         output_slot="sh_trade",
     )
@@ -380,7 +380,7 @@ def test_feature_build_meta_hit_skips_second_run(
 
     fact_file = write_fact_min(ctx.fact_dir)
     base = pq.read_table(fact_file)
-    write_min_manifest(ctx.model_dir, ctx.fact_dir, base)
+    write_min_manifest(ctx.train_dir, ctx.fact_dir, base)
 
     step = FeatureBuildStep(
         l0_engine=DummyL0Engine(),

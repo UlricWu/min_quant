@@ -1,17 +1,20 @@
 # src/workflows/experiment_pipeline.py
 from __future__ import annotations
 
-from src.pipeline.context import ModelArtifact
+from src.pipeline.model_artifact import (
+    ModelArtifact,
+    promote_model_artifact,
+)
+from src import logs
 
 
 class ExperimentPipeline:
     """
-    ExperimentPipeline (FINAL / FROZEN)
+    ExperimentPipeline（FINAL / FROZEN）
 
     Semantics:
-    - Owns execution order: training -> backtest
-    - Responsible for artifact handoff
-    - NOT reusable for training-only or backtest-only
+    - Owns train → promote → backtest lifecycle
+    - Is the ONLY authority that can publish models
     """
 
     def __init__(self, *, training_pipeline, backtest_pipeline):
@@ -20,8 +23,9 @@ class ExperimentPipeline:
 
     def run(self, *, run_id: str):
         # -----------------------------
-        # 1) Training
+        # 1) Training (run-scoped)
         # -----------------------------
+        logs.info(f"[Experiment] TRAIN run_id={run_id}")
         train_ctx = self.training_pipeline.run(run_id=run_id)
 
         artifact: ModelArtifact | None = getattr(
@@ -33,13 +37,18 @@ class ExperimentPipeline:
             )
 
         # -----------------------------
-        # 2) Inject artifact (ONLY PLACE)
+        # 2) PROMOTE (ONLY HERE)
         # -----------------------------
-        backtest_cfg = self.backtest_pipeline.cfg
-        backtest_cfg.strategy.setdefault("model", {})
-        backtest_cfg.strategy["model"]["artifact"] = artifact
+        logs.info(
+            f"[Experiment] PROMOTE model={train_ctx.cfg.name}"
+        )
+        promote_model_artifact(
+            artifact=artifact,
+            model_name=train_ctx.cfg.name,
+        )
 
         # -----------------------------
-        # 3) Backtest
+        # 3) Backtest (consume published)
         # -----------------------------
+        logs.info("[Experiment] BACKTEST (published model)")
         return self.backtest_pipeline.run(run_id=run_id)

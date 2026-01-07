@@ -16,12 +16,30 @@ class ModelState:
 
 @dataclass
 class TrainingContext:
+    """
+    TrainingContext（FINAL / FROZEN）
+
+    Semantics:
+    - One context == one training run
+    - run_id is immutable and mandatory
+    """
+
+    # -------------------------
+    # Identity (FROZEN)
+    # -------------------------
+    run_id: str
+
+    # -------------------------
+    # Static bindings
+    # -------------------------
     cfg: Any
     inst: Any
-
     model_dir: Path
 
-    update_day: str = None
+    # -------------------------
+    # Rolling state
+    # -------------------------
+    update_day: Optional[str] = None
     eval_day: Optional[str] = None
 
     train_X: Optional[pd.DataFrame] = None

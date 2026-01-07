@@ -45,9 +45,10 @@ class TrainingPipeline:
 
         # Context 初始化：不绑定 day
         ctx = TrainingContext(
+            run_id=run_id,  # ⭐ 必须注入
             cfg=self.cfg,
             inst=self.inst,
-            model_dir=self.pm.model_dir(run_id),
+            model_dir=self.pm.train_run_dir(run_id),
         )
 
         dates = self._scan_physical_trading_days()
