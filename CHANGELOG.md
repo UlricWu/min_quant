@@ -1,3 +1,27 @@
+# [0.11.0](https://github.com/UlricWu/min_quant/compare/v0.10.0...v0.11.0) (2026-01-07)
+
+
+### Bug Fixes
+
+* backtest with trained model ([777ebf6](https://github.com/UlricWu/min_quant/commit/777ebf6cdb62a05ae9ad7d747622ca65da078273))
+
+
+### Features
+
+* add event-driven backtest ([20b0107](https://github.com/UlricWu/min_quant/commit/20b0107a6c560236cdec10ddfbb9ef1918865cd9))
+* add label ([333b325](https://github.com/UlricWu/min_quant/commit/333b3250548bf2daa03c14dbe8be4b81ef6d9e82))
+* add skeleton backtest ([2727011](https://github.com/UlricWu/min_quant/commit/27270113c9b53c936db85bbab933ca657350b339))
+* add train+backtest ([649beec](https://github.com/UlricWu/min_quant/commit/649beecdd26fd249e4189d23794692786a704d52))
+* add training pipeline ([9499163](https://github.com/UlricWu/min_quant/commit/94991639b85af86450779973bd6d9f7c66e94178))
+* backtest mvp ([69c99f7](https://github.com/UlricWu/min_quant/commit/69c99f7515d07f924b70554d2bd1afbedc82e8d4))
+* merge normalize-> convert ([0bc1b04](https://github.com/UlricWu/min_quant/commit/0bc1b046bea6f8021c1474f7944c912d72added3))
+* two steps in backtest ([6c16805](https://github.com/UlricWu/min_quant/commit/6c168055b0a9e3010bee57928e34f553a6f295e0))
+
+
+### Performance Improvements
+
+* add strategy factory ([2a223f3](https://github.com/UlricWu/min_quant/commit/2a223f34ce1f701c764b612e7ba7ed8f0750d196))
+
 # [0.10.0](https://github.com/UlricWu/min_quant/compare/v0.9.0...v0.10.0) (2025-12-26)
 
 
