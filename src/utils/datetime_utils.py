@@ -125,17 +125,28 @@ class DateTimeUtils:
         if isinstance(ts, datetime):
             return ts.astimezone(cls.SH_TZ) if ts.tzinfo else ts.replace(tzinfo=cls.SH_TZ)
 
+        # # int timestamp
+        # if isinstance(ts, int):
+        #     s = str(ts)
+        #     if len(s) == 10:   # 秒
+        #         return datetime.fromtimestamp(ts, cls.SH_TZ)
+        #     if len(s) == 13:
+        #         return datetime.fromtimestamp(ts / 1000, cls.SH_TZ)
+        #     if len(s) == 16:
+        #         return datetime.fromtimestamp(ts / 1_000_000, cls.SH_TZ)
+        #     if len(s) == 19:
+        #         return datetime.fromtimestamp(ts / 1_000_000_000, cls.SH_TZ)
         # int timestamp
         if isinstance(ts, int):
             s = str(ts)
-            if len(s) == 10:   # 秒
-                return datetime.fromtimestamp(ts, cls.SH_TZ)
+            if len(s) == 10:  # 秒
+                return datetime.fromtimestamp(ts)
             if len(s) == 13:
-                return datetime.fromtimestamp(ts / 1000, cls.SH_TZ)
+                return datetime.fromtimestamp(ts / 1000)
             if len(s) == 16:
-                return datetime.fromtimestamp(ts / 1_000_000, cls.SH_TZ)
+                return datetime.fromtimestamp(ts / 1_000_000)
             if len(s) == 19:
-                return datetime.fromtimestamp(ts / 1_000_000_000, cls.SH_TZ)
+                return datetime.fromtimestamp(ts / 1_000_000_000)
             raise ValueError(f"无法识别的整数时间戳: {ts}")
 
         # 字符串 → datetime
@@ -151,7 +162,8 @@ class DateTimeUtils:
             for fmt in fmts:
                 try:
                     dtime = datetime.strptime(ts, fmt)
-                    return dtime.replace(tzinfo=cls.SH_TZ)
+                    return dtime
+                    # return dtime.replace(tzinfo=cls.SH_TZ)
                 except Exception:
                     pass
 

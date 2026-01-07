@@ -9,6 +9,8 @@ from .data_config import DataConfig
 from .model_config import ModelConfig
 from .pipeline_config import PipelineConfig
 from .secret_config import SecretConfig
+from .backtest_config import BacktestConfig
+from .training_config import TrainingConfig
 from src import logs
 def project_root() -> str:
     """
@@ -51,6 +53,8 @@ class AppConfig(BaseModel):
     model: ModelConfig
     pipeline: PipelineConfig
     secret: SecretConfig
+    backtest: BacktestConfig
+    training: TrainingConfig
 
     @classmethod
     def load(cls, path: str | None = None) -> "AppConfig":

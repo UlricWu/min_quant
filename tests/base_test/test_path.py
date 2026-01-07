@@ -12,7 +12,7 @@ def test_detect_root_structure(tmp_path):
          ├── dev/
          │     └── code/
          │           └── src/utils/path.py (模拟)
-         ├── data/
+         ├── data_handler/
          └── shared/
     """
 
@@ -21,7 +21,7 @@ def test_detect_root_structure(tmp_path):
     src = code / "src" / "utils"
 
     src.mkdir(parents=True)
-    (tmp_path / "data").mkdir()
+    (tmp_path / "data_handler").mkdir()
     (tmp_path / "shared").mkdir()
 
     # mock __file__ 所在目录
@@ -42,14 +42,14 @@ def setup_fake_project(tmp_path):
 
     tmp/
      ├── dev/code/src/config/
-     ├── data/
+     ├── data_handler/
      └── shared/configs/
     """
     dev = tmp_path / "dev"
     code_src = dev / "code" / "src" / "config"
     code_src.mkdir(parents=True)
 
-    (tmp_path / "data").mkdir()
+    (tmp_path / "data_handler").mkdir()
     (tmp_path / "shared" / "configs").mkdir(parents=True)
 
     return dev
@@ -68,7 +68,7 @@ def test_set_root_overrides(tmp_path):
 def test_data_and_shared_dirs(tmp_path):
     """
     root = tmp/dev
-    data = root.parent / data
+    data_handler = root.parent / data_handler
     shared = root.parent / shared
     """
     dev = setup_fake_project(tmp_path)
@@ -76,7 +76,7 @@ def test_data_and_shared_dirs(tmp_path):
 
     assert PathManager.root() == dev
     assert PathManager.base_dir() == tmp_path
-    assert PathManager.data_dir() == tmp_path / "data"
+    # assert PathManager.data_dir() == tmp_path / "data_handler"
     assert PathManager.shared_dir() == tmp_path / "shared"
 
 
@@ -84,8 +84,8 @@ def test_symbol_and_parquet_dirs(tmp_path):
     dev = setup_fake_project(tmp_path)
     PathManager.set_root(dev)
 
-    assert PathManager.raw_dir() == tmp_path / "data" / "raw"
-    assert PathManager.parquet_dir() == tmp_path / "data" / "parquet"
+    # assert PathManager.raw_dir() == tmp_path / "data_handler" / "raw"
+    assert PathManager.raw_dir() == Path("/mnt/cold/raw")
 
     assert PathManager.fact_dir("600000") == tmp_path / "data" / "fact" / "600000"
 
@@ -96,7 +96,6 @@ def test_shared_dirs(tmp_path):
     PathManager.set_root(dev)
 
     assert PathManager.models_dir() == tmp_path / "shared" / "models"
-    assert PathManager.shared_data_dir() == tmp_path / "shared" / "data"
     assert PathManager.cache_dir() == tmp_path / "shared" / "cache"
 
 

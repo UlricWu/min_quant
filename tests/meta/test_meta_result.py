@@ -1,12 +1,12 @@
 from pathlib import Path
-from src.meta.meta import MetaResult
+from src.meta.base import MetaOutput
 
 
 def test_meta_result_basic_fields(tmp_path: Path):
     input_file = tmp_path / "a.txt"
     output_file = tmp_path / "b.txt"
 
-    result = MetaResult(
+    result = MetaOutput(
         input_file=input_file,
         output_file=output_file,
         rows=123,
@@ -21,7 +21,7 @@ def test_meta_result_with_index(tmp_path: Path):
     input_file = tmp_path / "a.txt"
     output_file = tmp_path / "b.txt"
 
-    result = MetaResult(
+    result = MetaOutput(
         input_file=input_file,
         output_file=output_file,
         rows=10,

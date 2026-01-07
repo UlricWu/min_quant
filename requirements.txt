@@ -1,9 +1,14 @@
+joblib==1.5.3
 loguru==0.7.2
+matplotlib==3.10.8
+numpy==2.4.0
 pandas==2.3.3
-py7zr==1.0.0
 pyarrow==22.0.0
 pydantic==2.12.5
 pytest==8.4.1
 python-dotenv==1.2.1
 PyYAML==6.0.3
-typer==0.20.0
+rich==14.2.0
+scikit_learn==1.8.0
+scipy==1.16.3
+typer==0.21.1

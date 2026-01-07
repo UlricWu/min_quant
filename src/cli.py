@@ -1,9 +1,16 @@
 #!filepath: src/cli.py
+from pathlib import Path
+
 import pandas as pd
 import typer
 from rich import print
 
-from src.workflows.offline_l2_pipeline import build_offline_l2_pipeline
+from src import PathManager
+from src.workflows.offline_l2_data import build_offline_l2_pipeline
+from src.workflows.offline_l1_backtest import build_offline_l1_backtest
+from src.workflows.offline_training import build_offline_training
+from src.utils.SourceMetaRepairTool import SourceMetaRepairTool
+from src.workflows.experiment_train_backtest import run_train_then_backtest
 
 app = typer.Typer(help="MinQuant Data Pipeline CLI")
 
@@ -55,7 +62,58 @@ def today():
     pipeline.run(date)
 
 
+@app.command()
+def backtest(run_id: str | None = None):
+    """
+    Run Level-1 backtest (dates defined in YAML)
+    """
+    if run_id is None:
+        from datetime import datetime
+        run_id = datetime.now().strftime("%Y-%m-%d")
+
+    pipeline = build_offline_l1_backtest()
+    print(f"[magenta]Running L1 Backtest | run_id={run_id}[/magenta]")
+
+    pipeline.run(run_id)
+
+
+@app.command()
+def train(run_id: str | None = None):
+    """
+    Run Level-1 backtest (dates defined in YAML)
+    """
+    if run_id is None:
+        from datetime import datetime
+        run_id = datetime.now().strftime("%Y-%m-%d")
+
+    pipeline = build_offline_training()
+    print(f"[magenta]Running offline_training | run_id={run_id}[/magenta]")
+
+    pipeline.run(run_id)
+
+
+@app.command()
+def repair(start_date: str, end_date: str):
+    """
+    Repair source (download) meta for existing raw files
+    """
+    tool = SourceMetaRepairTool(
+        pm=PathManager()
+    )
+    tool.repair_range(start_date, end_date)
+
+
+@app.command()
+def experiment():
+    pipeline = run_train_then_backtest()
+    pipeline.run(run_id="exp_2026_01_06")
+
+
 if __name__ == "__main__":
     app()
 
 # python -m src.cli run 2025-11-04
+# python -m src.cli backtest
+# python -m src.cli train
+# python -m src.cli repair 2025-11-03 2025-12-30
+# python -m src.cli experiment

@@ -1,13 +1,13 @@
 from __future__ import annotations
 
-from src.pipeline.context import PipelineContext
 from src.observability.instrumentation import (
     Instrumentation,
     NoOpInstrumentation,
 )
+from src.pipeline.context import BaseContext
 
-
-class PipelineStep:
+from abc import ABC, abstractmethod
+class PipelineStep(ABC):
     """
     Pipeline Step 基类（最终冻结版）
 
@@ -20,7 +20,12 @@ class PipelineStep:
       - 所有可观测性能必须发生在 Step 内部（leaf timer）
       - Instrumentation 是可选横切关注点
       - Step 行为不依赖 inst 是否存在
+
     """
+
+    stage: str = ''  # e.g. "normalize"
+    upstream_stage: str = ''  # e.g. "parquet"
+    output_slot: str
 
     def __init__(self, inst: Instrumentation | None = None):
         # 永远保证 inst 可用（No-op 语义）
@@ -52,8 +57,15 @@ class PipelineStep:
     # --------------------------------------------------
     # Contract
     # --------------------------------------------------
-    def run(self, ctx: PipelineContext) -> PipelineContext:
+    @abstractmethod
+    def run(self, ctx):
         """
-        子类必须实现。
+        Execute this step.
+
+        Parameters:
+        - ctx: system-specific context
+
+        Returns:
+        - ctx (mutated or replaced)
         """
         raise NotImplementedError
