@@ -13,7 +13,7 @@ class EngineAReportStep(PipelineStep):
     stage = "engine_a_report"
 
     def __init__(self, *, inst):
-        self.inst = inst
+        super().__init__(inst)
 
     def run(self, ctx):
         logs.info(

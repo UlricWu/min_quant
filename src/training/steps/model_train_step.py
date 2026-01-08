@@ -19,6 +19,7 @@ class ModelTrainStep(PipelineStep):
     """
 
     def __init__(self, cfg):
+        super().__init__()
         self.engine = SklearnSGDRegressorTrainEngine(cfg)
 
     def run(self, ctx: TrainingContext) -> TrainingContext:

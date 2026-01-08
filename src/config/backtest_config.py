@@ -1,37 +1,36 @@
+#!filepath: src/config/backtest_config.py
 from __future__ import annotations
 
-from pydantic import BaseModel, Field
-from typing import Literal, List, Dict
+from dataclasses import dataclass
+from typing import Any
 
 
-class BacktestConfig(BaseModel):
+@dataclass(frozen=True, slots=True)
+class BacktestModelSpec:
     """
-    BacktestConfig（FINAL / FROZEN）
+    BacktestModelSpec（FROZEN）
 
-语义冻结：
-    - BacktestConfig = 实验定义
-    - 决定：dates / symbols / level / replay / strategy
-    - 不定义路径
-    - 不定义数据加载方式
+    selector:
+      - published_latest: consume current published model snapshot
+      - published_asof:   consume published snapshot as of ctx.today
     """
-
-    # 实验名
-    name: str = "default"
-
-    # 使用哪些数据版本
-    dates: List[str]
-
-    # 使用哪些 symbols（本次实验）
-    symbols: List[str] = Field(..., min_length=1)
-    # 本次 backtest 要“在哪些 symbol 上运行”
+    name: str
+    selector: str = "published_latest"
 
 
-    
-    # 回测层级
-    level: Literal["l1", "l2", "l3"] = "l1"
+@dataclass(frozen=True, slots=True)
+class BacktestConfig:
+    """
+    BacktestConfig（FROZEN）
 
-    # replay policy
-    replay: Literal["single", "multi"] = "single"
+    Notes:
+    - strategy stays as dict for now (engine-internal interpretation).
+    - model spec is explicit to avoid implicit 'latest' assumptions.
+    """
+    name: str
+    dates: list[str]
+    symbols: list[str]
+    strategy: dict[str, Any]
 
-    # strategy 参数（opaque）
-    strategy: Dict
+    # NEW (recommended)
+    model: BacktestModelSpec | None = None

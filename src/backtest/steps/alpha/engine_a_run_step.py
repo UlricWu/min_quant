@@ -30,7 +30,7 @@ class EngineARunStep(PipelineStep):
     stage = "engine_a_run"
 
     def __init__(self, *, inst):
-        self.inst = inst
+        super().__init__(inst=inst)
         self.pm = PathManager()
 
     def run(self, ctx: BacktestContext):
