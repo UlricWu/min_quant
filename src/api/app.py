@@ -11,7 +11,7 @@ from datetime import datetime
 from src.jobs.registry import Job, JobRegistry
 import os
 import signal
-
+from flask import jsonify
 app = Flask(__name__)
 
 REGISTRY = JobRegistry()
@@ -86,7 +86,14 @@ def create_job():
 
 @app.get("/jobs/<job_id>")
 def get_job(job_id: str):
-    job = REGISTRY.get(job_id)
+    try:
+        job = REGISTRY.get(job_id)
+    except KeyError:
+        return jsonify({
+            "error": "job not found",
+            "job_id": job_id,
+        }), 404
+
     log_path = Path(job.log_file)
     last_lines = _tail_last_lines(log_path, n=80) if job.status in ("FAILED", "SUCCESS") else ""
     return jsonify({
@@ -105,9 +112,17 @@ def get_job(job_id: str):
 
 @app.get("/jobs/<job_id>/log")
 def get_job_log(job_id: str):
-    job = REGISTRY.get(job_id)
+    try:
+        job = REGISTRY.get(job_id)
+    except KeyError:
+        return jsonify({
+            "error": "job not found",
+            "job_id": job_id,
+        }), 404
+
     offset = int(request.args.get("offset", 0))
     log_path = Path(job.log_file)
+
     if not log_path.exists():
         return jsonify({"data": "", "offset": offset})
 
@@ -117,6 +132,7 @@ def get_job_log(job_id: str):
         new_offset = f.tell()
 
     return jsonify({"data": data, "offset": new_offset})
+
 
 
 @app.get("/health")
@@ -176,7 +192,13 @@ def _kill_pid(pid: int) -> None:
     os.kill(pid, signal.SIGTERM)
 @app.post("/jobs/<job_id>/kill")
 def kill_job(job_id: str):
-    job = REGISTRY.get(job_id)
+    try:
+        job = REGISTRY.get(job_id)
+    except KeyError:
+        return jsonify({
+            "error": "job not found",
+            "job_id": job_id,
+        }), 404
 
     # -------- 1. 基础校验 --------
     if job.pid is None:
