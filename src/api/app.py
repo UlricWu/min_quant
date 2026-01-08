@@ -126,7 +126,6 @@ def get_job_log(job_id: str):
     return jsonify({"data": data, "offset": new_offset})
 
 
-
 @app.get("/health")
 def health():
     return jsonify({"ok": True})
@@ -182,6 +181,8 @@ def _kill_pid(pid: int) -> None:
     Raises OSError if pid does not exist or permission denied.
     """
     os.kill(pid, signal.SIGTERM)
+
+
 @app.post("/jobs/<job_id>/kill")
 @handle_job_not_found
 def kill_job(job_id: str):
