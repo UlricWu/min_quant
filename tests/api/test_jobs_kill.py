@@ -59,3 +59,9 @@ def test_kill_job(client, monkeypatch):
     kill_resp = client.post(f"/jobs/{job_id}/kill")
     assert kill_resp.status_code == 200
     assert killed["sig"] == signal.SIGTERM
+def test_job_kill_not_found(client):
+    resp = client.post("/jobs/non_exist/kill")
+    assert resp.status_code == 404
+def test_job_status_not_found(client):
+    resp = client.get("/jobs/non_exist")
+    assert resp.status_code == 404

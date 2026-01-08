@@ -12,6 +12,8 @@ from src.jobs.registry import Job, JobRegistry
 import os
 import signal
 from flask import jsonify
+from src.api.decorators import handle_job_not_found
+
 app = Flask(__name__)
 
 REGISTRY = JobRegistry()
@@ -85,14 +87,9 @@ def create_job():
 
 
 @app.get("/jobs/<job_id>")
+@handle_job_not_found
 def get_job(job_id: str):
-    try:
-        job = REGISTRY.get(job_id)
-    except KeyError:
-        return jsonify({
-            "error": "job not found",
-            "job_id": job_id,
-        }), 404
+    job = REGISTRY.get(job_id)
 
     log_path = Path(job.log_file)
     last_lines = _tail_last_lines(log_path, n=80) if job.status in ("FAILED", "SUCCESS") else ""
@@ -111,14 +108,9 @@ def get_job(job_id: str):
 
 
 @app.get("/jobs/<job_id>/log")
+@handle_job_not_found
 def get_job_log(job_id: str):
-    try:
-        job = REGISTRY.get(job_id)
-    except KeyError:
-        return jsonify({
-            "error": "job not found",
-            "job_id": job_id,
-        }), 404
+    job = REGISTRY.get(job_id)
 
     offset = int(request.args.get("offset", 0))
     log_path = Path(job.log_file)
@@ -191,14 +183,9 @@ def _kill_pid(pid: int) -> None:
     """
     os.kill(pid, signal.SIGTERM)
 @app.post("/jobs/<job_id>/kill")
+@handle_job_not_found
 def kill_job(job_id: str):
-    try:
-        job = REGISTRY.get(job_id)
-    except KeyError:
-        return jsonify({
-            "error": "job not found",
-            "job_id": job_id,
-        }), 404
+    job = REGISTRY.get(job_id)
 
     # -------- 1. 基础校验 --------
     if job.pid is None:
