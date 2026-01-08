@@ -132,7 +132,7 @@ class OrderBookRebuildStep(PipelineStep):
             self,
             *,
             # symbol_root: Path,
-            max_workers: Optional[int] = None,
+            max_worker: Optional[int] = None,
             mp_start_method: str = "fork",
             inst=None,
     ) -> None:
@@ -141,7 +141,7 @@ class OrderBookRebuildStep(PipelineStep):
 
         cpu = os.cpu_count() or 8
         # 保守一点：避免把机器打满导致 IO 抖动
-        self.max_workers = max(1, min(max_workers or (cpu - 2), cpu))
+        self.max_worker = max(1, min(max_worker or (cpu - 2), cpu))
 
         # Linux 推荐 fork；若你未来在 macOS / Windows，改为 spawn
         self.mp_start_method = mp_start_method
@@ -200,7 +200,7 @@ class OrderBookRebuildStep(PipelineStep):
             # 经验值：chunk_size ~ 4~16
             chunk_size = 8 if total >= 2000 else 4
 
-            with mp.Pool(processes=self.max_workers) as pool:
+            with mp.Pool(processes=self.max_worker) as pool:
                 for r in pool.imap_unordered(_rebuild_one, jobs, chunksize=chunk_size):
                     if r.ok:
                         ok += 1

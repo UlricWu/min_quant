@@ -39,8 +39,8 @@ class TrainingContext:
     # -------------------------
     # Rolling state
     # -------------------------
-    update_day: Optional[str] = None
-    eval_day: Optional[str] = None
+    update_day: str = ""
+    eval_day: str = ""
 
     train_X: Optional[pd.DataFrame] = None
     train_y: Optional[pd.Series] = None

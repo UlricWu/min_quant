@@ -1,24 +1,27 @@
 #!/bin/bash
+# ==========================================
+# kill.sh
+#
+# Responsibility:
+#   - Stop MinQuant Flask API daemon
+#   - ONLY kills tmux session
+# ==========================================
 
-
-# ====== 使用方式 ======
-# ./kill.sh                # 默认今天
-# ./kill.sh 2025-11-23     # 指定日期
-# =======================
-
-if [ -z "$1" ]; then
-    DATE=$(date '+%Y-%m-%d')
-else
-    DATE="$1"
-fi
-
-SESSION="run_${DATE}"
+SESSION="minquant_api"
 
 tmux has-session -t "$SESSION" 2>/dev/null
-if [ $? != 0 ]; then
-    echo "没有找到正在运行的 session: $SESSION"
-    exit 1
+if [ $? -ne 0 ]; then
+    echo "ℹ️  Flask API is not running (tmux session '$SESSION' not found)"
+    exit 0
 fi
 
+echo "Stopping Flask API (tmux session: $SESSION)..."
+
 tmux kill-session -t "$SESSION"
-echo "已停止：$SESSION"
+
+if [ $? -eq 0 ]; then
+    echo "✅ Flask API stopped"
+else
+    echo "❌ Failed to stop Flask API"
+    exit 1
+fi

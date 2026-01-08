@@ -31,7 +31,7 @@ class ParallelExecutor:
             kind: ParallelKind,
             items: Iterable[str],
             handler: Callable[[str], Any],
-            max_workers: int | None = None,
+            max_worker: int | None = None,
     ) -> list[Any] | None:
         items = list(items)
         if not items:
@@ -43,7 +43,7 @@ class ParallelExecutor:
             f"kind={kind} total={len(items)}"
         )
 
-        workers = ParallelExecutor._resolve_workers(items, max_workers)
+        workers = ParallelExecutor._resolve_workers(items, max_worker)
 
         if workers == 1:
             return ParallelExecutor._run_sequential(items, handler)
@@ -53,11 +53,11 @@ class ParallelExecutor:
     # ---------------- internal ----------------
 
     @staticmethod
-    def _resolve_workers(items: list[str], max_workers: int | None) -> int:
+    def _resolve_workers(items: list[str], max_worker: int | None) -> int:
         cpu = os.cpu_count() or 1
-        if max_workers is None:
+        if max_worker is None:
             return min(cpu, len(items))
-        return max(1, min(max_workers, len(items)))
+        return max(1, min(max_worker, len(items)))
 
     @staticmethod
     def _run_sequential(

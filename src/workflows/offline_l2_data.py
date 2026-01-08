@@ -62,7 +62,7 @@ def build_offline_l2_pipeline() -> DataPipeline:
 
     # ----------- 并行 Step（不传 engine）-----------
     extractor_steps = ConvertStep(inst=inst,
-                                  max_workers=cfg.pipeline.max_workers,
+                                  max_worker=cfg.pipeline.max_worker,
                                   )
 
     trade_step = TradeEnrichStep(inst=inst, engine=TradeEnrichEngine())

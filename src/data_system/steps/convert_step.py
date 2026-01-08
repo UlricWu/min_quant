@@ -133,11 +133,11 @@ class ConvertStep(PipelineStep):
             self,
             inst=None,
             batch_size: int = 20_000_000,
-            max_workers: int = 2,
+            max_worker: int = 2,
     ):
         super().__init__(inst)
         self.batch_size = batch_size
-        self.max_workers = max_workers
+        self.max_worker = max_worker
 
     # ------------------------------------------------------------------
     def run(self, ctx: DataContext) -> DataContext:
@@ -196,8 +196,9 @@ class ConvertStep(PipelineStep):
                 kind=ParallelKind.FILE,
                 items=items,
                 handler=_fact_build_handler,
-                max_workers=self.max_workers,
+                max_worker=self.max_worker,
             )
+
 
         if results is None:
             raise RuntimeError(f"[{self.stage}] ParallelExecutor returned None")
