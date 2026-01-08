@@ -8,6 +8,7 @@ import uuid
 from pathlib import Path
 from datetime import datetime
 
+from src import logs
 from src.jobs.registry import Job, JobRegistry
 import os
 import signal
@@ -19,6 +20,11 @@ app = Flask(__name__)
 REGISTRY = JobRegistry()
 LOG_DIR = Path("logs/jobs")
 LOG_DIR.mkdir(parents=True, exist_ok=True)
+
+
+@app.before_request
+def log_request():
+    logs.info(f"[HTTP] {request.method} {request.path}")
 
 
 def _tail_last_lines(path: Path, n: int = 50) -> str:
@@ -65,17 +71,21 @@ def create_job():
         cmd = ["python", "-m", "src.cli", "train"]
     elif job_type == "backtest":
         cmd = ["python", "-m", "src.cli", "backtest"]
+    elif job_type == "experiment":
+        cmd = ["python", "-m", "src.cli", "experiment"]
     else:
         return jsonify({"error": "unknown type"}), 400
 
     job_id = uuid.uuid4().hex[:10]
     log_file = str(LOG_DIR / f"{job_id}.log")
 
-    job = Job(job_id=job_id, cmd=cmd, log_file=log_file)
+    job = Job(job_id=job_id, cmd=cmd, log_file=log_file, job_type=job_type)
     REGISTRY.add(job)
 
     t = threading.Thread(target=_run_job, args=(job,), daemon=True)
     t.start()
+
+    logs.info(f"[API] create job type={job_type}")
 
     return jsonify({
         "job_id": job_id,
@@ -146,33 +156,33 @@ def _run_cmd_sync(cmd: list[str], timeout_sec: int = 3600) -> dict:
     }
 
 
-@app.post("/run/l2")
-def run_l2():
-    payload = request.get_json(force=True)
-    date = payload.get("date")
-    if not date:
-        return jsonify({"error": "missing date"}), 400
-
-    cmd = ["python", "-m", "src.cli", "run", date]
-    out = _run_cmd_sync(cmd)
-    status = 200 if out["exit_code"] == 0 else 500
-    return jsonify(out), status
-
-
-@app.post("/run/train")
-def run_train():
-    cmd = ["python", "-m", "src.cli", "train"]
-    out = _run_cmd_sync(cmd)
-    status = 200 if out["exit_code"] == 0 else 500
-    return jsonify(out), status
-
-
-@app.post("/run/backtest")
-def run_backtest():
-    cmd = ["python", "-m", "src.cli", "backtest"]
-    out = _run_cmd_sync(cmd)
-    status = 200 if out["exit_code"] == 0 else 500
-    return jsonify(out), status
+# @app.post("/run/l2")
+# def run_l2():
+#     payload = request.get_json(force=True)
+#     date = payload.get("date")
+#     if not date:
+#         return jsonify({"error": "missing date"}), 400
+#
+#     cmd = ["python", "-m", "src.cli", "run", date]
+#     out = _run_cmd_sync(cmd)
+#     status = 200 if out["exit_code"] == 0 else 500
+#     return jsonify(out), status
+#
+#
+# @app.post("/run/train")
+# def run_train():
+#     cmd = ["python", "-m", "src.cli", "train"]
+#     out = _run_cmd_sync(cmd)
+#     status = 200 if out["exit_code"] == 0 else 500
+#     return jsonify(out), status
+#
+#
+# @app.post("/run/backtest")
+# def run_backtest():
+#     cmd = ["python", "-m", "src.cli", "backtest"]
+#     out = _run_cmd_sync(cmd)
+#     status = 200 if out["exit_code"] == 0 else 500
+#     return jsonify(out), status
 
 
 def _kill_pid(pid: int) -> None:
@@ -232,6 +242,34 @@ def kill_job(job_id: str):
         "status": job.status,
         "pid": job.pid,
         "message": "job killed",
+    })
+
+@app.get("/jobs")
+def list_jobs():
+    jobs = REGISTRY.list()
+
+    # 按创建时间倒序（最新在前）
+    jobs = sorted(
+        jobs,
+        key=lambda j: j.created_at,
+        reverse=True,
+    )
+
+    return jsonify({
+        "count": len(jobs),
+        "jobs": [
+            {
+                "job_id": j.job_id,
+                "type": j.job_type,
+                "status": j.status,
+                "pid": j.pid,
+                "created_at": j.created_at,
+                "started_at": j.started_at,
+                "finished_at": j.finished_at,
+                "error": j.error,
+            }
+            for j in jobs
+        ]
     })
 
 

@@ -5,13 +5,15 @@ from dataclasses import dataclass
 from datetime import datetime
 from typing import Literal
 
-
 JobStatus = Literal["PENDING", "RUNNING", "SUCCESS", "FAILED"]
+
+JobType = Literal["l2", "train", "backtest", "experiment"]
 
 
 @dataclass
 class Job:
     job_id: str
+    job_type: JobType  # ✅ 新增：冻结字段
     cmd: list[str]
     log_file: str
     status: JobStatus = "PENDING"
@@ -36,3 +38,12 @@ class JobRegistry:
 
     def get(self, job_id: str) -> Job:
         return self._jobs[job_id]
+
+    def list(self) -> list[Job]:
+        """
+        Return all jobs (read-only view).
+        """
+        return list(self._jobs.values())
+
+    def clear(self) -> None:
+        self._jobs.clear()
