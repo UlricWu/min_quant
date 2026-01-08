@@ -1,3 +1,17 @@
+# [0.12.0](https://github.com/UlricWu/min_quant/compare/v0.11.0...v0.12.0) (2026-01-08)
+
+
+### Bug Fixes
+
+* 测试隔离（test isolation） ([0b07afa](https://github.com/UlricWu/min_quant/commit/0b07afa134278189eee674c7895b76b6c511ba18))
+
+
+### Features
+
+* add flask ([02306cb](https://github.com/UlricWu/min_quant/commit/02306cb60279ad8e1d7734c0db1c2f86064bb807))
+* add status filter type ([56662fc](https://github.com/UlricWu/min_quant/commit/56662fc9958a0a106bf9410444c9e0b85c0654d0))
+* add status 过滤 ([1a616c4](https://github.com/UlricWu/min_quant/commit/1a616c4c74c5e740abc4a48bc1622cb39a1cd3ca))
+
 # [0.11.0](https://github.com/UlricWu/min_quant/compare/v0.10.0...v0.11.0) (2026-01-07)
 
 
