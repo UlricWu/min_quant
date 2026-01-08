@@ -4,19 +4,7 @@ import subprocess
 from types import SimpleNamespace
 
 
-class DummyProcess:
-    def __init__(self):
-        self.pid = 12345
-
-    def wait(self):
-        return 0
-
-
-def test_create_job_l2(client, monkeypatch):
-    def fake_popen(*args, **kwargs):
-        return DummyProcess()
-
-    monkeypatch.setattr(subprocess, "Popen", fake_popen)
+def test_create_job_l2(client):
 
     resp = client.post(
         "/jobs",

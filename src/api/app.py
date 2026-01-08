@@ -198,38 +198,33 @@ def _kill_pid(pid: int) -> None:
 def kill_job(job_id: str):
     job = REGISTRY.get(job_id)
 
-    # -------- 1. 基础校验 --------
-    if job.pid is None:
-        return jsonify({
-            "job_id": job.job_id,
-            "status": job.status,
-            "error": "job has no pid (not started or already finished)",
-        }), 400
-
-    if job.status not in ("RUNNING", "PENDING"):
+    # -------- 1. 状态校验（唯一前置条件） --------
+    if job.status not in ("PENDING", "RUNNING"):
         return jsonify({
             "job_id": job.job_id,
             "status": job.status,
             "error": "job already finished",
         }), 400
 
-    # -------- 2. Kill --------
-    try:
-        _kill_pid(job.pid)
-    except ProcessLookupError:
-        job.status = "FAILED"
-        job.error = "process not found"
-        return jsonify({
-            "job_id": job.job_id,
-            "status": job.status,
-            "error": job.error,
-        }), 410
-    except PermissionError as e:
-        return jsonify({
-            "job_id": job.job_id,
-            "status": job.status,
-            "error": f"permission denied: {e}",
-        }), 403
+    # -------- 2. Kill（仅当 pid 存在时） --------
+    if job.pid is not None:
+        try:
+            _kill_pid(job.pid)
+        except ProcessLookupError:
+            job.status = "FAILED"
+            job.error = "process not found"
+            job.finished_at = datetime.utcnow().isoformat()
+            return jsonify({
+                "job_id": job.job_id,
+                "status": job.status,
+                "error": job.error,
+            }), 410
+        except PermissionError as e:
+            return jsonify({
+                "job_id": job.job_id,
+                "status": job.status,
+                "error": f"permission denied: {e}",
+            }), 403
 
     # -------- 3. 更新状态 --------
     job.status = "FAILED"
@@ -244,16 +239,30 @@ def kill_job(job_id: str):
         "message": "job killed",
     })
 
+
 @app.get("/jobs")
 def list_jobs():
     jobs = REGISTRY.list()
 
-    # 按创建时间倒序（最新在前）
-    jobs = sorted(
-        jobs,
-        key=lambda j: j.created_at,
-        reverse=True,
-    )
+    # # 按创建时间倒序（最新在前）
+    # jobs = sorted(
+    #     jobs,
+    #     key=lambda j: j.created_at,
+    #     reverse=True,
+    # )
+    # -------- status filter --------
+    status = request.args.get("status")
+    if status is not None:
+        if status not in ("PENDING", "RUNNING", "SUCCESS", "FAILED"):
+            return jsonify({
+                "error": "invalid status",
+                "allowed": ["PENDING", "RUNNING", "SUCCESS", "FAILED"],
+            }), 400
+
+        jobs = [j for j in jobs if j.status == status]
+
+    # 最新的在前
+    jobs = sorted(jobs, key=lambda j: j.created_at, reverse=True)
 
     return jsonify({
         "count": len(jobs),
