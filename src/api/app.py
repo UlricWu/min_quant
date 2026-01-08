@@ -21,6 +21,9 @@ REGISTRY = JobRegistry()
 LOG_DIR = Path("logs/jobs")
 LOG_DIR.mkdir(parents=True, exist_ok=True)
 
+ALLOWED_STATUSES = {"PENDING", "RUNNING", "SUCCESS", "FAILED"}
+ALLOWED_TYPES = {"l2", "train", "backtest", "experiment"}
+
 
 @app.before_request
 def log_request():
@@ -253,13 +256,22 @@ def list_jobs():
     # -------- status filter --------
     status = request.args.get("status")
     if status is not None:
-        if status not in ("PENDING", "RUNNING", "SUCCESS", "FAILED"):
+        if status not in ALLOWED_STATUSES:
             return jsonify({
                 "error": "invalid status",
-                "allowed": ["PENDING", "RUNNING", "SUCCESS", "FAILED"],
+                "allowed": sorted(ALLOWED_STATUSES),
             }), 400
-
         jobs = [j for j in jobs if j.status == status]
+
+    # -------- type filter --------
+    job_type = request.args.get("type")
+    if job_type is not None:
+        if job_type not in ALLOWED_TYPES:
+            return jsonify({
+                "error": "invalid type",
+                "allowed": sorted(ALLOWED_TYPES),
+            }), 400
+        jobs = [j for j in jobs if j.job_type == job_type]
 
     # 最新的在前
     jobs = sorted(jobs, key=lambda j: j.created_at, reverse=True)

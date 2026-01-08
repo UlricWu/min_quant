@@ -53,3 +53,27 @@ def test_list_jobs_invalid_status(client):
     resp = client.get("/jobs?status=FOO")
     assert resp.status_code == 400
     assert resp.json["error"] == "invalid status"
+def test_list_jobs_filter_by_type(client):
+    client.post("/jobs", json={"type": "train"})
+    client.post("/jobs", json={"type": "l2"})
+
+    resp = client.get("/jobs?type=train")
+    assert resp.status_code == 200
+    assert resp.json["count"] == 1
+    assert resp.json["jobs"][0]["type"] == "train"
+def test_list_jobs_filter_by_status_and_type(client):
+    client.post("/jobs", json={"type": "train"})
+    client.post("/jobs", json={"type": "l2"})
+
+    resp = client.get("/jobs?status=RUNNING&type=train")
+    assert resp.status_code == 200
+    assert resp.json["count"] == 1
+    assert resp.json["jobs"][0]["type"] == "train"
+def test_list_jobs_invalid_type(client):
+    resp = client.get("/jobs?type=foo")
+    assert resp.status_code == 400
+    assert resp.json["error"] == "invalid type"
+def test_list_jobs_invalid_status_with_type(client):
+    resp = client.get("/jobs?status=FOO&type=train")
+    assert resp.status_code == 400
+    assert resp.json["error"] == "invalid status"
