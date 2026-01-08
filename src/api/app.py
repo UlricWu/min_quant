@@ -24,6 +24,8 @@ LOG_DIR.mkdir(parents=True, exist_ok=True)
 ALLOWED_STATUSES = {"PENDING", "RUNNING", "SUCCESS", "FAILED"}
 ALLOWED_TYPES = {"l2", "train", "backtest", "experiment"}
 
+logs.init(scope="api")
+
 
 @app.before_request
 def log_request():
@@ -44,20 +46,28 @@ def _run_job(job: Job) -> None:
     log_path = Path(job.log_file)
     log_path.parent.mkdir(parents=True, exist_ok=True)
 
+    env = os.environ.copy()
+    env["MINQUANT_JOB_ID"] = job.job_id
+    env["MINQUANT_JOB_TYPE"] = job.job_type
+
     with log_path.open("a") as f:
         try:
-            proc = subprocess.Popen(job.cmd, stdout=f, stderr=subprocess.STDOUT, text=True)
+            proc = subprocess.Popen(
+                job.cmd,
+                stdout=f,
+                stderr=subprocess.STDOUT,
+                text=True,
+                env=env,  # 🔑
+            )
             job.pid = proc.pid
             ret = proc.wait()
             job.exit_code = ret
             job.finished_at = datetime.utcnow().isoformat()
             job.status = "SUCCESS" if ret == 0 else "FAILED"
-            if ret != 0:
-                job.error = "non-zero exit"
         except Exception as e:
-            job.finished_at = datetime.utcnow().isoformat()
             job.status = "FAILED"
             job.error = repr(e)
+            job.finished_at = datetime.utcnow().isoformat()
 
 
 @app.post("/jobs")

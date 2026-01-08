@@ -1,30 +1,51 @@
 #!filepath: src/cli.py
+from __future__ import annotations
+
+from datetime import datetime
 from pathlib import Path
 
 import pandas as pd
 import typer
 from rich import print
 
-from src import PathManager
+from src import PathManager, logs
 from src.workflows.offline_l2_data import build_offline_l2_pipeline
 from src.workflows.offline_l1_backtest import build_offline_l1_backtest
 from src.workflows.offline_training import build_offline_training
-from src.utils.SourceMetaRepairTool import SourceMetaRepairTool
 from src.workflows.experiment_train_backtest import run_train_then_backtest
+from src.utils.SourceMetaRepairTool import SourceMetaRepairTool
 
 app = typer.Typer(help="MinQuant Data Pipeline CLI")
 
 
+# ============================================================================
+# Utilities
+# ============================================================================
+def _today() -> str:
+    return datetime.now().strftime("%Y-%m-%d")
+
+
+# ============================================================================
+# Commands
+# ============================================================================
 @app.command()
 def version():
+    """
+    Show CLI version
+    """
     print("v0.1.0")
 
 
 @app.command()
 def run(date: str):
     """
-    运行指定日期的 L2 Pipeline（完整 Step-based Workflow）
+    Run L2 pipeline for a specific date (YYYY-MM-DD)
     """
+    # L2 pipeline 不属于 train/backtest run
+    # 日志统一记为 job 级（由 JobRunner 注入 job_id）
+    logs.init(scope="job")
+
+    logs.info(f"[CLI] run L2 pipeline date={date}")
     print(f"[green]Running L2 Pipeline for {date}[/green]")
 
     pipeline = build_offline_l2_pipeline()
@@ -34,62 +55,93 @@ def run(date: str):
 @app.command()
 def range(start: str, end: str):
     """
-    连续运行多个日期（YYYY-MM-DD）
+    Run L2 pipeline for a date range (YYYY-MM-DD)
     """
-    import pandas as pd
+    logs.init(scope="job")
+
+    logs.info(f"[CLI] run L2 pipeline range {start} -> {end}")
+    print(f"[blue]Running L2 Pipeline for range {start} -> {end}[/blue]")
 
     pipeline = build_offline_l2_pipeline()
     dates = pd.date_range(start, end)
 
-    print(f"[blue]Running L2 Pipeline for range {start} -> {end}[/blue]")
-
     for d in dates:
-        d = d.strftime("%Y-%m-%d")
-        pipeline.run(d)
+        pipeline.run(d.strftime("%Y-%m-%d"))
 
 
 @app.command()
 def today():
     """
-    运行当天的数据管线
+    Run L2 pipeline for today
     """
-    from datetime import datetime
+    logs.init(scope="job")
 
-    date = datetime.now().strftime("%Y-%m-%d")
-    pipeline = build_offline_l2_pipeline()
-
+    date = _today()
+    logs.info(f"[CLI] run L2 pipeline today={date}")
     print(f"[yellow]Running L2 Pipeline for today: {date}[/yellow]")
+
+    pipeline = build_offline_l2_pipeline()
     pipeline.run(date)
 
 
 @app.command()
 def backtest(run_id: str | None = None):
     """
-    Run Level-1 backtest (dates defined in YAML)
+    Run Level-1 backtest
     """
     if run_id is None:
-        from datetime import datetime
-        run_id = datetime.now().strftime("%Y-%m-%d")
+        run_id = _today()
 
-    pipeline = build_offline_l1_backtest()
+    # backtest 是 run 级别语义
+    logs.init(scope="backtest", run_id=run_id)
+
+    logs.info(f"[CLI] backtest start run_id={run_id}")
     print(f"[magenta]Running L1 Backtest | run_id={run_id}[/magenta]")
 
+    pipeline = build_offline_l1_backtest()
     pipeline.run(run_id)
+
+    logs.info(f"[CLI] backtest done run_id={run_id}")
 
 
 @app.command()
 def train(run_id: str | None = None):
     """
-    Run Level-1 backtest (dates defined in YAML)
+    Run offline training
     """
     if run_id is None:
-        from datetime import datetime
-        run_id = datetime.now().strftime("%Y-%m-%d")
+        run_id = _today()
 
-    pipeline = build_offline_training()
+    # training 是 run 级别语义
+    logs.init(scope="train", run_id=run_id)
+
+    logs.info(f"[CLI] training start run_id={run_id}")
     print(f"[magenta]Running offline_training | run_id={run_id}[/magenta]")
 
+    pipeline = build_offline_training()
     pipeline.run(run_id)
+
+    logs.info(f"[CLI] training done run_id={run_id}")
+
+
+@app.command()
+def experiment(run_id: str | None = None):
+    """
+    Run experiment: train -> promote -> backtest
+    """
+    if run_id is None:
+        run_id = f"exp_{_today()}"
+
+    # experiment 是独立 run 语义
+    logs.init(scope="experiment", run_id=run_id)
+
+    logs.info(f"[CLI] experiment start run_id={run_id}")
+    print(f"[cyan]Running experiment | run_id={run_id}[/cyan]")
+
+    pipeline = run_train_then_backtest()
+    pipeline.run(run_id=run_id)
+
+    logs.info(f"[CLI] experiment done run_id={run_id}")
 
 
 @app.command()
@@ -97,23 +149,20 @@ def repair(start_date: str, end_date: str):
     """
     Repair source (download) meta for existing raw files
     """
-    tool = SourceMetaRepairTool(
-        pm=PathManager()
-    )
+    # repair 是运维工具，归入 system/job 级
+    logs.init(scope="system")
+
+    logs.info(f"[CLI] repair meta range {start_date} -> {end_date}")
+    print(f"[green]Repairing source meta {start_date} -> {end_date}[/green]")
+
+    tool = SourceMetaRepairTool(pm=PathManager())
     tool.repair_range(start_date, end_date)
 
-
-@app.command()
-def experiment():
-    pipeline = run_train_then_backtest()
-    pipeline.run(run_id="exp_2026_01_06")
+    logs.info("[CLI] repair done")
 
 
+# ============================================================================
+# Entry
+# ============================================================================
 if __name__ == "__main__":
     app()
-
-# python -m src.cli run 2025-11-04
-# python -m src.cli backtest
-# python -m src.cli train
-# python -m src.cli repair 2025-11-03 2025-12-30
-# python -m src.cli experiment
