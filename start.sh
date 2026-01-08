@@ -1,68 +1,41 @@
 #!/bin/bash
+# ==========================================
+# start.sh
+#   - Start Flask API as a long-running daemon
+# ==========================================
 
-# ====== 使用方式 ======
-# ./start.sh                # 自动用今天的日期
-# ./start.sh 2025-11-23     # 指定日期
-# =======================
 if [ -z "$BASH_VERSION" ]; then
     exec bash "$0" "$@"
 fi
 
-# =========== 2. 初始化 conda（消除 CondaError） ==========
+# -------- 1. Conda --------
 source /home/wsw/miniconda3/etc/profile.d/conda.sh
+conda activate dev
 
-# =========== 3. 激活环境 ==========
-conda activate dev   # 改成环境名，如 quant
+# -------- 2. Env --------
+export PYTHONPATH=$(pwd)
 
-# 1) 如果没传日期，用今天日期
-if [ -z "$1" ]; then
-    DATE=$(date '+%Y-%m-%d')
-else
-    DATE="$1"
-fi
-
-
-SESSION="run_${DATE}"
-LOG_DIR="logs/run"
+SESSION="minquant_api"
+LOG_DIR="logs/api"
 mkdir -p "$LOG_DIR"
 
-LOG_FILE="$LOG_DIR/run_${DATE}_$(date '+%Y-%m-%d_%H-%M-%S').log"
-
-# 2) 防止重复启动
 tmux has-session -t "$SESSION" 2>/dev/null
-if [ $? == 0 ]; then
-    echo "Error: session '$SESSION' already running!"
-    echo "➜ 停止任务请运行： ./kill.sh $DATE"
-    echo "➜ 查看任务： tmux attach -t $SESSION"
+if [ $? -eq 0 ]; then
+    echo "❌ Flask API already running (tmux: $SESSION)"
     exit 1
 fi
 
-echo "Starting job: $DATE"
-echo "Log file: $LOG_FILE"
+LOG_FILE="$LOG_DIR/api_$(date '+%Y-%m-%d_%H-%M-%S').log"
 
-## 3) 后台运行训练任务
-#tmux new-session -d -s "$SESSION" \
-#"python -m src.cli  range 2026-01-01 2026-01-05  2>&1 | tee -a $LOG_FILE"
-
+# -------- 3. Start Flask (python -m, 最稳) --------
 tmux new-session -d -s "$SESSION" \
-"python -m src.cli today  2>&1 | tee -a $LOG_FILE"
-
-#tmux new-session -d -s "$SESSION" \
-#"python -m src.cli train  2>&1 | tee -a $LOG_FILE"
-
-#tmux new-session -d -s "$SESSION" \
-#"set -o pipefail; python -m src.cli train 2>&1 | tee -a $LOG_FILE; echo EXIT_CODE=\${PIPESTATUS[0]} | tee -a $LOG_FILE"
-
-
-echo "HOST=$(hostname)"
-echo "USER=$(whoami)"
-echo "PWD=$(pwd)"
-
+"python -m src.api.app 2>&1 | tee -a $LOG_FILE"
 
 echo ""
-echo "=============================="
-echo "  已成功启动训练任务！"
-echo "=============================="
-echo "日志查看： tail -f $LOG_FILE"
-echo "进入任务： tmux attach -t $SESSION"
+echo "========================================"
+echo "✅ MinQuant Flask API started"
+echo "========================================"
+echo "Session : $SESSION"
+echo "Log     : $LOG_FILE"
+echo "Attach  : tmux attach -t $SESSION"
 echo ""
