@@ -38,7 +38,7 @@ def test_run_sequential_order_preserved():
         kind=ParallelKind.FILE,
         items=items,
         handler=handler,
-        max_workers=1,
+        max_worker=1,
     )
 
     assert called == items
@@ -60,7 +60,6 @@ def test_run_sequential_order_preserved():
 #     assert sorted(called) == sorted(items)
 
 
-
 def handler(x):
     if x == "bad":
         raise RuntimeError("boom")
@@ -80,7 +79,7 @@ def handler(x):
 
 def test_resolve_workers_caps_by_items():
     items = ["a", "b"]
-    workers = ParallelExecutor._resolve_workers(items, max_workers=10)
+    workers = ParallelExecutor._resolve_workers(items, max_worker=10)
     assert workers == 2
 
 
@@ -88,11 +87,11 @@ def test_resolve_workers_caps_by_cpu():
     items = list(range(100))
     cpu = os.cpu_count() or 1
 
-    workers = ParallelExecutor._resolve_workers(items, max_workers=None)
+    workers = ParallelExecutor._resolve_workers(items, max_worker=None)
     assert workers <= cpu
 
 
 def test_resolve_workers_at_least_one():
     items = ["a"]
-    workers = ParallelExecutor._resolve_workers(items, max_workers=0)
+    workers = ParallelExecutor._resolve_workers(items, max_worker=0)
     assert workers == 1
