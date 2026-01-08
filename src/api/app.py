@@ -1,30 +1,30 @@
 # src/api/app.py
 from __future__ import annotations
 
-import subprocess
-from flask import Flask, jsonify, request
-import threading
-import uuid
-from pathlib import Path
-from datetime import datetime
-
-from src import logs
-from src.jobs.registry import Job, JobRegistry
+import json
 import os
 import signal
-from flask import jsonify
+import subprocess
+import threading
+import uuid
+from datetime import datetime
+from pathlib import Path
+
+from flask import Flask, jsonify, request
+
+from src import logs
 from src.api.decorators import handle_job_not_found
+from src.jobs.registry import Job, JobRegistry
 
 app = Flask(__name__)
+logs.init(scope="api")
 
 REGISTRY = JobRegistry()
 LOG_DIR = Path("logs/jobs")
 LOG_DIR.mkdir(parents=True, exist_ok=True)
 
-ALLOWED_STATUSES = {"PENDING", "RUNNING", "SUCCESS", "FAILED"}
 ALLOWED_TYPES = {"l2", "train", "backtest", "experiment"}
-
-logs.init(scope="api")
+ALLOWED_STATUSES = {"PENDING", "RUNNING", "SUCCESS", "FAILED"}
 
 
 @app.before_request
@@ -32,38 +32,28 @@ def log_request():
     logs.info(f"[HTTP] {request.method} {request.path}")
 
 
-def _tail_last_lines(path: Path, n: int = 50) -> str:
-    if not path.exists():
-        return ""
-    lines = path.read_text(errors="ignore").splitlines()
-    return "\n".join(lines[-n:])
-
-
 def _run_job(job: Job) -> None:
     job.status = "RUNNING"
     job.started_at = datetime.utcnow().isoformat()
-
-    log_path = Path(job.log_file)
-    log_path.parent.mkdir(parents=True, exist_ok=True)
 
     env = os.environ.copy()
     env["MINQUANT_JOB_ID"] = job.job_id
     env["MINQUANT_JOB_TYPE"] = job.job_type
 
-    with log_path.open("a") as f:
+    with open(job.log_file, "a") as f:
         try:
             proc = subprocess.Popen(
                 job.cmd,
                 stdout=f,
                 stderr=subprocess.STDOUT,
                 text=True,
-                env=env,  # 🔑
+                env=env,
             )
             job.pid = proc.pid
             ret = proc.wait()
             job.exit_code = ret
-            job.finished_at = datetime.utcnow().isoformat()
             job.status = "SUCCESS" if ret == 0 else "FAILED"
+            job.finished_at = datetime.utcnow().isoformat()
         except Exception as e:
             job.status = "FAILED"
             job.error = repr(e)
@@ -75,37 +65,53 @@ def create_job():
     payload = request.get_json(force=True)
     job_type = payload.get("type")
 
+    if job_type not in ALLOWED_TYPES:
+        return jsonify({"error": "invalid type"}), 400
+
+    job_id = uuid.uuid4().hex[:10]
+    log_file = str(LOG_DIR / f"{job_id}.log")
+    run_id = payload.get("run_id")
+    config = payload.get("config")
+
     if job_type == "l2":
         date = payload.get("date")
         if not date:
             return jsonify({"error": "missing date"}), 400
         cmd = ["python", "-m", "src.cli", "run", date]
-    elif job_type == "train":
-        cmd = ["python", "-m", "src.cli", "train"]
-    elif job_type == "backtest":
-        cmd = ["python", "-m", "src.cli", "backtest"]
-    elif job_type == "experiment":
-        cmd = ["python", "-m", "src.cli", "experiment"]
+
     else:
-        return jsonify({"error": "unknown type"}), 400
+        # 关键：直接把 config JSON 传给 CLI
+        cmd = [
+            "python",
+            "-m",
+            "src.cli",
+            job_type,
+        ]
+        if run_id:
+            cmd += ["--run-id", run_id]
+        if config:
+            cmd += ["--config-json", json.dumps(config)]
 
-    job_id = uuid.uuid4().hex[:10]
-    log_file = str(LOG_DIR / f"{job_id}.log")
-
-    job = Job(job_id=job_id, cmd=cmd, log_file=log_file, job_type=job_type)
+    job = Job(
+        job_id=job_id,
+        cmd=cmd,
+        log_file=log_file,
+        job_type=job_type,
+    )
     REGISTRY.add(job)
 
-    t = threading.Thread(target=_run_job, args=(job,), daemon=True)
-    t.start()
+    threading.Thread(
+        target=_run_job,
+        args=(job,),
+        daemon=True,
+    ).start()
 
-    logs.info(f"[API] create job type={job_type}")
+    logs.info(f"[API] create job type={job_type} job_id={job_id}")
 
     return jsonify({
         "job_id": job_id,
         "cmd": cmd,
         "log_file": log_file,
-        "status_url": f"/jobs/{job_id}",
-        "log_url": f"/jobs/{job_id}/log?offset=0",
     })
 
 
@@ -115,7 +121,7 @@ def get_job(job_id: str):
     job = REGISTRY.get(job_id)
 
     log_path = Path(job.log_file)
-    last_lines = _tail_last_lines(log_path, n=80) if job.status in ("FAILED", "SUCCESS") else ""
+    # last_lines = _tail_last_lines(log_path, n=80) if job.status in ("FAILED", "SUCCESS") else ""
     return jsonify({
         "job_id": job.job_id,
         "cmd": job.cmd,
@@ -126,7 +132,7 @@ def get_job(job_id: str):
         "finished_at": job.finished_at,
         "exit_code": job.exit_code,
         "error": job.error,
-        "last_lines": last_lines,
+        # "last_lines": last_lines,
     })
 
 

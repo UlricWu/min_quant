@@ -57,39 +57,57 @@ class AppConfig(BaseModel):
     training: TrainingConfig
 
     @classmethod
-    def load(cls, path: str | None = None) -> "AppConfig":
+    def load(
+            cls,
+            *,
+            path: str | None = None,
+            override: dict | None = None,
+    ) -> "AppConfig":
         """
-        加载 YAML 配置 + .env
-        - 默认使用 <project_root>/config/base.yml
-        - 不依赖当前工作目录
-        """
+        Load AppConfig with optional dict override.
 
+        Priority:
+        - YAML base
+        - override dict (deep merge)
+        """
         root = project_root()
 
-        # ⭐ 先根据 ENV 自动加载 .env
         load_env_auto(root)
 
-        # 1) 先加载 .env（在项目根目录下）
-        env_path = os.path.join(root, ".env")
-        load_dotenv(env_path)
-
-        # 2) 决定配置文件路径
+        # 1) Load YAML base
         if path is None:
-            # 统一：config/base.yml（和你说的一致）
             path = os.path.join(root, "src/config/base.yml")
 
-        if not os.path.exists(path):
-            raise FileNotFoundError(f"Config file not found: {path}")
-
-        # 3) 读取 YAML
         with open(path, "r", encoding="utf-8") as f:
             raw = yaml.safe_load(f)
-            # 3. 从 env 注入 secret
-            raw["secret"] = {
-                "ftp_host": os.getenv("FTP_HOST"),
-                "ftp_port": os.getenv("FTP_PORT"),
-                "ftp_user": os.getenv("FTP_USER"),
-                "ftp_password": os.getenv("FTP_PASSWORD"),
-                "tushare_token": os.getenv("TUSHARE_TOKEN"),
-            }
+
+        # 2) Inject secret from env
+        raw["secret"] = {
+            "ftp_host": os.getenv("FTP_HOST"),
+            "ftp_port": os.getenv("FTP_PORT"),
+            "ftp_user": os.getenv("FTP_USER"),
+            "ftp_password": os.getenv("FTP_PASSWORD"),
+            "tushare_token": os.getenv("TUSHARE_TOKEN"),
+        }
+
+        # 3) Apply override (if any)
+        if override:
+            raw = _deep_merge(raw, override)
+
         return cls(**raw)
+
+def _deep_merge(base: dict, override: dict) -> dict:
+    """
+    Recursively merge override into base (immutable).
+    """
+    out = dict(base)
+    for k, v in override.items():
+        if (
+            k in out
+            and isinstance(out[k], dict)
+            and isinstance(v, dict)
+        ):
+            out[k] = _deep_merge(out[k], v)
+        else:
+            out[k] = v
+    return out

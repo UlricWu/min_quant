@@ -15,4 +15,4 @@ def test_create_job_l2(client):
 
     data = resp.json
     assert "job_id" in data
-    assert "log_url" in data
+    assert "log_file" in data

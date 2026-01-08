@@ -1,168 +1,192 @@
-#!filepath: src/cli.py
+# src/cli.py
 from __future__ import annotations
 
+import json
 from datetime import datetime
-from pathlib import Path
+from typing import Optional
 
-import pandas as pd
 import typer
-from rich import print
 
-from src import PathManager, logs
+from src import logs
+from src.config.app_config import AppConfig
 from src.workflows.offline_l2_data import build_offline_l2_pipeline
 from src.workflows.offline_l1_backtest import build_offline_l1_backtest
 from src.workflows.offline_training import build_offline_training
 from src.workflows.experiment_train_backtest import run_train_then_backtest
-from src.utils.SourceMetaRepairTool import SourceMetaRepairTool
 
-app = typer.Typer(help="MinQuant Data Pipeline CLI")
+from src.utils.path import PathManager
+from src.meta.symbol_slice_resolver import SymbolSliceResolver
+from src.utils.errors import UserInputError
+
+app = typer.Typer(help="MinQuant CLI")
 
 
-# ============================================================================
+# =============================================================================
 # Utilities
-# ============================================================================
+# =============================================================================
 def _today() -> str:
     return datetime.now().strftime("%Y-%m-%d")
 
 
-# ============================================================================
+def _load_cfg(config_json: Optional[str]) -> AppConfig:
+    """
+    Load AppConfig with optional JSON override.
+    """
+    override = json.loads(config_json) if config_json else None
+    return AppConfig.load(override=override)
+
+
+# =============================================================================
+# Preflight (Backtest)
+# =============================================================================
+def _validate_date_has_feature_meta(
+    pm: PathManager,
+    date: str,
+) -> tuple[bool, str]:
+    """
+    Check whether feature meta exists for this date.
+    """
+    meta_dir = pm.meta_dir(date)
+    try:
+        # feature stage 是 backtest 的硬依赖
+        SymbolSliceResolver(meta_dir=meta_dir, stage="feature")
+        return True, ""
+    except Exception as e:
+        return (
+            False,
+            f"no feature meta for date={date} meta_dir={meta_dir} err={e!r}",
+        )
+
+
+def _preflight_backtest_inputs(cfg_backtest) -> None:
+    """
+    Fail fast on invalid backtest inputs.
+    This is a USER INPUT validation, not a system error.
+    """
+    pm = PathManager()
+
+    bad_dates: list[str] = []
+
+    for d in cfg_backtest.dates:
+        ok, _ = _validate_date_has_feature_meta(pm, d)
+        if not ok:
+            bad_dates.append(d)
+
+    if bad_dates:
+        raise UserInputError(
+            "[BacktestInputError] invalid dates: "
+            f"{bad_dates}. "
+            "These dates do not have feature meta "
+            "(run L2 pipeline first or choose valid dates)."
+        )
+
+
+# =============================================================================
 # Commands
-# ============================================================================
-@app.command()
-def version():
-    """
-    Show CLI version
-    """
-    print("v0.1.0")
-
-
+# =============================================================================
 @app.command()
 def run(date: str):
     """
-    Run L2 pipeline for a specific date (YYYY-MM-DD)
+    Run L2 pipeline for a single date.
     """
-    # L2 pipeline 不属于 train/backtest run
-    # 日志统一记为 job 级（由 JobRunner 注入 job_id）
     logs.init(scope="job")
-
     logs.info(f"[CLI] run L2 pipeline date={date}")
-    print(f"[green]Running L2 Pipeline for {date}[/green]")
 
-    pipeline = build_offline_l2_pipeline()
-    pipeline.run(date)
+    build_offline_l2_pipeline().run(date)
 
 
 @app.command()
-def range(start: str, end: str):
+def backtest(
+    run_id: Optional[str] = None,
+    config_json: Optional[str] = None,
+):
     """
-    Run L2 pipeline for a date range (YYYY-MM-DD)
-    """
-    logs.init(scope="job")
-
-    logs.info(f"[CLI] run L2 pipeline range {start} -> {end}")
-    print(f"[blue]Running L2 Pipeline for range {start} -> {end}[/blue]")
-
-    pipeline = build_offline_l2_pipeline()
-    dates = pd.date_range(start, end)
-
-    for d in dates:
-        pipeline.run(d.strftime("%Y-%m-%d"))
-
-
-@app.command()
-def today():
-    """
-    Run L2 pipeline for today
-    """
-    logs.init(scope="job")
-
-    date = _today()
-    logs.info(f"[CLI] run L2 pipeline today={date}")
-    print(f"[yellow]Running L2 Pipeline for today: {date}[/yellow]")
-
-    pipeline = build_offline_l2_pipeline()
-    pipeline.run(date)
-
-
-@app.command()
-def backtest(run_id: str | None = None):
-    """
-    Run Level-1 backtest
+    Run backtest with optional injected config.
     """
     if run_id is None:
         run_id = _today()
 
-    # backtest 是 run 级别语义
     logs.init(scope="backtest", run_id=run_id)
-
     logs.info(f"[CLI] backtest start run_id={run_id}")
-    print(f"[magenta]Running L1 Backtest | run_id={run_id}[/magenta]")
 
-    pipeline = build_offline_l1_backtest()
-    pipeline.run(run_id)
+    try:
+        cfg = _load_cfg(config_json)
 
-    logs.info(f"[CLI] backtest done run_id={run_id}")
+        # 🔒 preflight: user input validation
+        _preflight_backtest_inputs(cfg.backtest)
+
+        pipeline = build_offline_l1_backtest(cfg=cfg.backtest)
+        pipeline.run(run_id)
+
+        logs.info(f"[CLI] backtest done run_id={run_id}")
+
+    except UserInputError as e:
+        # 用户输入错误：不打印 traceback
+        logs.error(str(e))
+        raise SystemExit(1)
 
 
 @app.command()
-def train(run_id: str | None = None):
+def train(
+    run_id: Optional[str] = None,
+    config_json: Optional[str] = None,
+):
     """
-    Run offline training
+    Run offline training with optional injected config.
     """
     if run_id is None:
         run_id = _today()
 
-    # training 是 run 级别语义
     logs.init(scope="train", run_id=run_id)
+    logs.info(f"[CLI] train start run_id={run_id}")
 
-    logs.info(f"[CLI] training start run_id={run_id}")
-    print(f"[magenta]Running offline_training | run_id={run_id}[/magenta]")
+    try:
+        cfg = _load_cfg(config_json)
 
-    pipeline = build_offline_training()
-    pipeline.run(run_id)
+        # NOTE:
+        # 目前 training 默认信任输入
+        # 如果未来需要，可在此加入：
+        #   _preflight_training_inputs(cfg.training)
 
-    logs.info(f"[CLI] training done run_id={run_id}")
+        pipeline = build_offline_training(cfg=cfg.training)
+        pipeline.run(run_id)
+
+        logs.info(f"[CLI] train done run_id={run_id}")
+
+    except UserInputError as e:
+        logs.error(str(e))
+        raise SystemExit(1)
 
 
 @app.command()
-def experiment(run_id: str | None = None):
+def experiment(
+    run_id: Optional[str] = None,
+    config_json: Optional[str] = None,
+):
     """
-    Run experiment: train -> promote -> backtest
+    Run experiment: train -> promote -> backtest.
     """
     if run_id is None:
         run_id = f"exp_{_today()}"
 
-    # experiment 是独立 run 语义
     logs.init(scope="experiment", run_id=run_id)
-
     logs.info(f"[CLI] experiment start run_id={run_id}")
-    print(f"[cyan]Running experiment | run_id={run_id}[/cyan]")
 
-    pipeline = run_train_then_backtest()
-    pipeline.run(run_id=run_id)
+    try:
+        cfg = _load_cfg(config_json)
 
-    logs.info(f"[CLI] experiment done run_id={run_id}")
+        pipeline = run_train_then_backtest(cfg=cfg)
+        pipeline.run(run_id=run_id)
 
+        logs.info(f"[CLI] experiment done run_id={run_id}")
 
-@app.command()
-def repair(start_date: str, end_date: str):
-    """
-    Repair source (download) meta for existing raw files
-    """
-    # repair 是运维工具，归入 system/job 级
-    logs.init(scope="system")
-
-    logs.info(f"[CLI] repair meta range {start_date} -> {end_date}")
-    print(f"[green]Repairing source meta {start_date} -> {end_date}[/green]")
-
-    tool = SourceMetaRepairTool(pm=PathManager())
-    tool.repair_range(start_date, end_date)
-
-    logs.info("[CLI] repair done")
+    except UserInputError as e:
+        logs.error(str(e))
+        raise SystemExit(1)
 
 
-# ============================================================================
+# =============================================================================
 # Entry
-# ============================================================================
+# =============================================================================
 if __name__ == "__main__":
     app()

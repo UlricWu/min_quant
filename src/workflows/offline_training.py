@@ -17,12 +17,13 @@ from src.training.engines.rank_ic_evaluate_engine import RankICEvaluateEngine
 from src.training.steps.artifact_persist_step import ArtifactPersistStep
 
 
-def build_offline_training() -> TrainingPipeline:
+def build_offline_training(cfg=None) -> TrainingPipeline:
     """
     Offline Training Workflow (FINAL / FROZEN)
     """
 
-    cfg = AppConfig.load().training
+    if cfg is None:
+        cfg = AppConfig.load().training
     pm = PathManager()
     inst = Instrumentation()
 

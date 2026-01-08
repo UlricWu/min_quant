@@ -23,8 +23,12 @@ from src.backtest.steps.alpha.run_alpha_engine_step import RunAlphaEngineStep
 from src.backtest.steps.alpha.engine_a_report_step import EngineAReportStep
 
 
-def build_offline_l1_backtest() -> BacktestPipeline:
-    cfg = AppConfig.load().backtest
+def build_offline_l1_backtest(
+    *,
+    cfg=None,
+) -> BacktestPipeline:
+    if cfg is None:
+        cfg = AppConfig.load().backtest
     pm = PathManager()
     inst = Instrumentation()
 
