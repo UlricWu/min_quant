@@ -193,6 +193,7 @@ class DownloadStep(PipelineStep):
     # ==================================================================
     # Download dispatch
     # ==================================================================
+    @logs.catch()
     def _download_one(
             self,
             *,
